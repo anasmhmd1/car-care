@@ -24,13 +24,6 @@ export default function BareeqLogo({ className = '', showText = true, size = 'md
     xl: 'text-[76px] sm:text-[92px]',
   }[size];
 
-  const subtitleSizes = {
-    sm: 'text-[9px] tracking-[0.22em]',
-    md: 'text-[11px] tracking-[0.28em]',
-    lg: 'text-[13px] tracking-[0.32em]',
-    xl: 'text-[16px] tracking-[0.38em]',
-  }[size];
-
   return (
     <div
       className={`inline-flex items-center gap-3.5 group select-none ${className}`}

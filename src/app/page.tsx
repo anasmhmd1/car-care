@@ -23,7 +23,6 @@ import {
   ShieldAlert,
   ArrowLeft,
   Layers,
-  Sparkle,
   Clock
 } from 'lucide-react';
 
@@ -79,13 +78,25 @@ function getServiceRealImage(slug: string, coverImage: string): string {
 }
 
 export default async function HomePage() {
-  let user = null;
-  let services: any[] = [];
-  let plans: any[] = [];
-  let coverageAreas: any[] = [];
-  let branchContact = null;
-  let testimonials: any[] = [];
-  let brand = null;
+  let user: Awaited<ReturnType<typeof getCurrentUser>> = null;
+  let services: Awaited<ReturnType<typeof db.service.findMany>> = [];
+  let plans: Awaited<ReturnType<typeof db.subscriptionPlan.findMany>> = [];
+  let coverageAreas: Array<{
+    id: string;
+    compound: string;
+    district: string;
+    city: string;
+    zone: { branch: { nameAr: string } };
+  }> = [];
+  let branchContact: Awaited<ReturnType<typeof getPublicBranchContact>> = null;
+  let testimonials: Array<{
+    id: string;
+    score: number;
+    comment: string | null;
+    customer: { user: { fullName: string } };
+    booking: { service: { nameAr: string } };
+  }> = [];
+  let brand: Awaited<ReturnType<typeof db.brandSettings.findFirst>> = null;
 
   try {
     const results = await Promise.all([
