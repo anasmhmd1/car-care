@@ -96,7 +96,7 @@ export default async function HomePage() {
     customer: { user: { fullName: string } };
     booking: { service: { nameAr: string } };
   }> = [];
-  let brand: Awaited<ReturnType<typeof db.brandSettings.findFirst>> = null;
+  let brand: { homepageContent: unknown; faqs: unknown } | null = null;
 
   try {
     const results = await Promise.all([
