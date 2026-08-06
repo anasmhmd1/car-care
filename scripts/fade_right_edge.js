@@ -12,24 +12,22 @@ async function fadeRightEdge() {
 
   console.log(`Original Image size: ${width}x${height}`);
 
-  // Fade right edge starting at x=480 (right behind car rear) to x=780 so mobile view (which crops at ~650-700px) is 100% black
-  const fadeStartPixel = 480; 
-  const fadeEndPixel = 780;
+  // Fade ONLY the far right edge (last 140px, x=884 to 1024) so the studio image stays 100% bright
+  const fadeStartPixel = 884; 
+  const fadeEndPixel = 1024;
   
   const svgOverlay = `
     <svg width="${width}" height="${height}">
       <defs>
         <linearGradient id="rightEdgeFade" x1="${fadeStartPixel}" y1="0" x2="${fadeEndPixel}" y2="0" gradientUnits="userSpaceOnUse">
           <stop offset="0%" stop-color="#000000" stop-opacity="0" />
-          <stop offset="35%" stop-color="#000000" stop-opacity="0.5" />
-          <stop offset="75%" stop-color="#000000" stop-opacity="0.92" />
+          <stop offset="40%" stop-color="#000000" stop-opacity="0.4" />
+          <stop offset="85%" stop-color="#000000" stop-opacity="0.9" />
           <stop offset="100%" stop-color="#000000" stop-opacity="1" />
         </linearGradient>
       </defs>
-      <!-- Gradient rect from 480px to 780px -->
+      <!-- Gradient rect only at far right edge (884px to 1024px) -->
       <rect x="${fadeStartPixel}" y="0" width="${fadeEndPixel - fadeStartPixel}" height="${height}" fill="url(#rightEdgeFade)" />
-      <!-- Solid black rect from 780px to 1024px -->
-      <rect x="${fadeEndPixel}" y="0" width="${width - fadeEndPixel}" height="${height}" fill="#000000" />
     </svg>
   `;
 

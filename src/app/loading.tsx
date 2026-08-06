@@ -5,17 +5,19 @@ export default function Loading() {
     <div
       role="status"
       aria-label="جارٍ تجهيز الصفحة"
-      className="min-h-screen bg-[#080808] px-4 py-16 text-white flex items-center justify-center"
+      className="fixed inset-0 z-50 bg-[#050505] flex flex-col items-center justify-center text-white transition-opacity duration-300"
       aria-busy="true"
       aria-live="polite"
     >
-      <div className="w-full max-w-sm rounded-3xl border border-[#cea355]/25 bg-[#141414] p-8 text-center shadow-2xl">
-        <BareeqLogo size="lg" />
-        <div className="mt-8 space-y-3" aria-hidden="true">
-          <div className="h-3 w-3/4 mx-auto rounded-full bg-neutral-800 animate-pulse" />
-          <div className="h-3 w-1/2 mx-auto rounded-full bg-neutral-800 animate-pulse" />
+      {/* Top Gold Animated Loading Progress Bar */}
+      <div className="fixed top-0 left-0 right-0 h-1 gold-gradient animate-pulse z-50" />
+
+      <div className="flex flex-col items-center justify-center space-y-4 p-6 text-center">
+        <BareeqLogo size="md" />
+        <div className="flex items-center gap-2 pt-2">
+          <div className="w-2 h-2 rounded-full bg-[#cea355] animate-ping" />
+          <span className="text-xs font-bold text-[#edce8b] tracking-wider uppercase">جاري التحميل...</span>
         </div>
-        <p className="mt-6 text-sm font-semibold text-[#edce8b]">جاري تجهيز الصفحة…</p>
       </div>
     </div>
   );

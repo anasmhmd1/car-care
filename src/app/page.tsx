@@ -79,45 +79,59 @@ function getServiceRealImage(slug: string, coverImage: string): string {
 }
 
 export default async function HomePage() {
-  const [user, services, plans, coverageAreas, branchContact, testimonials, brand] = await Promise.all([
-    getCurrentUser(),
-    db.service.findMany({
-      where: { active: true, bookableOnline: true },
-      take: 6,
-      orderBy: { basePrice: 'asc' },
-    }),
-    db.subscriptionPlan.findMany({
-      where: { active: true },
-      take: 3,
-      orderBy: { price: 'asc' },
-    }),
-    db.coverageArea.findMany({
-      where: { active: true, zone: { branch: { status: 'ACTIVE' } } },
-      select: {
-        id: true,
-        compound: true,
-        district: true,
-        city: true,
-        zone: { select: { branch: { select: { nameAr: true } } } },
-      },
-      orderBy: [{ priority: 'asc' }, { compound: 'asc' }],
-      take: 14,
-    }),
-    getPublicBranchContact(),
-    db.customerServiceRating.findMany({
-      where: { approvedForPublic: true, comment: { not: null } },
-      orderBy: { createdAt: 'desc' },
-      take: 3,
-      select: {
-        id: true,
-        score: true,
-        comment: true,
-        customer: { select: { user: { select: { fullName: true } } } },
-        booking: { select: { service: { select: { nameAr: true } } } },
-      },
-    }),
-    db.brandSettings.findFirst({ select: { homepageContent: true, faqs: true } }),
-  ]);
+  let user = null;
+  let services: any[] = [];
+  let plans: any[] = [];
+  let coverageAreas: any[] = [];
+  let branchContact = null;
+  let testimonials: any[] = [];
+  let brand = null;
+
+  try {
+    const results = await Promise.all([
+      getCurrentUser().catch(() => null),
+      db.service.findMany({
+        where: { active: true, bookableOnline: true },
+        take: 6,
+        orderBy: { basePrice: 'asc' },
+      }).catch(() => []),
+      db.subscriptionPlan.findMany({
+        where: { active: true },
+        take: 3,
+        orderBy: { price: 'asc' },
+      }).catch(() => []),
+      db.coverageArea.findMany({
+        where: { active: true, zone: { branch: { status: 'ACTIVE' } } },
+        select: {
+          id: true,
+          compound: true,
+          district: true,
+          city: true,
+          zone: { select: { branch: { select: { nameAr: true } } } },
+        },
+        orderBy: [{ priority: 'asc' }, { compound: 'asc' }],
+        take: 14,
+      }).catch(() => []),
+      getPublicBranchContact().catch(() => null),
+      db.customerServiceRating.findMany({
+        where: { approvedForPublic: true, comment: { not: null } },
+        orderBy: { createdAt: 'desc' },
+        take: 3,
+        select: {
+          id: true,
+          score: true,
+          comment: true,
+          customer: { select: { user: { select: { fullName: true } } } },
+          booking: { select: { service: { select: { nameAr: true } } } },
+        },
+      }).catch(() => []),
+      db.brandSettings.findFirst({ select: { homepageContent: true, faqs: true } }).catch(() => null),
+    ]);
+
+    [user, services, plans, coverageAreas, branchContact, testimonials, brand] = results;
+  } catch (err) {
+    console.error('Error fetching HomePage data:', err);
+  }
 
   const publishedTestimonials = testimonials.filter((rating) => rating.comment?.trim());
 
@@ -178,6 +192,8 @@ export default async function HomePage() {
               unoptimized={true}
               className="w-full h-full object-cover object-center lg:object-left-center scale-100"
             />
+            {/* Subtle Mobile Side-Edge Softening Overlay */}
+            <div className="absolute inset-0 bg-gradient-to-r from-black/40 via-transparent to-black/50 lg:hidden pointer-events-none z-[1]" />
           </div>
 
           {/* ==================================================== */}
@@ -283,10 +299,10 @@ export default async function HomePage() {
             </div>
 
             {/* Middle Spacer: Clear view of the car image on Mobile */}
-            <div className="h-44 xs:h-52 sm:h-60 w-full" aria-hidden="true" />
+            <div className="h-96 xs:h-[400px] sm:h-[460px] w-full" aria-hidden="true" />
 
             {/* Bottom: Description + Side-by-Side Centered Buttons sitting directly over background */}
-            <div className="space-y-4 pt-2 pb-2 text-center">
+            <div className="space-y-4 pt-14 pb-2 text-center">
               <p className="text-neutral-200 text-xs sm:text-sm leading-relaxed text-right font-normal drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)]">
                 نقدم خدمة غسيل جاف وعناية احترافية متنقلة تحافظ على طلاء السيارة ومظهرها الداخلي والخارجي، بأعلى مستوى من الجودة والرفاهية.
               </p>
