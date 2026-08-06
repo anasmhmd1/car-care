@@ -2,17 +2,14 @@ import Link from 'next/link';
 import Navbar from '@/components/SafeNavbar';
 import Footer from '@/components/Footer';
 import PublicImage from '@/components/PublicImage';
-import BareeqLogo from '@/components/BareeqLogo';
 import { db } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth/session';
 import { createPublicMetadata } from '@/lib/seo';
 import { getPublicBranchContact, phoneHref, whatsappHref } from '@/lib/public-contact';
-import { readHomepageContent } from '@/lib/homepage-content';
 import {
   Sparkles,
   Calendar,
   ShieldCheck,
-  Clock,
   Award,
   ChevronRight,
   CheckCircle2,
@@ -122,7 +119,6 @@ export default async function HomePage() {
   ]);
 
   const publishedTestimonials = testimonials.filter((rating) => rating.comment?.trim());
-  const content = readHomepageContent(brand?.homepageContent);
 
   const defaultFaqs = [
     {
@@ -811,7 +807,7 @@ export default async function HomePage() {
                           <Star key={i} className="w-4 h-4 fill-[#c9a227]" aria-hidden="true" />
                         ))}
                       </div>
-                      <p className="text-xs text-neutral-300 leading-relaxed italic">"{t.comment}"</p>
+                      <p className="text-xs text-neutral-300 leading-relaxed italic">&quot;{t.comment}&quot;</p>
                     </div>
 
                     <div className="pt-4 border-t border-neutral-800 flex items-center justify-between text-xs">
