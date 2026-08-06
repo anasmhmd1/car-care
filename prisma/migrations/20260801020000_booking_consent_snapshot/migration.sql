@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "Booking" ADD COLUMN     "contactSnapshot" JSONB NOT NULL DEFAULT '{}',
+ADD COLUMN     "policyAcceptedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ADD COLUMN     "policyVersion" TEXT NOT NULL DEFAULT '2026-08-01';

@@ -1,0 +1,1714 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// --------------------------------------------------------
+// Enums
+// --------------------------------------------------------
+
+enum UserRole {
+  SYSTEM_SUPER_ADMIN
+  OWNER
+  OPERATIONS_MANAGER
+  EMPLOYEE
+  CUSTOMER
+}
+
+enum VehicleSize {
+  SEDAN
+  CROSSOVER
+  SUV
+  LARGE_SUV
+}
+
+enum AssignmentMode {
+  MANUAL
+  AUTOMATIC
+}
+
+enum BranchStatus {
+  ACTIVE
+  PAUSED
+  DISABLED
+}
+
+enum PaymentMethodType {
+  VODAFONE_CASH
+  INSTAPAY
+  BANK_TRANSFER
+  CASH_DEPOSIT
+  OTHER_MANUAL
+}
+
+enum PaymentStatus {
+  NOT_REQUIRED
+  AWAITING_PROOF
+  PROOF_UPLOADED
+  UNDER_REVIEW
+  VERIFIED
+  REJECTED
+  AMOUNT_SHORT
+  DUPLICATE_SUSPECTED
+  REUPLOAD_REQUIRED
+  PARTIALLY_PAID
+  FULLY_PAID
+  REFUND_PENDING
+  PARTIALLY_REFUNDED
+  REFUNDED
+  NON_REFUNDABLE
+}
+
+enum BookingStatus {
+  DRAFT
+  REQUEST_SUBMITTED
+  AWAITING_PAYMENT_PROOF
+  PAYMENT_UNDER_REVIEW
+  PAYMENT_VERIFIED
+  AWAITING_OPERATIONS_REVIEW
+  ACCEPTED
+  AWAITING_ASSIGNMENT
+  ASSIGNED
+  TEAM_ACKNOWLEDGED
+  ON_THE_WAY
+  ARRIVED
+  IN_SERVICE
+  QUALITY_REVIEW
+  SERVICE_COMPLETED
+  DELIVERED
+  CLOSED
+  RESCHEDULE_REQUESTED
+  CANCELLATION_REQUESTED
+  CANCELLED
+  REJECTED
+  EXECUTION_FAILED
+  CUSTOMER_NO_SHOW
+  ACCESS_DENIED
+  ADMIN_REVIEW_REQUIRED
+  EXPIRED
+}
+
+enum ChecklistStage {
+  BOOKING_REVIEW
+  TEAM_PREPARATION
+  ARRIVAL_INSPECTION
+  SERVICE_EXECUTION
+  CLOSING
+  QUALITY_REVIEW
+}
+
+enum FileType {
+  PAYMENT_PROOF
+  BEFORE_SERVICE
+  EXISTING_DAMAGE
+  DURING_SERVICE
+  AFTER_SERVICE
+  REFUND_PROOF
+  CANCELLATION_EVIDENCE
+  COMPLAINT_EVIDENCE
+}
+
+enum ProofStatus {
+  UNDER_REVIEW
+  VERIFIED
+  REJECTED
+  AMOUNT_SHORT
+  DUPLICATE_SUSPECTED
+  REUPLOAD_REQUIRED
+}
+
+enum PermissionEffect {
+  GRANT
+  DENY
+}
+
+enum BookingHoldStatus {
+  ACTIVE
+  CONVERTED
+  RELEASED
+  EXPIRED
+}
+
+enum TimeChangeStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum SubscriptionStatus {
+  PENDING_PAYMENT
+  ACTIVE
+  FROZEN
+  EXPIRED
+  CANCELLED
+  COMPLETED
+}
+
+enum SubscriptionPaymentProofStatus {
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  AMOUNT_MISMATCH
+  REUPLOAD_REQUIRED
+  DUPLICATE_SUSPECTED
+}
+
+enum VisitLedgerAction {
+  PURCHASE
+  BOOKING_RESERVED
+  BOOKING_COMPLETED
+  BOOKING_CANCELLED_RESTORED
+  MANUAL_ADJUSTMENT
+}
+
+enum BranchRequestStatus {
+  PENDING
+  NEEDS_INFORMATION
+  APPROVED
+  REJECTED
+  IMPLEMENTED
+}
+
+enum ComplaintStatus {
+  OPEN
+  UNDER_REVIEW
+  ACTION_REQUIRED
+  RESOLVED
+  COMPENSATED
+  CLOSED
+}
+
+enum RefundStatus {
+  REFUND_NOT_REQUIRED
+  REFUND_PENDING
+  REFUND_PROCESSING
+  PARTIALLY_REFUNDED
+  REFUNDED
+  REFUND_REJECTED
+}
+
+enum OperationalVehicleStatus {
+  ACTIVE
+  MAINTENANCE
+  INACTIVE
+}
+
+enum MaterialMovementType {
+  RECEIPT
+  ADJUSTMENT
+  CONSUMPTION
+  RETURN
+  WASTE
+}
+
+enum InvoiceStatus {
+  ISSUED
+  VOID
+}
+
+enum SupportTicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_CUSTOMER
+  RESOLVED
+  CLOSED
+}
+
+// --------------------------------------------------------
+// Core & User Models
+// --------------------------------------------------------
+
+model BrandSettings {
+  id              String   @id @default(uuid())
+  singletonKey    String   @unique @default("BAREEQ")
+  brandNameAr     String   @default("بريق")
+  brandNameEn     String   @default("Bareeq")
+  maxBranches     Int      @default(1)
+  faqs            Json?
+  homepageContent Json?
+  updatedAt       DateTime @updatedAt
+}
+
+model User {
+  id              String    @id @default(uuid())
+  fullName        String
+  phone           String    @unique
+  whatsapp        String?
+  email           String?   @unique
+  passwordHash    String
+  role            UserRole  @default(CUSTOMER)
+  active          Boolean   @default(true)
+  mustChangePwd   Boolean   @default(false)
+  sessionVersion  Int       @default(1)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+  deletedByUserId String?
+  deleteReason    String?
+
+  // Relations
+  customerProfile                   CustomerProfile?
+  branchMemberships                 BranchMembership[]
+  teamMemberships                   TeamMember[]
+  ledTeams                          Team[]                       @relation("TeamLeader")
+  userPermissions                   UserPermission[]
+  sessions                          Session[]
+  consents                          CustomerConsent[]
+  statusChanges                     BookingStatusHistory[]
+  notesCreated                      BookingNote[]
+  audits                            AuditLog[]
+  proofReviews                      PaymentProof[]               @relation("ProofReviewer")
+  paymentReviews                    PaymentReview[]              @relation("PaymentReviewReviewer")
+  paymentsRecorded                  Payment[]                    @relation("PaymentRecorder")
+  refundsRecorded                   Refund[]                     @relation("RefundRecorder")
+  refundsApproved                   Refund[]                     @relation("RefundApprover")
+  passwordResetRequests             PasswordResetRequest[]       @relation("TargetUser")
+  handledResetRequests              PasswordResetRequest[]       @relation("ResetHandler")
+  branchRequests                    BranchRequest[]              @relation("OwnerRequests")
+  reviewedBranchRequests            BranchRequest[]              @relation("AdminReviews")
+  assignedComplaints                Complaint[]                  @relation("ComplaintAssignee")
+  cancellationResolutions           CancellationRequest[]        @relation("CancellationResolver")
+  qualityReviews                    QualityReview[]              @relation("QualityReviewer")
+  visitLedgerAdjustments            SubscriptionVisitLedger[]    @relation("VisitLedgerAdjuster")
+  creditTransactionsCreated         CustomerCreditTransaction[]  @relation("CreditTransactionCreator")
+  checklistResultsChecked           BookingChecklistItemResult[]
+  checklistCompleted                BookingChecklistInstance[]
+  uploadedBookingFiles              BookingFile[]                @relation("BookingFileUploader")
+  galleryFileApprovals              BookingFile[]                @relation("BookingFileGalleryApprover")
+  assignmentHistoryChanges          BookingAssignmentHistory[]   @relation("AssignmentHistoryActor")
+  requestedTimeChanges              BookingTimeChange[]          @relation("TimeChangeRequester")
+  reviewedTimeChanges               BookingTimeChange[]          @relation("TimeChangeReviewer")
+  employeeTimeOff                   EmployeeTimeOff[]
+  securityEvents                    SecurityEvent[]
+  uploadedSubscriptionPaymentProofs SubscriptionPaymentProof[]   @relation("SubscriptionPaymentProofUploader")
+  reviewedSubscriptionPaymentProofs SubscriptionPaymentProof[]   @relation("SubscriptionPaymentProofReviewer")
+  assignedBookings                  Booking[]                    @relation("BookingAssignedEmployee")
+  inventoryMovements                InventoryMovement[]          @relation("InventoryMovementActor")
+  issuedInvoices                    Invoice[]                    @relation("InvoiceIssuer")
+  approvedCustomerRatings           CustomerServiceRating[]      @relation("CustomerServiceRatingApprover")
+  assignedSupportTickets            SupportTicket[]              @relation("SupportTicketAssignee")
+  supportTicketMessages             SupportTicketMessage[]       @relation("SupportTicketMessageAuthor")
+
+  @@index([phone])
+  @@index([role])
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  code        UserRole @unique
+  nameAr      String
+  description String?
+  permissions Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Permission {
+  id          String           @id @default(uuid())
+  code        String           @unique
+  nameAr      String
+  description String?
+  users       UserPermission[]
+  createdAt   DateTime         @default(now())
+}
+
+model UserPermission {
+  id              String           @id @default(uuid())
+  userId          String
+  permissionId    String
+  effect          PermissionEffect @default(GRANT)
+  scopeType       String           @default("GLOBAL")
+  scopeId         String           @default("GLOBAL")
+  grantedByUserId String?
+  expiresAt       DateTime?
+  createdAt       DateTime         @default(now())
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, permissionId, scopeType, scopeId])
+  @@index([userId, effect])
+}
+
+model Session {
+  id             String    @id @default(uuid())
+  userId         String
+  tokenHash      String    @unique
+  sessionVersion Int
+  ipAddress      String?
+  userAgent      String?
+  expiresAt      DateTime
+  lastUsedAt     DateTime  @default(now())
+  revokedAt      DateTime?
+  revokedReason  String?
+  createdAt      DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
+}
+
+model PasswordResetRequest {
+  id               String    @id @default(uuid())
+  userId           String
+  targetUser       User      @relation("TargetUser", fields: [userId], references: [id])
+  status           String    @default("PENDING") // PENDING, RESOLVED, REJECTED
+  tempPasswordHash String?
+  expiresAt        DateTime?
+  completedAt      DateTime?
+  handledByUserId  String?
+  handledByUser    User?     @relation("ResetHandler", fields: [handledByUserId], references: [id])
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
+// --------------------------------------------------------
+// Branch & Operations Structure
+// --------------------------------------------------------
+
+model Branch {
+  id                   String         @id @default(uuid())
+  nameAr               String
+  nameEn               String?
+  code                 String         @unique
+  address              String
+  phone                String
+  whatsapp             String
+  status               BranchStatus   @default(ACTIVE)
+  timezone             String         @default("Africa/Cairo")
+  slotUnitMinutes      Int            @default(60)
+  arrivalWindowMinutes Int            @default(30)
+  travelBufferMinutes  Int            @default(30)
+  dailyBookingLimit    Int            @default(20)
+  assignmentMode       AssignmentMode @default(MANUAL)
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+
+  // Relations
+  memberships         BranchMembership[]
+  coverageZones       CoverageZone[]
+  paymentMethods      BranchPaymentMethod[]
+  workingHours        BranchWorkingHours[]
+  blackoutDates       BranchBlackoutDate[]
+  teams               Team[]
+  services            BranchService[]
+  bookings            Booking[]
+  subscriptions       CustomerSubscription[]
+  subscriptionPlans   SubscriptionPlanBranch[]
+  auditLogs           AuditLog[]
+  operationalVehicles OperationalVehicle[]
+  materialStocks      BranchMaterialStock[]
+  invoices            Invoice[]
+  supportTickets      SupportTicket[]
+}
+
+model BranchMembership {
+  id        String   @id @default(uuid())
+  branchId  String
+  userId    String
+  branch    Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([branchId, userId])
+}
+
+model BranchRequest {
+  id               String              @id @default(uuid())
+  ownerId          String
+  owner            User                @relation("OwnerRequests", fields: [ownerId], references: [id])
+  branchName       String
+  reason           String
+  status           BranchRequestStatus @default(PENDING)
+  rejectionReason  String?
+  reviewedByUserId String?
+  reviewedByUser   User?               @relation("AdminReviews", fields: [reviewedByUserId], references: [id])
+  reviewedAt       DateTime?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+}
+
+model BranchPaymentMethod {
+  id            String            @id @default(uuid())
+  branchId      String
+  branch        Branch            @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  name          String
+  type          PaymentMethodType
+  accountNumber String
+  accountName   String
+  instructions  String?
+  active        Boolean           @default(true)
+  isDefault     Boolean           @default(false)
+  createdAt     DateTime          @default(now())
+
+  proofs             PaymentProof[]
+  subscriptionProofs SubscriptionPaymentProof[]
+}
+
+model CoverageZone {
+  id          String  @id @default(uuid())
+  branchId    String
+  branch      Branch  @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+
+  areas         CoverageArea[]
+  fromTravels   ZoneTravelTime[] @relation("FromZone")
+  toTravels     ZoneTravelTime[] @relation("ToZone")
+  teamZones     TeamZone[]
+  baseZoneTeams Team[]           @relation("TeamBaseZone")
+}
+
+model CoverageArea {
+  id                   String       @id @default(uuid())
+  zoneId               String
+  zone                 CoverageZone @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  governorate          String
+  city                 String
+  district             String
+  compound             String
+  active               Boolean      @default(true)
+  priority             Int          @default(1)
+  travelBufferOverride Int?
+
+  bookings Booking[]
+}
+
+model ZoneTravelTime {
+  id              String @id @default(uuid())
+  fromZoneId      String
+  toZoneId        String
+  durationMinutes Int    @default(30)
+
+  fromZone CoverageZone @relation("FromZone", fields: [fromZoneId], references: [id], onDelete: Cascade)
+  toZone   CoverageZone @relation("ToZone", fields: [toZoneId], references: [id], onDelete: Cascade)
+
+  @@unique([fromZoneId, toZoneId])
+}
+
+model BranchWorkingHours {
+  id             String  @id @default(uuid())
+  branchId       String
+  branch         Branch  @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  dayOfWeek      Int // 0 = Sunday, 1 = Monday, ... 6 = Saturday
+  isClosed       Boolean @default(false)
+  openTime       String // e.g. "09:00"
+  closeTime      String // e.g. "16:00"
+  breakStartTime String? // e.g. "12:00"
+  breakEndTime   String? // e.g. "13:00"
+
+  @@unique([branchId, dayOfWeek])
+}
+
+model BranchBlackoutDate {
+  id       String   @id @default(uuid())
+  branchId String
+  branch   Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  date     DateTime @db.Date
+  reason   String?
+}
+
+// --------------------------------------------------------
+// Teams & Employees
+// --------------------------------------------------------
+
+model Team {
+  id                 String        @id @default(uuid())
+  branchId           String
+  branch             Branch        @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  baseZoneId         String?
+  baseZone           CoverageZone? @relation("TeamBaseZone", fields: [baseZoneId], references: [id], onDelete: SetNull)
+  name               String
+  leaderId           String?
+  leader             User?         @relation("TeamLeader", fields: [leaderId], references: [id], onDelete: SetNull)
+  dailyCapacity      Int           @default(5)
+  active             Boolean       @default(true)
+  assignmentPriority Int           @default(1)
+  createdAt          DateTime      @default(now())
+
+  members             TeamMember[]
+  capabilities        TeamCapability[]
+  timeOff             TeamTimeOff[]
+  workingHours        TeamWorkingHours[]
+  holds               BookingHold[]
+  assignments         BookingAssignment[]
+  bookings            Booking[]
+  teamZones           TeamZone[]
+  operationalVehicles OperationalVehicle[]
+
+  @@index([baseZoneId])
+}
+
+model TeamZone {
+  id     String       @id @default(uuid())
+  teamId String
+  zoneId String
+  team   Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  zone   CoverageZone @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, zoneId])
+}
+
+model TeamMember {
+  id       String  @id @default(uuid())
+  teamId   String
+  userId   String
+  isLeader Boolean @default(false)
+  team     Team    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+  @@unique([userId])
+}
+
+model TeamCapability {
+  id        String  @id @default(uuid())
+  teamId    String
+  serviceId String
+  team      Team    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  service   Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, serviceId])
+}
+
+model TeamTimeOff {
+  id        String   @id @default(uuid())
+  teamId    String
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  startDate DateTime
+  endDate   DateTime
+  reason    String?
+}
+
+model TeamWorkingHours {
+  id             String  @id @default(uuid())
+  teamId         String
+  dayOfWeek      Int
+  isOff          Boolean @default(false)
+  openTime       String
+  closeTime      String
+  breakStartTime String?
+  breakEndTime   String?
+  team           Team    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, dayOfWeek])
+}
+
+model EmployeeTimeOff {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  startDate DateTime
+  endDate   DateTime
+  reason    String?
+}
+
+// --------------------------------------------------------
+// Service Catalog
+// --------------------------------------------------------
+
+model Service {
+  id                      String   @id @default(uuid())
+  nameAr                  String
+  nameEn                  String?
+  slug                    String   @unique
+  shortDescriptionAr      String
+  fullDescriptionAr       String
+  coverImage              String
+  galleryImages           Json? // string array
+  includedItems           Json? // string array
+  excludedItems           Json? // string array
+  benefits                Json? // string array
+  preparationInstructions String?
+  basePrice               Int // stored in minor units or EGP
+  priceType               String   @default("FIXED") // FIXED, STARTS_FROM, VARIANT_BASED
+  durationMinutes         Int      @default(60)
+  slotCount               Int      @default(1)
+  requiredTeamSize        Int      @default(2)
+  requiresDeposit         Boolean  @default(true)
+  depositType             String   @default("PERCENTAGE") // FIXED, PERCENTAGE
+  depositValue            Int      @default(30)
+  requiresFullPrepayment  Boolean  @default(false)
+  active                  Boolean  @default(true)
+  bookableOnline          Boolean  @default(true)
+  subscriptionEligible    Boolean  @default(true)
+  minimumBeforePhotos     Int      @default(2)
+  minimumAfterPhotos      Int      @default(2)
+  cancellationPolicyId    String
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  cancellationPolicy                  CancellationPolicy                   @relation(fields: [cancellationPolicyId], references: [id], onDelete: Restrict)
+  variants                            ServiceVariant[]
+  addonLinks                          ServiceAddonLink[]
+  checklistTemplates                  ChecklistTemplate[]
+  teamCapabilities                    TeamCapability[]
+  bookings                            Booking[]
+  subscriptionPlanServices            SubscriptionPlanService[]
+  branchServices                      BranchService[]
+  materialRequirements                ServiceMaterialRequirement[]
+  customerSubscriptionServiceBalances CustomerSubscriptionServiceBalance[]
+
+  @@index([cancellationPolicyId])
+}
+
+model CancellationPolicy {
+  id                 String   @id @default(uuid())
+  code               String   @unique
+  nameAr             String
+  version            String
+  noticeHours        Int      @default(6)
+  allowsCancellation Boolean  @default(true)
+  allowsRescheduling Boolean  @default(true)
+  allowsLateRequests Boolean  @default(true)
+  policyTextAr       String
+  active             Boolean  @default(true)
+  isDefault          Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  services Service[]
+  bookings Booking[]
+
+  @@index([active, isDefault])
+}
+
+model BranchService {
+  id                      String   @id @default(uuid())
+  branchId                String
+  serviceId               String
+  active                  Boolean  @default(true)
+  bookableOnline          Boolean  @default(true)
+  priceOverride           Int?
+  durationOverrideMinutes Int?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  branch  Branch  @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  service Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@unique([branchId, serviceId])
+  @@index([serviceId, active])
+}
+
+model ServiceVariant {
+  id              String      @id @default(uuid())
+  serviceId       String
+  service         Service     @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  vehicleSize     VehicleSize
+  price           Int
+  durationMinutes Int
+  slotCount       Int         @default(1)
+  depositValue    Int?
+
+  @@unique([serviceId, vehicleSize])
+}
+
+model ServiceAddon {
+  id              String  @id @default(uuid())
+  nameAr          String
+  nameEn          String?
+  price           Int
+  durationMinutes Int     @default(15)
+  slotCount       Int     @default(0)
+  active          Boolean @default(true)
+
+  serviceLinks  ServiceAddonLink[]
+  bookingAddons BookingAddon[]
+}
+
+model ServiceAddonLink {
+  id        String       @id @default(uuid())
+  serviceId String
+  addonId   String
+  service   Service      @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  addon     ServiceAddon @relation(fields: [addonId], references: [id], onDelete: Cascade)
+
+  @@unique([serviceId, addonId])
+}
+
+// --------------------------------------------------------
+// Operations resources: materials, stock and fleet
+// --------------------------------------------------------
+
+model Material {
+  id                  String   @id @default(uuid())
+  sku                 String   @unique
+  nameAr              String
+  nameEn              String?
+  unit                String   @default("قطعة")
+  defaultReorderPoint Int      @default(0)
+  active              Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  serviceRequirements ServiceMaterialRequirement[]
+  branchStocks        BranchMaterialStock[]
+}
+
+model ServiceMaterialRequirement {
+  id         String   @id @default(uuid())
+  serviceId  String
+  materialId String
+  quantity   Int      @default(1)
+  required   Boolean  @default(true)
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  service  Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  material Material @relation(fields: [materialId], references: [id], onDelete: Restrict)
+
+  @@unique([serviceId, materialId])
+  @@index([materialId])
+}
+
+model BranchMaterialStock {
+  id               String   @id @default(uuid())
+  branchId         String
+  materialId       String
+  quantityOnHand   Int      @default(0)
+  reservedQuantity Int      @default(0)
+  reorderPoint     Int?
+  active           Boolean  @default(true)
+  updatedAt        DateTime @updatedAt
+
+  branch    Branch              @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  material  Material            @relation(fields: [materialId], references: [id], onDelete: Restrict)
+  movements InventoryMovement[]
+
+  @@unique([branchId, materialId])
+  @@index([branchId, active])
+}
+
+model InventoryMovement {
+  id              String               @id @default(uuid())
+  branchStockId   String
+  bookingId       String?
+  type            MaterialMovementType
+  quantityChange  Int
+  balanceAfter    Int
+  reason          String?
+  createdByUserId String
+  createdAt       DateTime             @default(now())
+
+  branchStock BranchMaterialStock @relation(fields: [branchStockId], references: [id], onDelete: Restrict)
+  booking     Booking?            @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  createdBy   User                @relation("InventoryMovementActor", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@index([branchStockId, createdAt])
+  @@index([bookingId])
+}
+
+model OperationalVehicle {
+  id          String                   @id @default(uuid())
+  branchId    String
+  teamId      String?
+  code        String                   @unique
+  plateNumber String?                  @unique
+  make        String
+  model       String
+  year        Int?
+  status      OperationalVehicleStatus @default(ACTIVE)
+  notes       String?
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+
+  branch   Branch    @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  team     Team?     @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  bookings Booking[] @relation("BookingOperationalVehicle")
+
+  @@index([branchId, status])
+  @@index([teamId, status])
+}
+
+model ChecklistTemplate {
+  id        String         @id @default(uuid())
+  serviceId String
+  service   Service        @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  stage     ChecklistStage
+  name      String
+
+  items ChecklistTemplateItem[]
+
+  @@unique([serviceId, stage])
+}
+
+model ChecklistTemplateItem {
+  id            String            @id @default(uuid())
+  templateId    String
+  template      ChecklistTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  labelAr       String
+  descriptionAr String?
+  required      Boolean           @default(true)
+  requiresPhoto Boolean           @default(false)
+  requiresNote  Boolean           @default(false)
+  displayOrder  Int               @default(0)
+  active        Boolean           @default(true)
+}
+
+// --------------------------------------------------------
+// Customers, Vehicles & Addresses
+// --------------------------------------------------------
+
+model CustomerProfile {
+  id            String   @id @default(uuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notes         String?
+  creditBalance Int      @default(0)
+  createdAt     DateTime @default(now())
+
+  vehicles           Vehicle[]
+  addresses          CustomerAddress[]
+  bookings           Booking[]
+  subscriptions      CustomerSubscription[]
+  complaints         Complaint[]
+  creditTransactions CustomerCreditTransaction[]
+  invoices           Invoice[]
+  serviceRatings     CustomerServiceRating[]
+  supportTickets     SupportTicket[]
+}
+
+model Vehicle {
+  id          String          @id @default(uuid())
+  customerId  String
+  customer    CustomerProfile @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  make        String
+  model       String
+  year        Int
+  color       String
+  vehicleSize VehicleSize     @default(SEDAN)
+  plateNumber String?
+  notes       String?
+  isDefault   Boolean         @default(false)
+  createdAt   DateTime        @default(now())
+
+  bookings             Booking[]
+  subscriptionVehicles SubscriptionVehicle[]
+}
+
+model CustomerAddress {
+  id               String          @id @default(uuid())
+  customerId       String
+  customer         CustomerProfile @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  governorate      String
+  city             String
+  district         String
+  compound         String
+  street           String
+  buildingNumber   String
+  unitNumber       String?
+  landmark         String?
+  gateInstructions String?
+  locationUrl      String?
+  isDefault        Boolean         @default(false)
+  createdAt        DateTime        @default(now())
+}
+
+model CustomerConsent {
+  id          String    @id @default(uuid())
+  userId      String
+  consentType String
+  version     String
+  accepted    Boolean
+  ipAddress   String?
+  userAgent   String?
+  acceptedAt  DateTime  @default(now())
+  revokedAt   DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId, consentType, acceptedAt])
+}
+
+// --------------------------------------------------------
+// Bookings & Execution
+// --------------------------------------------------------
+
+model Booking {
+  id               String  @id @default(uuid())
+  bookingNumber    String  @unique
+  customerId       String
+  branchId         String
+  coverageAreaId   String
+  vehicleId        String
+  serviceId        String
+  serviceVariantId String?
+  subscriptionId   String?
+
+  startAt              DateTime
+  endAt                DateTime
+  totalDurationMinutes Int
+  basePrice            Int
+  addonPrice           Int      @default(0)
+  totalPrice           Int
+  depositAmount        Int      @default(0)
+  amountPaid           Int      @default(0)
+  amountDue            Int      @default(0)
+  creditAppliedAmount  Int      @default(0)
+
+  paymentStatus        PaymentStatus  @default(AWAITING_PROOF)
+  bookingStatus        BookingStatus  @default(REQUEST_SUBMITTED)
+  assignmentMode       AssignmentMode @default(MANUAL)
+  assignedTeamId       String?
+  assignedEmployeeId   String?
+  operationalVehicleId String?
+
+  customerNotes    String?
+  gateInstructions String?
+  locationUrl      String?
+
+  addressSnapshot            Json
+  vehicleSnapshot            Json
+  serviceSnapshot            Json
+  contactSnapshot            Json           @default("{}")
+  policyVersion              String         @default("2026-08-01")
+  policyAcceptedAt           DateTime       @default(now())
+  cancellationPolicyId       String?
+  cancellationPolicySnapshot Json           @default("{}")
+  terminalReopenSourceStatus BookingStatus?
+  terminalReopenedAt         DateTime?
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+  deletedByUserId String?
+  deleteReason    String?
+
+  customer           CustomerProfile       @relation(fields: [customerId], references: [id])
+  branch             Branch                @relation(fields: [branchId], references: [id])
+  coverageArea       CoverageArea          @relation(fields: [coverageAreaId], references: [id])
+  vehicle            Vehicle               @relation(fields: [vehicleId], references: [id])
+  service            Service               @relation(fields: [serviceId], references: [id])
+  subscription       CustomerSubscription? @relation(fields: [subscriptionId], references: [id])
+  assignedTeam       Team?                 @relation(fields: [assignedTeamId], references: [id])
+  assignedEmployee   User?                 @relation("BookingAssignedEmployee", fields: [assignedEmployeeId], references: [id], onDelete: SetNull)
+  operationalVehicle OperationalVehicle?   @relation("BookingOperationalVehicle", fields: [operationalVehicleId], references: [id], onDelete: SetNull)
+  cancellationPolicy CancellationPolicy?   @relation(fields: [cancellationPolicyId], references: [id], onDelete: SetNull)
+
+  addons              BookingAddon[]
+  items               BookingItem[]
+  holds               BookingHold[]
+  assignments         BookingAssignment[]
+  assignmentHistory   BookingAssignmentHistory[]
+  statusHistory       BookingStatusHistory[]
+  timeChanges         BookingTimeChange[]
+  notes               BookingNote[]
+  checklistInstances  BookingChecklistInstance[]
+  files               BookingFile[]
+  paymentProofs       PaymentProof[]
+  paymentReviews      PaymentReview[]
+  payments            Payment[]
+  refunds             Refund[]
+  creditTransactions  CustomerCreditTransaction[]
+  cancellationRequest CancellationRequest?
+  complaints          Complaint[]
+  qualityReview       QualityReview?
+  visitLedgerEntries  SubscriptionVisitLedger[]
+  inventoryMovements  InventoryMovement[]
+  invoice             Invoice?
+  customerRating      CustomerServiceRating?
+  supportTickets      SupportTicket[]
+
+  @@index([bookingStatus])
+  @@index([paymentStatus])
+  @@index([branchId, startAt])
+  @@index([assignedTeamId, startAt])
+  @@index([assignedEmployeeId, startAt])
+  @@index([operationalVehicleId, startAt])
+  @@index([createdAt])
+  @@index([cancellationPolicyId])
+  @@index([terminalReopenSourceStatus])
+}
+
+model BookingItem {
+  id              String   @id @default(uuid())
+  bookingId       String
+  itemType        String
+  sourceId        String?
+  nameSnapshot    String
+  quantity        Int      @default(1)
+  unitPrice       Int
+  durationMinutes Int      @default(0)
+  metadata        Json?
+  createdAt       DateTime @default(now())
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+
+  @@index([bookingId, itemType])
+}
+
+model BookingAddon {
+  id              String       @id @default(uuid())
+  bookingId       String
+  addonId         String
+  price           Int
+  durationMinutes Int
+  booking         Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  addon           ServiceAddon @relation(fields: [addonId], references: [id])
+}
+
+model BookingHold {
+  id             String            @id @default(uuid())
+  bookingId      String
+  teamId         String
+  slotStartTime  DateTime
+  slotEndTime    DateTime
+  expiresAt      DateTime
+  status         BookingHoldStatus @default(ACTIVE)
+  releasedAt     DateTime?
+  releasedReason String?
+  createdAt      DateTime          @default(now())
+  booking        Booking           @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  team           Team              @relation(fields: [teamId], references: [id], onDelete: Restrict)
+
+  @@index([teamId, slotStartTime, slotEndTime])
+  @@index([status, expiresAt])
+}
+
+model BookingAssignment {
+  id               String    @id @default(uuid())
+  bookingId        String
+  teamId           String
+  assignedByUserId String
+  assignedAt       DateTime  @default(now())
+  endedAt          DateTime?
+  reason           String?
+  status           String    @default("ACTIVE")
+  scoreLog         Json?
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  team    Team    @relation(fields: [teamId], references: [id])
+}
+
+model BookingAssignmentHistory {
+  id              String   @id @default(uuid())
+  bookingId       String
+  fromTeamId      String?
+  toTeamId        String?
+  changedByUserId String
+  action          String
+  reason          String
+  scoreLog        Json?
+  createdAt       DateTime @default(now())
+
+  booking       Booking @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  changedByUser User    @relation("AssignmentHistoryActor", fields: [changedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([bookingId, createdAt])
+}
+
+model BookingStatusHistory {
+  id              String        @id @default(uuid())
+  bookingId       String
+  fromStatus      BookingStatus
+  toStatus        BookingStatus
+  changedByUserId String
+  actorRole       UserRole
+  reason          String?
+  metadata        Json?
+  createdAt       DateTime      @default(now())
+
+  booking       Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  changedByUser User    @relation(fields: [changedByUserId], references: [id])
+}
+
+model BookingTimeChange {
+  id                String           @id @default(uuid())
+  bookingId         String
+  oldStartAt        DateTime
+  oldEndAt          DateTime
+  requestedStartAt  DateTime
+  requestedEndAt    DateTime
+  status            TimeChangeStatus @default(PENDING)
+  requestedByUserId String
+  reviewedByUserId  String?
+  reason            String
+  reviewNotes       String?
+  reviewedAt        DateTime?
+  createdAt         DateTime         @default(now())
+
+  booking     Booking @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  requestedBy User    @relation("TimeChangeRequester", fields: [requestedByUserId], references: [id], onDelete: Restrict)
+  reviewedBy  User?   @relation("TimeChangeReviewer", fields: [reviewedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([bookingId, status])
+}
+
+model BookingNote {
+  id        String   @id @default(uuid())
+  bookingId String
+  userId    String
+  note      String
+  isPrivate Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id])
+}
+
+model BookingChecklistInstance {
+  id                String         @id @default(uuid())
+  bookingId         String
+  stage             ChecklistStage
+  completedAt       DateTime?
+  completedByUserId String?
+
+  booking         Booking                      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  completedByUser User?                        @relation(fields: [completedByUserId], references: [id])
+  results         BookingChecklistItemResult[]
+
+  @@unique([bookingId, stage])
+}
+
+model BookingChecklistItemResult {
+  id              String    @id @default(uuid())
+  instanceId      String
+  itemId          String
+  itemLabel       String
+  isChecked       Boolean   @default(false)
+  photoUrl        String?
+  note            String?
+  checkedByUserId String?
+  checkedAt       DateTime?
+
+  instance      BookingChecklistInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  checkedByUser User?                    @relation(fields: [checkedByUserId], references: [id])
+
+  @@unique([instanceId, itemId])
+}
+
+model BookingFile {
+  id                       String    @id @default(uuid())
+  bookingId                String
+  fileType                 FileType
+  fileUrl                  String
+  mimeType                 String
+  sizeBytes                Int
+  uploadedByUserId         String
+  customerGalleryConsentAt DateTime?
+  approvedForGallery       Boolean   @default(false)
+  galleryApprovedByUserId  String?
+  galleryApprovedAt        DateTime?
+  createdAt                DateTime  @default(now())
+
+  booking             Booking              @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  uploadedBy          User                 @relation("BookingFileUploader", fields: [uploadedByUserId], references: [id], onDelete: Restrict)
+  galleryApprovedBy   User?                @relation("BookingFileGalleryApprover", fields: [galleryApprovedByUserId], references: [id], onDelete: SetNull)
+  paymentProof        PaymentProof?
+  refund              Refund?
+  cancellationRequest CancellationRequest?
+  complaintEvidence   ComplaintEvidence[]
+
+  @@unique([fileUrl])
+  @@index([bookingId, fileType])
+  @@index([approvedForGallery, customerGalleryConsentAt])
+}
+
+// --------------------------------------------------------
+// Payments & Refunds
+// --------------------------------------------------------
+
+model PaymentProof {
+  id                   String      @id @default(uuid())
+  bookingId            String
+  paymentMethodId      String
+  senderName           String
+  senderPhoneOrAccount String
+  referenceNumber      String?
+  amountSubmitted      Int
+  transferTimestamp    DateTime
+  proofFileUrl         String
+  proofFileId          String?     @unique
+  status               ProofStatus @default(UNDER_REVIEW)
+  reviewedByUserId     String?
+  reviewNotes          String?
+  reviewedAt           DateTime?
+  createdAt            DateTime    @default(now())
+  idempotencyKey       String?     @unique
+
+  booking        Booking             @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  paymentMethod  BranchPaymentMethod @relation(fields: [paymentMethodId], references: [id])
+  reviewedByUser User?               @relation("ProofReviewer", fields: [reviewedByUserId], references: [id])
+  reviews        PaymentReview[]
+  payment        Payment?
+  proofFile      BookingFile?        @relation(fields: [proofFileId], references: [id], onDelete: Restrict)
+
+  @@index([bookingId, status])
+  @@index([referenceNumber])
+}
+
+model PaymentReview {
+  id               String      @id @default(uuid())
+  proofId          String
+  bookingId        String
+  reviewedByUserId String
+  decision         ProofStatus
+  amountExpected   Int
+  amountSubmitted  Int
+  notes            String?
+  previousStatus   ProofStatus
+  createdAt        DateTime    @default(now())
+
+  proof      PaymentProof @relation(fields: [proofId], references: [id], onDelete: Restrict)
+  booking    Booking      @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  reviewedBy User         @relation("PaymentReviewReviewer", fields: [reviewedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([bookingId, createdAt])
+}
+
+model Payment {
+  id               String   @id @default(uuid())
+  bookingId        String
+  proofId          String?  @unique
+  idempotencyKey   String   @unique @default(uuid())
+  amount           Int
+  paymentMethod    String
+  referenceNumber  String?
+  recordedByUserId String
+  notes            String?
+  createdAt        DateTime @default(now())
+
+  booking        Booking       @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  proof          PaymentProof? @relation(fields: [proofId], references: [id], onDelete: Restrict)
+  recordedByUser User          @relation("PaymentRecorder", fields: [recordedByUserId], references: [id])
+
+  @@index([bookingId, createdAt])
+}
+
+model Refund {
+  id               String       @id @default(uuid())
+  bookingId        String
+  amount           Int
+  refundMethod     String
+  referenceNumber  String?
+  proofFileUrl     String?
+  proofFileId      String?      @unique
+  refundTimestamp  DateTime?
+  status           RefundStatus @default(REFUND_PENDING)
+  recordedByUserId String
+  approvedByUserId String?
+  approvedAt       DateTime?
+  idempotencyKey   String       @unique @default(uuid())
+  notes            String?
+  createdAt        DateTime     @default(now())
+
+  booking        Booking      @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  recordedByUser User         @relation("RefundRecorder", fields: [recordedByUserId], references: [id])
+  approvedByUser User?        @relation("RefundApprover", fields: [approvedByUserId], references: [id])
+  proofFile      BookingFile? @relation(fields: [proofFileId], references: [id], onDelete: Restrict)
+
+  @@index([bookingId, status])
+}
+
+model CustomerCreditTransaction {
+  id              String   @id @default(uuid())
+  customerId      String
+  bookingId       String?
+  amount          Int
+  balanceBefore   Int
+  balanceAfter    Int
+  transactionType String
+  idempotencyKey  String   @unique
+  reason          String
+  createdByUserId String
+  createdAt       DateTime @default(now())
+
+  customer  CustomerProfile @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  booking   Booking?        @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  createdBy User            @relation("CreditTransactionCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@index([customerId, createdAt])
+  @@index([bookingId])
+}
+
+// --------------------------------------------------------
+// Subscriptions
+// --------------------------------------------------------
+
+model SubscriptionPlan {
+  id                  String   @id @default(uuid())
+  nameAr              String
+  descriptionAr       String
+  price               Int
+  validityDays        Int      @default(30)
+  visitCount          Int      @default(4)
+  allowedVehicleCount Int      @default(1)
+  freezeAllowed       Boolean  @default(false)
+  maxFreezeDays       Int      @default(0)
+  rules               Json?
+  active              Boolean  @default(true)
+  createdAt           DateTime @default(now())
+
+  services      SubscriptionPlanService[]
+  branches      SubscriptionPlanBranch[]
+  subscriptions CustomerSubscription[]
+}
+
+model SubscriptionPlanBranch {
+  id       String           @id @default(uuid())
+  planId   String
+  branchId String
+  plan     SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  branch   Branch           @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, branchId])
+}
+
+model SubscriptionPlanService {
+  id         String           @id @default(uuid())
+  planId     String
+  serviceId  String
+  visitQuota Int?
+  plan       SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  service    Service          @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, serviceId])
+}
+
+model CustomerSubscription {
+  id                 String             @id @default(uuid())
+  customerId         String
+  planId             String
+  branchId           String
+  purchasePrice      Int
+  startDate          DateTime
+  endDate            DateTime
+  totalVisits        Int
+  usedVisits         Int                @default(0)
+  remainingVisits    Int
+  status             SubscriptionStatus @default(ACTIVE)
+  frozenAt           DateTime?
+  frozenUntil        DateTime?
+  cancelledAt        DateTime?
+  cancellationReason String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  customer CustomerProfile  @relation(fields: [customerId], references: [id])
+  plan     SubscriptionPlan @relation(fields: [planId], references: [id])
+  branch   Branch           @relation(fields: [branchId], references: [id])
+
+  vehicles        SubscriptionVehicle[]
+  bookings        Booking[]
+  visitLedger     SubscriptionVisitLedger[]
+  paymentProofs   SubscriptionPaymentProof[]
+  serviceBalances CustomerSubscriptionServiceBalance[]
+
+  @@index([customerId, status])
+  @@index([status, endDate])
+}
+
+model SubscriptionPaymentProof {
+  id                String                         @id @default(uuid())
+  subscriptionId    String
+  paymentMethodId   String
+  proofFileUrl      String                         @unique
+  mimeType          String
+  sizeBytes         Int
+  amountSubmitted   Int
+  referenceNumber   String?
+  transferTimestamp DateTime?
+  status            SubscriptionPaymentProofStatus @default(UNDER_REVIEW)
+  uploadedByUserId  String
+  reviewedByUserId  String?
+  reviewNotes       String?
+  reviewedAt        DateTime?
+  createdAt         DateTime                       @default(now())
+  updatedAt         DateTime                       @updatedAt
+
+  subscription  CustomerSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  paymentMethod BranchPaymentMethod  @relation(fields: [paymentMethodId], references: [id], onDelete: Restrict)
+  uploadedBy    User                 @relation("SubscriptionPaymentProofUploader", fields: [uploadedByUserId], references: [id], onDelete: Restrict)
+  reviewedBy    User?                @relation("SubscriptionPaymentProofReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([subscriptionId, status, createdAt])
+  @@index([paymentMethodId])
+  @@index([referenceNumber])
+}
+
+model SubscriptionVehicle {
+  id             String               @id @default(uuid())
+  subscriptionId String
+  vehicleId      String
+  subscription   CustomerSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  vehicle        Vehicle              @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@unique([subscriptionId, vehicleId])
+}
+
+model CustomerSubscriptionServiceBalance {
+  id              String   @id @default(uuid())
+  subscriptionId  String
+  serviceId       String
+  totalVisits     Int
+  usedVisits      Int      @default(0)
+  remainingVisits Int
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  subscription CustomerSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  service      Service              @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+
+  @@unique([subscriptionId, serviceId])
+  @@index([serviceId, remainingVisits])
+}
+
+model SubscriptionVisitLedger {
+  id               String            @id @default(uuid())
+  subscriptionId   String
+  bookingId        String?
+  action           VisitLedgerAction
+  visitChange      Int // -1 or +1
+  balanceBefore    Int               @default(0)
+  remainingAfter   Int
+  idempotencyKey   String            @unique @default(uuid())
+  reason           String?
+  adjustedByUserId String?
+  createdAt        DateTime          @default(now())
+
+  subscription   CustomerSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  booking        Booking?             @relation(fields: [bookingId], references: [id])
+  adjustedByUser User?                @relation("VisitLedgerAdjuster", fields: [adjustedByUserId], references: [id])
+
+  @@unique([subscriptionId, bookingId, action])
+  @@index([subscriptionId, createdAt])
+}
+
+// --------------------------------------------------------
+// Complaints & Quality & Cancellations
+// --------------------------------------------------------
+
+model CancellationRequest {
+  id                    String         @id @default(uuid())
+  bookingId             String         @unique
+  customerId            String
+  reason                String
+  preferredAction       String         @default("REFUND") // REFUND, RESCHEDULE, CREDIT
+  previousBookingStatus BookingStatus?
+  alternativeDates      Json?
+  customerNotes         String?
+  status                String         @default("PENDING") // PENDING, APPROVED, REJECTED
+  resolvedByUserId      String?
+  resolutionNotes       String?
+  resolutionType        String?
+  responsibleParty      String?
+  refundRequired        Boolean?
+  approvedRefundAmount  Int?
+  retainedAmount        Int            @default(0)
+  creditAmount          Int            @default(0)
+  attachmentFileId      String?        @unique
+  resolvedAt            DateTime?
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+
+  booking        Booking      @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  resolvedByUser User?        @relation("CancellationResolver", fields: [resolvedByUserId], references: [id])
+  attachmentFile BookingFile? @relation(fields: [attachmentFileId], references: [id], onDelete: Restrict)
+}
+
+model Complaint {
+  id               String          @id @default(uuid())
+  bookingId        String
+  customerId       String
+  type             String
+  description      String
+  priority         String          @default("MEDIUM") // LOW, MEDIUM, HIGH, URGENT
+  status           ComplaintStatus @default(OPEN)
+  assignedToUserId String?
+  resolution       String?
+  resolvedAt       DateTime?
+  createdAt        DateTime        @default(now())
+
+  booking        Booking             @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  customer       CustomerProfile     @relation(fields: [customerId], references: [id])
+  assignedToUser User?               @relation("ComplaintAssignee", fields: [assignedToUserId], references: [id])
+  evidence       ComplaintEvidence[]
+}
+
+model ComplaintEvidence {
+  id          String   @id @default(uuid())
+  complaintId String
+  fileId      String
+  createdAt   DateTime @default(now())
+
+  complaint Complaint   @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  file      BookingFile @relation(fields: [fileId], references: [id], onDelete: Restrict)
+
+  @@unique([complaintId, fileId])
+  @@index([fileId])
+}
+
+model QualityReview {
+  id               String   @id @default(uuid())
+  bookingId        String   @unique
+  reviewedByUserId String
+  approved         Boolean  @default(true)
+  score            Int? // 1 to 5
+  notes            String?
+  returnedToTeam   Boolean  @default(false)
+  createdAt        DateTime @default(now())
+
+  booking        Booking @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  reviewedByUser User    @relation("QualityReviewer", fields: [reviewedByUserId], references: [id])
+}
+
+// --------------------------------------------------------
+// Customer completion: invoices, ratings and support
+// --------------------------------------------------------
+
+model Invoice {
+  id             String        @id @default(uuid())
+  invoiceNumber  String        @unique
+  bookingId      String        @unique
+  customerId     String
+  branchId       String
+  subtotalAmount Int
+  paidAmount     Int
+  dueAmount      Int
+  status         InvoiceStatus @default(ISSUED)
+  issuedByUserId String?
+  issuedAt       DateTime      @default(now())
+  notes          String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  booking  Booking         @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  customer CustomerProfile @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  branch   Branch          @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  issuedBy User?           @relation("InvoiceIssuer", fields: [issuedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([customerId, issuedAt])
+  @@index([branchId, issuedAt])
+}
+
+model CustomerServiceRating {
+  id                String    @id @default(uuid())
+  bookingId         String    @unique
+  customerId        String
+  score             Int
+  comment           String?
+  approvedForPublic Boolean   @default(false)
+  approvedByUserId  String?
+  approvedAt        DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  booking    Booking         @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  customer   CustomerProfile @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  approvedBy User?           @relation("CustomerServiceRatingApprover", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([approvedForPublic, createdAt])
+  @@index([customerId, createdAt])
+}
+
+model SupportTicket {
+  id               String              @id @default(uuid())
+  customerId       String
+  bookingId        String?
+  branchId         String?
+  subject          String
+  category         String?
+  priority         String              @default("NORMAL")
+  status           SupportTicketStatus @default(OPEN)
+  assignedToUserId String?
+  resolvedAt       DateTime?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  customer   CustomerProfile        @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  booking    Booking?               @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  branch     Branch?                @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  assignedTo User?                  @relation("SupportTicketAssignee", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+  messages   SupportTicketMessage[]
+
+  @@index([customerId, status, updatedAt])
+  @@index([branchId, status, updatedAt])
+  @@index([assignedToUserId, status])
+}
+
+model SupportTicketMessage {
+  id         String   @id @default(uuid())
+  ticketId   String
+  authorId   String
+  message    String
+  isInternal Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author User          @relation("SupportTicketMessageAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([ticketId, createdAt])
+}
+
+// --------------------------------------------------------
+// Audit & Security
+// --------------------------------------------------------
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  actorUserId String?
+  actor       User?    @relation(fields: [actorUserId], references: [id])
+  branchId    String?
+  branch      Branch?  @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  actorRole   UserRole
+  action      String
+  entityType  String
+  entityId    String
+  beforeJson  Json?
+  afterJson   Json?
+  reason      String?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  @@index([actorUserId])
+  @@index([branchId, createdAt])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
+model SecurityEvent {
+  id          String   @id @default(uuid())
+  userId      String?
+  eventType   String
+  description String
+  ipAddress   String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([eventType, createdAt])
+}
+
+model SecurityThrottle {
+  id              String    @id @default(uuid())
+  keyHash         String    @unique
+  action          String
+  count           Int       @default(0)
+  windowStartedAt DateTime  @default(now())
+  lockedUntil     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([action, windowStartedAt])
+  @@index([lockedUntil])
+}
+
+model AppSetting {
+  id              String   @id @default(uuid())
+  key             String   @unique
+  value           Json
+  description     String?
+  updatedByUserId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}

@@ -1,0 +1,930 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import {
+  AlertTriangle,
+  Calendar,
+  CheckCircle2,
+  ExternalLink,
+  FileText,
+  ShieldCheck,
+  Users,
+  X,
+} from 'lucide-react';
+import {
+  assignTeamManuallyAction,
+  recordBalancePaymentAction,
+  reviewBookingAction,
+  reviewPaymentProofAction,
+} from '@/app/actions/operations';
+import { advancePostServiceAction } from '@/app/actions/quality';
+import {
+  closeTerminalBookingReviewAction,
+  managerOverrideCloseBookingAction,
+  reopenTerminalBookingAction,
+} from '@/app/actions/booking-administration';
+import OperationsQueuePagination from './OperationsQueuePagination';
+import {
+  operationsQueuePageParam,
+  type OperationsDashboardQueueKey,
+  type OperationsQueuePagination as QueuePagination,
+} from './pagination';
+
+type DateValue = string | Date;
+type Tab = OperationsDashboardQueueKey;
+type ProofDecision = 'VERIFY' | 'REJECT' | 'SHORT' | 'REUPLOAD' | 'DUPLICATE';
+
+interface UserSummary {
+  id: string;
+  fullName: string;
+  phone: string;
+}
+
+interface ManagerSummary extends UserSummary {
+  role: string;
+}
+
+interface PendingProof {
+  id: string;
+  senderName: string;
+  senderPhoneOrAccount: string;
+  referenceNumber: string | null;
+  amountSubmitted: number;
+  transferTimestamp: DateValue;
+  createdAt: DateValue;
+  proofFileUrl: string;
+  paymentMethod: { name: string };
+  booking: {
+    id: string;
+    bookingNumber: string;
+    depositAmount: number;
+    amountPaid: number;
+    amountDue: number;
+    service: { nameAr: string };
+    vehicle: { make: string; model: string };
+    customer: { user: UserSummary };
+  };
+}
+
+interface ReviewBooking {
+  id: string;
+  branchId: string;
+  bookingNumber: string;
+  startAt: DateValue;
+  amountPaid: number;
+  amountDue: number;
+  paymentStatus: string;
+  branch: { id: string; nameAr: string; assignmentMode: string };
+  service: { nameAr: string };
+  vehicle: { make: string; model: string };
+  coverageArea: { compound: string };
+  customer: { user: UserSummary };
+}
+
+interface UnassignedBooking {
+  id: string;
+  branchId: string;
+  bookingNumber: string;
+  bookingStatus: string;
+  startAt: DateValue;
+  branch: { nameAr: string };
+  service: { nameAr: string };
+  coverageArea: { compound: string };
+}
+
+interface TeamSummary {
+  id: string;
+  branchId: string;
+  name: string;
+  members: Array<{ id: string }>;
+}
+
+interface ActiveBooking {
+  id: string;
+  bookingNumber: string;
+  bookingStatus: string;
+  startAt: DateValue;
+  amountPaid: number;
+  amountDue: number;
+  paymentStatus: string;
+  service: { nameAr: string };
+  assignedTeam: { name: string } | null;
+  canRecordBalancePayment: boolean;
+  canCloseBooking: boolean;
+  customer: { user: UserSummary };
+  canManagerOverrideClose: boolean;
+  terminalReopenSourceStatus: string | null;
+}
+
+interface TerminalBooking {
+  id: string;
+  bookingNumber: string;
+  bookingStatus: string;
+  paymentStatus: string;
+  startAt: DateValue;
+  updatedAt: DateValue;
+  amountPaid: number;
+  amountDue: number;
+  service: { nameAr: string };
+  branch: { nameAr: string };
+  customer: { user: UserSummary };
+}
+
+interface Props {
+  manager: ManagerSummary;
+  pendingProofs: PendingProof[];
+  reviewBookings: ReviewBooking[];
+  unassignedBookings: UnassignedBooking[];
+  teams: TeamSummary[];
+  activeBookings: ActiveBooking[];
+  terminalBookings: TerminalBooking[];
+  activeBookingQuery: string;
+  terminalBookingQuery: string;
+  initialTab?: Tab;
+  pagination: Record<Tab, QueuePagination>;
+}
+
+interface Feedback {
+  tone: 'success' | 'error';
+  message: string;
+}
+
+function formatDateTime(value: DateValue) {
+  return new Intl.DateTimeFormat('ar-EG', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    timeZone: 'Africa/Cairo',
+  }).format(new Date(value));
+}
+
+function MetricButton({
+  active,
+  count,
+  label,
+  onClick,
+  icon,
+}: {
+  active: boolean;
+  count: number | string;
+  label: string;
+  onClick: () => void;
+  icon: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`rounded-3xl border p-5 text-right transition-colors ${
+        active
+          ? 'border-[#c9a227] bg-[#c9a227]/10'
+          : 'border-neutral-800 bg-[#141414] hover:border-neutral-600'
+      }`}
+    >
+      <span className="flex items-center justify-between gap-3 text-xs font-semibold text-neutral-300">
+        {label}
+        {icon}
+      </span>
+      <span className="mt-3 block text-3xl font-black text-[#e5c45a]">{count}</span>
+    </button>
+  );
+}
+
+function pagedCount(count: number, queue: QueuePagination) {
+  return queue.hasNextPage ? `${count}+` : count;
+}
+
+export default function OperationsDashboardClient({
+  manager,
+  pendingProofs,
+  reviewBookings,
+  unassignedBookings,
+  teams,
+  activeBookings,
+  terminalBookings,
+  activeBookingQuery,
+  terminalBookingQuery,
+  initialTab,
+  pagination,
+}: Props) {
+  const router = useRouter();
+  const [activeTab, setActiveTab] = useState<Tab>(
+    initialTab ?? (manager.role === 'OWNER' && terminalBookingQuery
+      ? 'terminal'
+      : activeBookingQuery
+        ? 'bookings'
+        : 'proofs'),
+  );
+  const [selectedProof, setSelectedProof] = useState<PendingProof | null>(null);
+  const [selectedReview, setSelectedReview] = useState<ReviewBooking | null>(null);
+  const [selectedBooking, setSelectedBooking] = useState<UnassignedBooking | null>(null);
+  const [selectedSettlement, setSelectedSettlement] = useState<ActiveBooking | null>(null);
+  const [selectedClose, setSelectedClose] = useState<ActiveBooking | null>(null);
+  const [selectedOverrideClose, setSelectedOverrideClose] = useState<ActiveBooking | null>(null);
+  const [selectedReopen, setSelectedReopen] = useState<TerminalBooking | null>(null);
+  const [selectedTerminalReview, setSelectedTerminalReview] = useState<ActiveBooking | null>(null);
+  const [selectedTeamId, setSelectedTeamId] = useState('');
+  const [reviewNotes, setReviewNotes] = useState('');
+  const [assignmentReason, setAssignmentReason] = useState('');
+  const [settlementMethod, setSettlementMethod] = useState('CASH');
+  const [settlementReference, setSettlementReference] = useState('');
+  const [settlementNotes, setSettlementNotes] = useState('');
+  const [closeReason, setCloseReason] = useState('تم تسليم الخدمة وتحصيل كامل الرصيد');
+  const [overrideReason, setOverrideReason] = useState('');
+  const [reopenReason, setReopenReason] = useState('');
+  const [terminalReviewReason, setTerminalReviewReason] = useState('');
+  const [activeSearch, setActiveSearch] = useState(activeBookingQuery);
+  const [terminalSearch, setTerminalSearch] = useState(terminalBookingQuery);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
+
+  function submitServerSearch(parameter: 'bookingQuery' | 'terminalQuery', value: string) {
+    const params = new URLSearchParams(window.location.search);
+    const normalized = value.trim();
+    if (normalized) params.set(parameter, normalized);
+    else params.delete(parameter);
+    const queue = parameter === 'bookingQuery' ? 'bookings' : 'terminal';
+    params.delete(operationsQueuePageParam(queue));
+    params.set('dashboardTab', queue);
+    const search = params.toString();
+    router.push(search ? `/operations?${search}` : '/operations');
+  }
+
+  useEffect(() => {
+    if (initialTab) setActiveTab(initialTab);
+  }, [initialTab]);
+
+  const visibleTeams = useMemo(
+    () => selectedBooking
+      ? teams.filter((team) => team.branchId === selectedBooking.branchId)
+      : [],
+    [selectedBooking, teams],
+  );
+
+  useEffect(() => {
+    if (!selectedBooking) return;
+    setSelectedTeamId(
+      teams.find((team) => team.branchId === selectedBooking.branchId)?.id ?? '',
+    );
+  }, [selectedBooking, teams]);
+
+  useEffect(() => {
+    const modalOpen = Boolean(
+      selectedProof
+      || selectedReview
+      || selectedBooking
+      || selectedSettlement
+      || selectedClose
+      || selectedOverrideClose
+      || selectedReopen
+      || selectedTerminalReview
+    );
+    if (!modalOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || isSubmitting) return;
+      setSelectedProof(null);
+      setSelectedReview(null);
+      setSelectedBooking(null);
+      setSelectedSettlement(null);
+      setSelectedClose(null);
+      setSelectedOverrideClose(null);
+      setSelectedReopen(null);
+      setSelectedTerminalReview(null);
+    };
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.body.style.overflow = '';
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [
+    isSubmitting,
+    selectedBooking,
+    selectedClose,
+    selectedOverrideClose,
+    selectedProof,
+    selectedReopen,
+    selectedReview,
+    selectedSettlement,
+    selectedTerminalReview,
+  ]);
+
+  async function finishAction(
+    task: () => Promise<{ success?: boolean; error?: string }>,
+    successMessage: string,
+  ) {
+    setIsSubmitting(true);
+    setFeedback(null);
+    try {
+      const result = await task();
+      if (result.error) {
+        setFeedback({ tone: 'error', message: result.error });
+        return false;
+      }
+      setFeedback({ tone: 'success', message: successMessage });
+      router.refresh();
+      return true;
+    } catch {
+      setFeedback({ tone: 'error', message: 'تعذر الاتصال بالخادم. حاول مرة أخرى.' });
+      return false;
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleReviewProof(decision: ProofDecision) {
+    if (!selectedProof) return;
+    if (decision !== 'VERIFY' && reviewNotes.trim().length < 1) {
+      setFeedback({ tone: 'error', message: 'اكتب سبب القرار قبل المتابعة.' });
+      return;
+    }
+    const formData = new FormData();
+    formData.set('proofId', selectedProof.id);
+    formData.set('decision', decision);
+    formData.set('reviewNotes', reviewNotes);
+    const completed = await finishAction(
+      () => reviewPaymentProofAction(formData),
+      'تم حفظ قرار مراجعة إثبات الدفع.',
+    );
+    if (completed) {
+      setSelectedProof(null);
+      setReviewNotes('');
+    }
+  }
+
+  async function handleBookingReview(decision: 'ACCEPT' | 'REJECT') {
+    if (!selectedReview) return;
+    if (reviewNotes.trim().length < 3) {
+      setFeedback({ tone: 'error', message: 'اكتب سببًا واضحًا للقرار.' });
+      return;
+    }
+    const formData = new FormData();
+    formData.set('bookingId', selectedReview.id);
+    formData.set('decision', decision);
+    formData.set('reason', reviewNotes);
+    const completed = await finishAction(
+      () => reviewBookingAction(formData),
+      decision === 'ACCEPT' ? 'تم اعتماد الحجز وإحالته للتوزيع.' : 'تم رفض الحجز وتحرير الموعد.',
+    );
+    if (completed) {
+      setSelectedReview(null);
+      setReviewNotes('');
+    }
+  }
+
+  async function handleAssignTeam() {
+    if (!selectedBooking || !selectedTeamId) {
+      setFeedback({ tone: 'error', message: 'اختر فريقًا تابعًا لنفس الفرع.' });
+      return;
+    }
+    if (assignmentReason.trim().length < 1) {
+      setFeedback({ tone: 'error', message: 'اكتب سبب الإسناد أو التجاوز اليدوي.' });
+      return;
+    }
+    const formData = new FormData();
+    formData.set('bookingId', selectedBooking.id);
+    formData.set('teamId', selectedTeamId);
+    formData.set('reason', assignmentReason);
+    const completed = await finishAction(
+      () => assignTeamManuallyAction(formData),
+      'تم إسناد الفريق بعد إعادة فحص الموعد.',
+    );
+    if (completed) {
+      setSelectedBooking(null);
+      setAssignmentReason('');
+    }
+  }
+
+  async function handleRecordSettlement() {
+    if (!selectedSettlement || selectedSettlement.amountDue <= 0) return;
+    if (settlementNotes.trim().length < 3) {
+      setFeedback({ tone: 'error', message: 'اكتب ملاحظة تحصيل واضحة من 3 أحرف على الأقل.' });
+      return;
+    }
+    const formData = new FormData();
+    formData.set('bookingId', selectedSettlement.id);
+    formData.set('amount', String(selectedSettlement.amountDue));
+    formData.set('paymentMethod', settlementMethod);
+    formData.set('referenceNumber', settlementReference);
+    formData.set('notes', settlementNotes);
+    formData.set('idempotencyKey', crypto.randomUUID());
+    const completed = await finishAction(
+      () => recordBalancePaymentAction(formData),
+      'تم تسجيل تحصيل الرصيد وتحديث حالة الدفع.',
+    );
+    if (completed) {
+      setSelectedSettlement(null);
+      setSettlementReference('');
+      setSettlementNotes('');
+    }
+  }
+
+  async function handleCloseBooking() {
+    if (!selectedClose || closeReason.trim().length < 3) {
+      setFeedback({ tone: 'error', message: 'اكتب سبب الإغلاق النهائي.' });
+      return;
+    }
+    const formData = new FormData();
+    formData.set('bookingId', selectedClose.id);
+    formData.set('targetStatus', 'CLOSED');
+    formData.set('reason', closeReason);
+    const completed = await finishAction(
+      () => advancePostServiceAction(formData),
+      'تم إغلاق الحجز بعد التحقق من تسوية الرصيد.',
+    );
+    if (completed) setSelectedClose(null);
+  }
+
+  async function handleManagerOverrideClose() {
+    if (!selectedOverrideClose || overrideReason.trim().length < 3) {
+      setFeedback({
+        tone: 'error',
+        message: 'اكتب سببًا واضحًا للاستثناء الإداري من 3 أحرف على الأقل.',
+      });
+      return;
+    }
+    const formData = new FormData();
+    formData.set('bookingId', selectedOverrideClose.id);
+    formData.set('reason', overrideReason);
+    const completed = await finishAction(
+      () => managerOverrideCloseBookingAction(formData),
+      'تم إغلاق الحجز باستثناء إداري موثق مع الإبقاء على قيود الفريق والتسوية.',
+    );
+    if (completed) {
+      setSelectedOverrideClose(null);
+      setOverrideReason('');
+    }
+  }
+
+  async function handleReopenTerminalBooking() {
+    if (!selectedReopen || reopenReason.trim().length < 3) {
+      setFeedback({
+        tone: 'error',
+        message: 'اكتب سببًا واضحًا لإعادة فتح الحجز من 3 أحرف على الأقل.',
+      });
+      return;
+    }
+    const formData = new FormData();
+    formData.set('bookingId', selectedReopen.id);
+    formData.set('reason', reopenReason);
+    const completed = await finishAction(
+      () => reopenTerminalBookingAction(formData),
+      'أعيد الحجز إلى المراجعة الإدارية دون عكس أي تسوية أو زيارة أو حجز مؤقت.',
+    );
+    if (completed) {
+      setSelectedReopen(null);
+      setReopenReason('');
+    }
+  }
+
+  async function handleCloseTerminalReview() {
+    if (!selectedTerminalReview || terminalReviewReason.trim().length < 3) {
+      setFeedback({
+        tone: 'error',
+        message: 'اكتب سببًا واضحًا لإغلاق المراجعة من 3 أحرف على الأقل.',
+      });
+      return;
+    }
+    const formData = new FormData();
+    formData.set('bookingId', selectedTerminalReview.id);
+    formData.set('reason', terminalReviewReason);
+    const completed = await finishAction(
+      () => closeTerminalBookingReviewAction(formData),
+      'أُغلقت المراجعة وعاد الحجز إلى حالته الطرفية الأصلية دون تغيير أي تسوية.',
+    );
+    if (completed) {
+      setSelectedTerminalReview(null);
+      setTerminalReviewReason('');
+    }
+  }
+
+  return (
+    <div className="space-y-8">
+      <div aria-live="polite" className="min-h-6">
+        {feedback && (
+          <p
+            className={`rounded-xl border px-4 py-3 text-sm ${
+              feedback.tone === 'success'
+                ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
+                : 'border-red-500/40 bg-red-500/10 text-red-300'
+            }`}
+          >
+            {feedback.message}
+          </p>
+        )}
+      </div>
+
+      <p className="text-sm text-neutral-400">
+        المستخدم الحالي: <span className="font-bold text-white">{manager.fullName}</span>
+      </p>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <MetricButton
+          active={activeTab === 'proofs'}
+          count={pagedCount(pendingProofs.length, pagination.proofs)}
+          label="إثباتات بانتظار المراجعة"
+          onClick={() => setActiveTab('proofs')}
+          icon={<FileText className="size-5 text-[#c9a227]" aria-hidden="true" />}
+        />
+        <MetricButton
+          active={activeTab === 'review'}
+          count={pagedCount(reviewBookings.length, pagination.review)}
+          label="حجوزات بانتظار القرار"
+          onClick={() => setActiveTab('review')}
+          icon={<ShieldCheck className="size-5 text-[#c9a227]" aria-hidden="true" />}
+        />
+        <MetricButton
+          active={activeTab === 'unassigned'}
+          count={pagedCount(unassignedBookings.length, pagination.unassigned)}
+          label="حجوزات تحتاج فريقًا"
+          onClick={() => setActiveTab('unassigned')}
+          icon={<Users className="size-5 text-[#c9a227]" aria-hidden="true" />}
+        />
+        <MetricButton
+          active={activeTab === 'bookings'}
+          count={pagedCount(activeBookings.length, pagination.bookings)}
+          label="الحجوزات النشطة"
+          onClick={() => setActiveTab('bookings')}
+          icon={<Calendar className="size-5 text-[#c9a227]" aria-hidden="true" />}
+        />
+        {manager.role === 'OWNER' ? (
+          <MetricButton
+            active={activeTab === 'terminal'}
+            count={pagedCount(terminalBookings.length, pagination.terminal)}
+            label="حجوزات طرفية قابلة للمراجعة"
+            onClick={() => setActiveTab('terminal')}
+            icon={<AlertTriangle className="size-5 text-amber-300" aria-hidden="true" />}
+          />
+        ) : null}
+      </div>
+
+      {activeTab === 'proofs' && (
+        <section aria-labelledby="proofs-heading" className="space-y-5 rounded-3xl border border-[#c9a227]/20 bg-[#141414] p-5 sm:p-8">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 id="proofs-heading" className="flex items-center gap-2 text-xl font-bold">
+              <FileText className="size-5 text-[#c9a227]" aria-hidden="true" />
+              مراجعة إثباتات التحويل
+            </h2>
+            <span className="text-xs text-neutral-500">مراجعة يدوية دون OCR</span>
+          </div>
+          {pendingProofs.length === 0 ? (
+            <p className="rounded-2xl bg-[#080808] p-10 text-center text-sm text-neutral-500">لا توجد إثباتات معلّقة.</p>
+          ) : pendingProofs.map((proof) => (
+            <article key={proof.id} className="flex flex-col justify-between gap-5 rounded-2xl border border-neutral-800 bg-[#080808] p-5 lg:flex-row lg:items-center">
+              <div className="space-y-2 text-sm text-neutral-300">
+                <h3 className="font-bold text-[#e5c45a]">{proof.booking.bookingNumber} — {proof.booking.service.nameAr}</h3>
+                <p>{proof.booking.customer.user.fullName} • {proof.booking.customer.user.phone}</p>
+                <p>المحوّل: {proof.senderName} ({proof.senderPhoneOrAccount})</p>
+                <p>المبلغ: <strong className="text-white">{proof.amountSubmitted} ج.م</strong> • المطلوب أوليًا: {Math.max(0, proof.booking.depositAmount - proof.booking.amountPaid)} ج.م</p>
+              </div>
+              <button type="button" onClick={() => { setSelectedProof(proof); setReviewNotes(''); setFeedback(null); }} className="rounded-xl bg-[#c9a227] px-5 py-3 text-sm font-bold text-black hover:bg-[#e5c45a]">
+                فتح المراجعة
+              </button>
+            </article>
+          ))}
+          <OperationsQueuePagination queueKey="proofs" pagination={pagination.proofs} dashboardTab="proofs" />
+        </section>
+      )}
+
+      {activeTab === 'review' && (
+        <section aria-labelledby="review-heading" className="space-y-5 rounded-3xl border border-[#c9a227]/20 bg-[#141414] p-5 sm:p-8">
+          <h2 id="review-heading" className="flex items-center gap-2 text-xl font-bold">
+            <ShieldCheck className="size-5 text-[#c9a227]" aria-hidden="true" />
+            مراجعة الحجوزات تشغيليًا
+          </h2>
+          {reviewBookings.length === 0 ? (
+            <p className="rounded-2xl bg-[#080808] p-10 text-center text-sm text-neutral-500">لا توجد حجوزات بانتظار القرار.</p>
+          ) : reviewBookings.map((booking) => (
+            <article key={booking.id} className="flex flex-col justify-between gap-5 rounded-2xl border border-neutral-800 bg-[#080808] p-5 lg:flex-row lg:items-center">
+              <div className="space-y-2 text-sm text-neutral-300">
+                <h3 className="font-bold text-[#e5c45a]">{booking.bookingNumber} — {booking.service.nameAr}</h3>
+                <p>{booking.customer.user.fullName} • {booking.vehicle.make} {booking.vehicle.model}</p>
+                <p>{booking.branch.nameAr} • {booking.coverageArea.compound} • {formatDateTime(booking.startAt)}</p>
+                <p>الدفع: {booking.paymentStatus} • مدفوع {booking.amountPaid} ج.م • متبقٍ {booking.amountDue} ج.م</p>
+              </div>
+              <button type="button" onClick={() => { setSelectedReview(booking); setReviewNotes(''); setFeedback(null); }} className="rounded-xl bg-[#c9a227] px-5 py-3 text-sm font-bold text-black hover:bg-[#e5c45a]">
+                اتخاذ القرار
+              </button>
+            </article>
+          ))}
+          <OperationsQueuePagination queueKey="review" pagination={pagination.review} dashboardTab="review" />
+        </section>
+      )}
+
+      {activeTab === 'unassigned' && (
+        <section aria-labelledby="assignment-heading" className="space-y-5 rounded-3xl border border-[#c9a227]/20 bg-[#141414] p-5 sm:p-8">
+          <h2 id="assignment-heading" className="flex items-center gap-2 text-xl font-bold">
+            <Users className="size-5 text-[#c9a227]" aria-hidden="true" />
+            قائمة التوزيع اليدوي
+          </h2>
+          {unassignedBookings.length === 0 ? (
+            <p className="rounded-2xl bg-[#080808] p-10 text-center text-sm text-neutral-500">كل الحجوزات المقبولة مسندة.</p>
+          ) : unassignedBookings.map((booking) => (
+            <article key={booking.id} className="flex flex-col justify-between gap-5 rounded-2xl border border-neutral-800 bg-[#080808] p-5 lg:flex-row lg:items-center">
+              <div className="space-y-2 text-sm text-neutral-300">
+                <h3 className="font-bold text-[#e5c45a]">{booking.bookingNumber} — {booking.service.nameAr}</h3>
+                <p>{booking.branch.nameAr} • {booking.coverageArea.compound}</p>
+                <p>{formatDateTime(booking.startAt)} • {booking.bookingStatus}</p>
+              </div>
+              <button type="button" onClick={() => { setSelectedBooking(booking); setAssignmentReason(''); setFeedback(null); }} className="rounded-xl border border-[#c9a227]/50 px-5 py-3 text-sm font-bold text-[#e5c45a] hover:bg-[#c9a227]/10">
+                اختيار فريق
+              </button>
+            </article>
+          ))}
+          <OperationsQueuePagination queueKey="unassigned" pagination={pagination.unassigned} dashboardTab="unassigned" />
+        </section>
+      )}
+
+      {activeTab === 'bookings' && (
+        <section aria-labelledby="active-heading" className="space-y-5 rounded-3xl border border-[#c9a227]/20 bg-[#141414] p-5 sm:p-8">
+          <h2 id="active-heading" className="flex items-center gap-2 text-xl font-bold">
+            <Calendar className="size-5 text-[#c9a227]" aria-hidden="true" />
+            الحجوزات النشطة القادمة
+          </h2>
+          <form onSubmit={(event) => { event.preventDefault(); submitServerSearch('bookingQuery', activeSearch); }} className="flex max-w-2xl flex-col gap-2 sm:flex-row">
+            <label className="sr-only" htmlFor="active-booking-search">ابحث في الحجوزات النشطة</label>
+            <input id="active-booking-search" value={activeSearch} onChange={(event) => setActiveSearch(event.target.value)} type="search" placeholder="رقم الحجز أو العميل أو الهاتف أو الخدمة" className="min-h-11 flex-1 rounded-xl border border-neutral-700 bg-[#080808] px-4 text-sm text-white outline-none focus:border-[#c9a227]" />
+            <button type="submit" className="min-h-11 rounded-xl border border-[#c9a227]/45 px-5 text-sm font-bold text-[#e5c45a]">بحث شامل</button>
+          </form>
+          {activeBookings.length === 0 ? (
+            <p className="rounded-2xl bg-[#080808] p-10 text-center text-sm text-neutral-500">لا توجد حجوزات نشطة.</p>
+          ) : (
+            <div className="overflow-x-auto rounded-2xl border border-neutral-800">
+              <table className="min-w-full divide-y divide-neutral-800 text-right text-sm">
+                <thead className="bg-[#080808] text-neutral-400">
+                  <tr><th className="p-4">الحجز</th><th className="p-4">العميل</th><th className="p-4">الموعد</th><th className="p-4">الفريق</th><th className="p-4">الحالة</th><th className="p-4">التسوية</th></tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-800">
+                  {activeBookings.map((booking) => (
+                    <tr key={booking.id}>
+                      <td className="p-4 font-bold text-white">{booking.bookingNumber}<span className="block text-xs font-normal text-neutral-500">{booking.service.nameAr}</span></td>
+                      <td className="p-4 text-neutral-300">{booking.customer.user.fullName}</td>
+                      <td className="whitespace-nowrap p-4 text-neutral-300">{formatDateTime(booking.startAt)}</td>
+                      <td className="p-4 text-neutral-300">{booking.assignedTeam?.name ?? 'غير مسند'}</td>
+                      <td className="p-4"><span className="rounded-full bg-[#c9a227]/10 px-3 py-1 text-xs text-[#e5c45a]">{booking.bookingStatus}</span></td>
+                      <td className="p-4">
+                        <div className="flex min-w-36 flex-col gap-2">
+                          {booking.terminalReopenSourceStatus ? (
+                            <>
+                              <span className="rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs leading-5 text-amber-100">
+                                مراجعة فقط · الحالة الأصلية {booking.terminalReopenSourceStatus}
+                              </span>
+                              {manager.role === 'OWNER' ? (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedTerminalReview(booking);
+                                    setTerminalReviewReason('');
+                                    setFeedback(null);
+                                  }}
+                                  className="rounded-lg border border-amber-400/50 px-3 py-2 text-xs font-bold text-amber-200"
+                                >
+                                  إغلاق المراجعة
+                                </button>
+                              ) : null}
+                            </>
+                          ) : (
+                            <>
+                              {booking.amountDue > 0 && booking.canRecordBalancePayment ? (
+                                <button type="button" onClick={() => { setSelectedSettlement(booking); setSettlementNotes(''); setFeedback(null); }} className="rounded-lg border border-[#c9a227]/40 px-3 py-2 text-xs font-bold text-[#e5c45a]">
+                                  تحصيل {booking.amountDue} ج.م
+                                </button>
+                              ) : booking.amountDue === 0 ? <span className="text-xs font-bold text-emerald-300">مدفوع بالكامل</span> : null}
+                              {booking.canCloseBooking && booking.bookingStatus === 'DELIVERED' && booking.amountDue === 0 ? (
+                                <button type="button" onClick={() => { setSelectedClose(booking); setFeedback(null); }} className="rounded-lg bg-emerald-500 px-3 py-2 text-xs font-bold text-black">
+                                  إغلاق الحجز
+                                </button>
+                              ) : null}
+                              {booking.canManagerOverrideClose
+                                && ['IN_SERVICE', 'QUALITY_REVIEW'].includes(booking.bookingStatus)
+                                && booking.amountDue === 0 ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedOverrideClose(booking);
+                                      setOverrideReason('');
+                                      setFeedback(null);
+                                    }}
+                                    className="rounded-lg border border-amber-400/50 bg-amber-400/10 px-3 py-2 text-xs font-bold text-amber-200"
+                                  >
+                                    إغلاق باستثناء إداري
+                                  </button>
+                                ) : null}
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <OperationsQueuePagination queueKey="bookings" pagination={pagination.bookings} dashboardTab="bookings" />
+        </section>
+      )}
+
+      {activeTab === 'terminal' && manager.role === 'OWNER' ? (
+        <section aria-labelledby="terminal-heading" className="space-y-5 rounded-3xl border border-amber-400/20 bg-[#141414] p-5 sm:p-8">
+          <div className="space-y-2">
+            <h2 id="terminal-heading" className="flex items-center gap-2 text-xl font-bold">
+              <AlertTriangle className="size-5 text-amber-300" aria-hidden="true" />
+              مراجعة الحجوزات الطرفية
+            </h2>
+            <p className="text-sm text-neutral-400">
+              إعادة الفتح تنقل الحجز إلى ADMIN_REVIEW_REQUIRED فقط، ولا تعكس استردادًا أو زيارة اشتراك أو حجز موعد سابقًا.
+            </p>
+          </div>
+          <form onSubmit={(event) => { event.preventDefault(); submitServerSearch('terminalQuery', terminalSearch); }} className="flex max-w-2xl flex-col gap-2 sm:flex-row">
+            <label className="sr-only" htmlFor="terminal-booking-search">ابحث في الحجوزات الطرفية</label>
+            <input id="terminal-booking-search" value={terminalSearch} onChange={(event) => setTerminalSearch(event.target.value)} type="search" placeholder="رقم الحجز أو العميل أو الهاتف أو الخدمة" className="min-h-11 flex-1 rounded-xl border border-neutral-700 bg-[#080808] px-4 text-sm text-white outline-none focus:border-amber-400" />
+            <button type="submit" className="min-h-11 rounded-xl border border-amber-400/45 px-5 text-sm font-bold text-amber-200">بحث شامل</button>
+          </form>
+          {terminalBookings.length === 0 ? (
+            <p className="rounded-2xl bg-[#080808] p-10 text-center text-sm text-neutral-500">لا توجد حجوزات طرفية حديثة.</p>
+          ) : (
+            <div className="grid gap-4 lg:grid-cols-2">
+              {terminalBookings.map((booking) => (
+                <article key={booking.id} className="rounded-2xl border border-neutral-800 bg-[#080808] p-5">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h3 className="font-bold text-[#e5c45a]">{booking.bookingNumber} — {booking.service.nameAr}</h3>
+                      <p className="mt-1 text-sm text-neutral-400">{booking.customer.user.fullName} • {booking.branch.nameAr}</p>
+                    </div>
+                    <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-xs font-bold text-amber-200">{booking.bookingStatus}</span>
+                  </div>
+                  <dl className="mt-4 grid grid-cols-2 gap-3 text-xs text-neutral-400">
+                    <div><dt>الدفع</dt><dd className="mt-1 font-bold text-white">{booking.paymentStatus}</dd></div>
+                    <div><dt>الرصيد المستحق</dt><dd className="mt-1 font-bold text-white">{booking.amountDue} ج.م</dd></div>
+                    <div><dt>المدفوع</dt><dd className="mt-1 font-bold text-white">{booking.amountPaid} ج.م</dd></div>
+                    <div><dt>آخر تحديث</dt><dd className="mt-1 font-bold text-white">{formatDateTime(booking.updatedAt)}</dd></div>
+                  </dl>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedReopen(booking);
+                      setReopenReason('');
+                      setFeedback(null);
+                    }}
+                    className="mt-4 w-full rounded-xl border border-amber-400/50 px-4 py-3 text-sm font-bold text-amber-200 hover:bg-amber-400/10"
+                  >
+                    إعادة فتح للمراجعة الإدارية
+                  </button>
+                </article>
+              ))}
+            </div>
+          )}
+          <OperationsQueuePagination queueKey="terminal" pagination={pagination.terminal} dashboardTab="terminal" />
+        </section>
+      ) : null}
+
+      {selectedProof && (
+        <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/85 p-4" role="presentation">
+          <div role="dialog" aria-modal="true" aria-labelledby="proof-dialog-title" className="my-8 w-full max-w-2xl space-y-5 rounded-3xl border border-[#c9a227]/40 bg-[#141414] p-5 shadow-2xl sm:p-8">
+            <div className="flex items-center justify-between gap-4">
+              <h2 id="proof-dialog-title" className="text-xl font-bold">مراجعة إثبات {selectedProof.booking.bookingNumber}</h2>
+              <button type="button" aria-label="إغلاق" disabled={isSubmitting} onClick={() => setSelectedProof(null)} className="rounded-lg p-2 text-neutral-400 hover:bg-white/10 hover:text-white"><X className="size-5" /></button>
+            </div>
+            <dl className="grid gap-3 rounded-2xl bg-[#080808] p-4 text-sm sm:grid-cols-2">
+              <div><dt className="text-neutral-500">الوسيلة</dt><dd>{selectedProof.paymentMethod.name}</dd></div>
+              <div><dt className="text-neutral-500">المرجع</dt><dd>{selectedProof.referenceNumber || 'غير مسجل'}</dd></div>
+              <div><dt className="text-neutral-500">وقت التحويل</dt><dd>{formatDateTime(selectedProof.transferTimestamp)}</dd></div>
+              <div><dt className="text-neutral-500">المبلغ</dt><dd>{selectedProof.amountSubmitted} ج.م</dd></div>
+            </dl>
+            <a href={selectedProof.proofFileUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-[#c9a227]/50 px-4 py-3 text-sm font-bold text-[#e5c45a] hover:bg-[#c9a227]/10">
+              فتح الملف الخاص <ExternalLink className="size-4" aria-hidden="true" />
+            </a>
+            <div>
+              <label htmlFor="proof-notes" className="mb-2 block text-sm font-semibold">ملاحظات القرار</label>
+              <textarea id="proof-notes" value={reviewNotes} onChange={(event) => setReviewNotes(event.target.value)} rows={4} maxLength={1000} className="w-full rounded-xl border border-neutral-700 bg-[#080808] p-3 text-sm text-white focus:border-[#c9a227] focus:outline-none" placeholder="إلزامية لكل قرار عدا الاعتماد" />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <button type="button" disabled={isSubmitting} onClick={() => handleReviewProof('VERIFY')} className="rounded-xl bg-emerald-500 px-4 py-3 text-sm font-bold text-black disabled:opacity-50">اعتماد الإثبات</button>
+              <button type="button" disabled={isSubmitting} onClick={() => handleReviewProof('SHORT')} className="rounded-xl bg-amber-500 px-4 py-3 text-sm font-bold text-black disabled:opacity-50">المبلغ ناقص</button>
+              <button type="button" disabled={isSubmitting} onClick={() => handleReviewProof('REUPLOAD')} className="rounded-xl bg-sky-500 px-4 py-3 text-sm font-bold text-black disabled:opacity-50">طلب إعادة رفع</button>
+              <button type="button" disabled={isSubmitting} onClick={() => handleReviewProof('DUPLICATE')} className="rounded-xl border border-purple-500/60 px-4 py-3 text-sm font-bold text-purple-300 disabled:opacity-50">اشتباه تكرار</button>
+              <button type="button" disabled={isSubmitting} onClick={() => handleReviewProof('REJECT')} className="rounded-xl bg-red-600 px-4 py-3 text-sm font-bold text-white disabled:opacity-50">رفض الإثبات</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {selectedReview && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/85 p-4" role="presentation">
+          <div role="dialog" aria-modal="true" aria-labelledby="booking-review-title" className="w-full max-w-lg space-y-5 rounded-3xl border border-[#c9a227]/40 bg-[#141414] p-5 sm:p-8">
+            <div className="flex items-center justify-between gap-4"><h2 id="booking-review-title" className="text-xl font-bold">قرار الحجز {selectedReview.bookingNumber}</h2><button type="button" aria-label="إغلاق" disabled={isSubmitting} onClick={() => setSelectedReview(null)} className="rounded-lg p-2 text-neutral-400 hover:bg-white/10"><X className="size-5" /></button></div>
+            <p className="rounded-2xl bg-[#080808] p-4 text-sm text-neutral-300">{selectedReview.service.nameAr} • {selectedReview.customer.user.fullName}<br />{formatDateTime(selectedReview.startAt)} • {selectedReview.branch.assignmentMode === 'AUTOMATIC' ? 'توزيع تلقائي' : 'توزيع يدوي'}</p>
+            <div><label htmlFor="booking-review-reason" className="mb-2 block text-sm font-semibold">سبب القرار</label><textarea id="booking-review-reason" value={reviewNotes} onChange={(event) => setReviewNotes(event.target.value)} rows={4} maxLength={1000} className="w-full rounded-xl border border-neutral-700 bg-[#080808] p-3 text-sm text-white focus:border-[#c9a227] focus:outline-none" /></div>
+            <div className="grid grid-cols-2 gap-3"><button type="button" disabled={isSubmitting} onClick={() => handleBookingReview('ACCEPT')} className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-3 text-sm font-bold text-black disabled:opacity-50"><CheckCircle2 className="size-4" />اعتماد</button><button type="button" disabled={isSubmitting} onClick={() => handleBookingReview('REJECT')} className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-3 text-sm font-bold disabled:opacity-50"><AlertTriangle className="size-4" />رفض</button></div>
+          </div>
+        </div>
+      )}
+
+      {selectedBooking && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/85 p-4" role="presentation">
+          <div role="dialog" aria-modal="true" aria-labelledby="assignment-dialog-title" className="w-full max-w-lg space-y-5 rounded-3xl border border-[#c9a227]/40 bg-[#141414] p-5 sm:p-8">
+            <div className="flex items-center justify-between gap-4"><h2 id="assignment-dialog-title" className="text-xl font-bold">إسناد {selectedBooking.bookingNumber}</h2><button type="button" aria-label="إغلاق" disabled={isSubmitting} onClick={() => setSelectedBooking(null)} className="rounded-lg p-2 text-neutral-400 hover:bg-white/10"><X className="size-5" /></button></div>
+            {visibleTeams.length ? (
+              <><div><label htmlFor="team-id" className="mb-2 block text-sm font-semibold">الفريق</label><select id="team-id" value={selectedTeamId} onChange={(event) => setSelectedTeamId(event.target.value)} className="w-full rounded-xl border border-neutral-700 bg-[#080808] p-3 text-sm text-white focus:border-[#c9a227] focus:outline-none">{visibleTeams.map((team) => <option key={team.id} value={team.id}>{team.name} — {team.members.length} أعضاء</option>)}</select></div><div><label htmlFor="assignment-reason" className="mb-2 block text-sm font-semibold">سبب الإسناد/التجاوز</label><textarea id="assignment-reason" value={assignmentReason} onChange={(event) => setAssignmentReason(event.target.value)} rows={3} maxLength={500} className="w-full rounded-xl border border-neutral-700 bg-[#080808] p-3 text-sm text-white focus:border-[#c9a227] focus:outline-none" /></div><button type="button" disabled={isSubmitting} onClick={handleAssignTeam} className="w-full rounded-xl bg-[#c9a227] px-4 py-3 text-sm font-bold text-black disabled:opacity-50">إعادة الفحص ثم الإسناد</button></>
+            ) : <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">لا توجد فرق نشطة تابعة لهذا الفرع.</p>}
+          </div>
+        </div>
+      )}
+
+      {selectedSettlement && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/85 p-4" role="presentation">
+          <div role="dialog" aria-modal="true" aria-labelledby="settlement-title" className="w-full max-w-lg space-y-5 rounded-3xl border border-[#c9a227]/40 bg-[#141414] p-5 sm:p-8">
+            <div className="flex items-center justify-between gap-4"><h2 id="settlement-title" className="text-xl font-bold">تأكيد تحصيل الرصيد</h2><button type="button" aria-label="إغلاق" disabled={isSubmitting} onClick={() => setSelectedSettlement(null)} className="rounded-lg p-2 text-neutral-400 hover:bg-white/10"><X className="size-5" /></button></div>
+            <div className="rounded-2xl bg-[#080808] p-4 text-sm text-neutral-300"><p className="font-bold text-[#e5c45a]">{selectedSettlement.bookingNumber}</p><p className="mt-2">المبلغ المستحق كاملًا: <strong className="text-white">{selectedSettlement.amountDue} ج.م</strong></p><p className="mt-1 text-xs text-neutral-500">لن يقبل الخادم مبلغًا أكبر من الرصيد الحالي، ومفتاح العملية يمنع التكرار.</p></div>
+            <div><label htmlFor="settlement-method" className="mb-2 block text-sm font-semibold">وسيلة التحصيل</label><select id="settlement-method" value={settlementMethod} onChange={(event) => setSettlementMethod(event.target.value)} className="w-full rounded-xl border border-neutral-700 bg-[#080808] p-3 text-sm text-white"><option value="CASH">نقدي</option><option value="BANK_TRANSFER">تحويل بنكي</option><option value="MOBILE_WALLET">محفظة إلكترونية</option><option value="POS">بطاقة عبر POS</option></select></div>
+            <div><label htmlFor="settlement-reference" className="mb-2 block text-sm font-semibold">رقم المرجع (اختياري)</label><input id="settlement-reference" value={settlementReference} onChange={(event) => setSettlementReference(event.target.value)} className="w-full rounded-xl border border-neutral-700 bg-[#080808] p-3 text-sm text-white" dir="ltr" /></div>
+            <div><label htmlFor="settlement-notes" className="mb-2 block text-sm font-semibold">ملاحظات التحصيل *</label><textarea id="settlement-notes" required minLength={3} value={settlementNotes} onChange={(event) => setSettlementNotes(event.target.value)} rows={3} className="w-full rounded-xl border border-neutral-700 bg-[#080808] p-3 text-sm text-white" /></div>
+            <button type="button" disabled={isSubmitting} onClick={handleRecordSettlement} className="w-full rounded-xl bg-[#c9a227] px-4 py-3 text-sm font-bold text-black disabled:opacity-50">تأكيد تسجيل {selectedSettlement.amountDue} ج.م</button>
+          </div>
+        </div>
+      )}
+
+      {selectedClose && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/85 p-4" role="presentation">
+          <div role="dialog" aria-modal="true" aria-labelledby="close-booking-title" className="w-full max-w-lg space-y-5 rounded-3xl border border-emerald-500/35 bg-[#141414] p-5 sm:p-8">
+            <div className="flex items-center justify-between gap-4"><h2 id="close-booking-title" className="text-xl font-bold">الإغلاق النهائي للحجز</h2><button type="button" aria-label="إغلاق" disabled={isSubmitting} onClick={() => setSelectedClose(null)} className="rounded-lg p-2 text-neutral-400 hover:bg-white/10"><X className="size-5" /></button></div>
+            <p className="rounded-2xl bg-[#080808] p-4 text-sm text-neutral-300">الحجز <strong className="text-white">{selectedClose.bookingNumber}</strong> في مرحلة التسليم ورصيده مسدد. سيُسجل الإغلاق في سجل الحالات والتدقيق.</p>
+            <div><label htmlFor="close-reason" className="mb-2 block text-sm font-semibold">سبب الإغلاق *</label><textarea id="close-reason" required minLength={3} value={closeReason} onChange={(event) => setCloseReason(event.target.value)} rows={3} className="w-full rounded-xl border border-neutral-700 bg-[#080808] p-3 text-sm text-white" /></div>
+            <button type="button" disabled={isSubmitting} onClick={handleCloseBooking} className="w-full rounded-xl bg-emerald-500 px-4 py-3 text-sm font-bold text-black disabled:opacity-50">تأكيد الإغلاق النهائي</button>
+          </div>
+        </div>
+      )}
+
+      {selectedOverrideClose && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/85 p-4" role="presentation">
+          <div role="dialog" aria-modal="true" aria-labelledby="override-close-title" className="w-full max-w-lg space-y-5 rounded-3xl border border-amber-400/40 bg-[#141414] p-5 sm:p-8">
+            <div className="flex items-center justify-between gap-4">
+              <h2 id="override-close-title" className="text-xl font-bold">إغلاق باستثناء إداري</h2>
+              <button type="button" aria-label="إغلاق" disabled={isSubmitting} onClick={() => setSelectedOverrideClose(null)} className="rounded-lg p-2 text-neutral-400 hover:bg-white/10"><X className="size-5" /></button>
+            </div>
+            <div className="rounded-2xl border border-amber-400/25 bg-amber-400/[0.07] p-4 text-sm text-amber-100">
+              <p className="font-bold">{selectedOverrideClose.bookingNumber} — {selectedOverrideClose.bookingStatus}</p>
+              <p className="mt-2 leading-6">سيُتجاوز فقط اكتمال قوائم الفحص المطلوبة وصور ما بعد الخدمة واعتماد الجودة. لن يُتجاوز إسناد الفريق أو الرصيد المستحق، وستُسجل زيارة الاشتراك إن وجدت.</p>
+            </div>
+            <div>
+              <label htmlFor="override-close-reason" className="mb-2 block text-sm font-semibold">سبب الاستثناء الإداري *</label>
+              <textarea id="override-close-reason" required minLength={3} maxLength={1000} value={overrideReason} onChange={(event) => setOverrideReason(event.target.value)} rows={4} className="w-full rounded-xl border border-neutral-700 bg-[#080808] p-3 text-sm text-white focus:border-amber-400 focus:outline-none" />
+            </div>
+            <button type="button" disabled={isSubmitting} onClick={handleManagerOverrideClose} className="w-full rounded-xl bg-amber-400 px-4 py-3 text-sm font-bold text-black disabled:opacity-50">
+              تأكيد الاستثناء والإغلاق
+            </button>
+          </div>
+        </div>
+      )}
+
+      {selectedTerminalReview && manager.role === 'OWNER' ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/85 p-4" role="presentation">
+          <div role="dialog" aria-modal="true" aria-labelledby="close-terminal-review-title" className="w-full max-w-lg space-y-5 rounded-3xl border border-amber-400/40 bg-[#141414] p-5 sm:p-8">
+            <div className="flex items-center justify-between gap-4">
+              <h2 id="close-terminal-review-title" className="text-xl font-bold">إغلاق المراجعة الإدارية</h2>
+              <button type="button" aria-label="إغلاق" disabled={isSubmitting} onClick={() => setSelectedTerminalReview(null)} className="rounded-lg p-2 text-neutral-400 hover:bg-white/10"><X className="size-5" /></button>
+            </div>
+            <div className="rounded-2xl border border-amber-400/25 bg-amber-400/[0.07] p-4 text-sm leading-7 text-amber-100">
+              <p className="font-bold">{selectedTerminalReview.bookingNumber}</p>
+              <p>سيعود الحجز إلى {selectedTerminalReview.terminalReopenSourceStatus} مع إبقاء الدفعات والاستردادات والإسناد وسجل الزيارات كما هي. لا يمكن تشغيل الحجز أو إسناده أثناء هذه المراجعة.</p>
+            </div>
+            <div>
+              <label htmlFor="terminal-review-close-reason" className="mb-2 block text-sm font-semibold">سبب إغلاق المراجعة *</label>
+              <textarea id="terminal-review-close-reason" required minLength={3} maxLength={1000} value={terminalReviewReason} onChange={(event) => setTerminalReviewReason(event.target.value)} rows={4} className="w-full rounded-xl border border-neutral-700 bg-[#080808] p-3 text-sm text-white focus:border-amber-400 focus:outline-none" />
+            </div>
+            <button type="button" disabled={isSubmitting} onClick={handleCloseTerminalReview} className="w-full rounded-xl bg-amber-400 px-4 py-3 text-sm font-bold text-black disabled:opacity-50">
+              إغلاق المراجعة وإعادة الحالة الأصلية
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {selectedReopen && manager.role === 'OWNER' ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/85 p-4" role="presentation">
+          <div role="dialog" aria-modal="true" aria-labelledby="reopen-terminal-title" className="w-full max-w-lg space-y-5 rounded-3xl border border-amber-400/40 bg-[#141414] p-5 sm:p-8">
+            <div className="flex items-center justify-between gap-4">
+              <h2 id="reopen-terminal-title" className="text-xl font-bold">إعادة فتح حجز طرفي</h2>
+              <button type="button" aria-label="إغلاق" disabled={isSubmitting} onClick={() => setSelectedReopen(null)} className="rounded-lg p-2 text-neutral-400 hover:bg-white/10"><X className="size-5" /></button>
+            </div>
+            <div className="rounded-2xl border border-amber-400/25 bg-amber-400/[0.07] p-4 text-sm text-amber-100">
+              <p className="font-bold">{selectedReopen.bookingNumber}: {selectedReopen.bookingStatus} → ADMIN_REVIEW_REQUIRED</p>
+              <p className="mt-2 leading-6">ستبقى كل الدفعات والاستردادات وقيود الزيارات والحجوزات المؤقتة السابقة كما هي. إعادة الفتح لا تعني إعادة الخدمة أو المال تلقائيًا.</p>
+            </div>
+            <dl className="grid grid-cols-2 gap-3 rounded-2xl bg-[#080808] p-4 text-sm">
+              <div><dt className="text-neutral-500">حالة الدفع</dt><dd className="mt-1 font-bold">{selectedReopen.paymentStatus}</dd></div>
+              <div><dt className="text-neutral-500">الرصيد المستحق</dt><dd className="mt-1 font-bold">{selectedReopen.amountDue} ج.م</dd></div>
+            </dl>
+            <div>
+              <label htmlFor="reopen-terminal-reason" className="mb-2 block text-sm font-semibold">سبب إعادة الفتح *</label>
+              <textarea id="reopen-terminal-reason" required minLength={3} maxLength={1000} value={reopenReason} onChange={(event) => setReopenReason(event.target.value)} rows={4} className="w-full rounded-xl border border-neutral-700 bg-[#080808] p-3 text-sm text-white focus:border-amber-400 focus:outline-none" />
+            </div>
+            <button type="button" disabled={isSubmitting} onClick={handleReopenTerminalBooking} className="w-full rounded-xl bg-amber-400 px-4 py-3 text-sm font-bold text-black disabled:opacity-50">
+              إعادة الفتح للمراجعة الإدارية
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}

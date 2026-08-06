@@ -1,0 +1,6 @@
+ALTER TABLE "CancellationRequest"
+  ADD COLUMN "retainedAmount" INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN "creditAmount" INTEGER NOT NULL DEFAULT 0;
+
+ALTER TABLE "Booking"
+  ADD COLUMN "creditAppliedAmount" INTEGER NOT NULL DEFAULT 0;

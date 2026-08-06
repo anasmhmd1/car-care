@@ -1,0 +1,57 @@
+import { BookingStatus, PaymentStatus } from '@prisma/client';
+
+export const bookingStatusLabels: Record<BookingStatus, string> = {
+  [BookingStatus.DRAFT]: 'مسودة',
+  [BookingStatus.REQUEST_SUBMITTED]: 'تم إرسال الطلب',
+  [BookingStatus.AWAITING_PAYMENT_PROOF]: 'بانتظار إثبات الدفع',
+  [BookingStatus.PAYMENT_UNDER_REVIEW]: 'الدفع قيد المراجعة',
+  [BookingStatus.PAYMENT_VERIFIED]: 'تم التحقق من الدفع',
+  [BookingStatus.AWAITING_OPERATIONS_REVIEW]: 'بانتظار مراجعة التشغيل',
+  [BookingStatus.ACCEPTED]: 'مقبول',
+  [BookingStatus.AWAITING_ASSIGNMENT]: 'بانتظار الإسناد',
+  [BookingStatus.ASSIGNED]: 'مسند',
+  [BookingStatus.TEAM_ACKNOWLEDGED]: 'استلمه الفريق',
+  [BookingStatus.ON_THE_WAY]: 'في الطريق',
+  [BookingStatus.ARRIVED]: 'وصل الفريق',
+  [BookingStatus.IN_SERVICE]: 'قيد التنفيذ',
+  [BookingStatus.QUALITY_REVIEW]: 'مراجعة الجودة',
+  [BookingStatus.SERVICE_COMPLETED]: 'اكتملت الخدمة',
+  [BookingStatus.DELIVERED]: 'تم التسليم',
+  [BookingStatus.CLOSED]: 'مغلق',
+  [BookingStatus.RESCHEDULE_REQUESTED]: 'طلب إعادة جدولة',
+  [BookingStatus.CANCELLATION_REQUESTED]: 'طلب إلغاء',
+  [BookingStatus.CANCELLED]: 'ملغى',
+  [BookingStatus.REJECTED]: 'مرفوض',
+  [BookingStatus.EXECUTION_FAILED]: 'تعذر التنفيذ',
+  [BookingStatus.CUSTOMER_NO_SHOW]: 'العميل لم يحضر',
+  [BookingStatus.ACCESS_DENIED]: 'تعذر الدخول',
+  [BookingStatus.ADMIN_REVIEW_REQUIRED]: 'تتطلب مراجعة إدارية',
+  [BookingStatus.EXPIRED]: 'منتهي',
+};
+
+export const paymentStatusLabels: Record<PaymentStatus, string> = {
+  [PaymentStatus.NOT_REQUIRED]: 'غير مطلوب',
+  [PaymentStatus.AWAITING_PROOF]: 'بانتظار الإثبات',
+  [PaymentStatus.PROOF_UPLOADED]: 'تم رفع الإثبات',
+  [PaymentStatus.UNDER_REVIEW]: 'قيد المراجعة',
+  [PaymentStatus.VERIFIED]: 'متحقق',
+  [PaymentStatus.REJECTED]: 'مرفوض',
+  [PaymentStatus.AMOUNT_SHORT]: 'المبلغ ناقص',
+  [PaymentStatus.DUPLICATE_SUSPECTED]: 'اشتباه تكرار',
+  [PaymentStatus.REUPLOAD_REQUIRED]: 'مطلوب إعادة الرفع',
+  [PaymentStatus.PARTIALLY_PAID]: 'مدفوع جزئيًا',
+  [PaymentStatus.FULLY_PAID]: 'مدفوع بالكامل',
+  [PaymentStatus.REFUND_PENDING]: 'استرداد معلق',
+  [PaymentStatus.PARTIALLY_REFUNDED]: 'مسترد جزئيًا',
+  [PaymentStatus.REFUNDED]: 'مسترد بالكامل',
+  [PaymentStatus.NON_REFUNDABLE]: 'غير قابل للاسترداد',
+};
+
+export const responsiblePartyLabels: Record<string, string> = {
+  CUSTOMER: 'العميل',
+  TEAM: 'الفريق',
+  BRANCH: 'الفرع',
+  ACCESS: 'الدخول أو التصريح',
+  FORCE_MAJEURE: 'ظرف قهري',
+  UNSPECIFIED: 'غير محدد',
+};

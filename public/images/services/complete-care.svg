@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">Complete car care illustration</title>
+  <desc id="desc">A complete premium detailing experience represented by a protected car in a gold halo.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#030303"/><stop offset=".5" stop-color="#16120c"/><stop offset="1" stop-color="#060606"/></linearGradient>
+    <linearGradient id="body" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#262d31"/><stop offset=".48" stop-color="#0a0e10"/><stop offset="1" stop-color="#24272a"/></linearGradient>
+    <linearGradient id="gold" x1="0" x2="1"><stop stop-color="#8b6613"/><stop offset=".5" stop-color="#ffe58b"/><stop offset="1" stop-color="#a57a1e"/></linearGradient>
+    <filter id="blur"><feGaussianBlur stdDeviation="28"/></filter>
+  </defs>
+  <rect width="1600" height="900" fill="url(#bg)"/><ellipse cx="800" cy="470" rx="555" ry="363" fill="#d4af37" opacity=".18" filter="url(#blur)"/>
+  <circle cx="800" cy="454" r="309" fill="none" stroke="url(#gold)" stroke-width="11" opacity=".9"/><circle cx="800" cy="454" r="263" fill="none" stroke="#e7cf72" stroke-opacity=".2" stroke-width="3" stroke-dasharray="12 16"/>
+  <path d="M371 617c45-92 117-154 224-184l145-128c34-30 75-45 121-45h234c50 0 95 22 128 62l99 118c89 23 151 75 177 164l15 60H333l38-47Z" fill="url(#body)" stroke="url(#gold)" stroke-width="9"/>
+  <path d="M630 310c28-23 59-35 95-35h245c37 0 71 16 94 44l70 83H506l124-92Z" fill="#101719" stroke="#897232" stroke-width="4"/><path d="M669 293h38l-54 106H542l127-106Zm83 0h197c34 0 63 15 85 42l52 64H706l46-106Z" fill="#071012"/>
+  <g fill="#060606" stroke="#e7c965" stroke-width="8"><circle cx="551" cy="659" r="90"/><circle cx="1162" cy="659" r="90"/></g><g fill="#273136" stroke="#7b6322" stroke-width="7"><circle cx="551" cy="659" r="40"/><circle cx="1162" cy="659" r="40"/></g>
+  <path d="M389 534h120m710 0h127" stroke="#ffe691" stroke-width="15" stroke-linecap="round"/>
+  <g fill="#f5df82"><path d="m800 88 12 34 34 12-34 12-12 34-12-34-34-12 34-12 12-34Z"/><path d="m291 336 9 25 25 9-25 9-9 25-9-25-25-9 25-9 9-25Z"/><path d="m1309 336 9 25 25 9-25 9-9 25-9-25-25-9 25-9 9-25Z"/></g>
+</svg>

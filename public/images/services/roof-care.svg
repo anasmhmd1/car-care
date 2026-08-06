@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">Headliner and roof care illustration</title>
+  <desc id="desc">A premium car roof interior with a soft deep-cleaning glow.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#050505"/><stop offset=".48" stop-color="#13110f"/><stop offset="1" stop-color="#070707"/></linearGradient>
+    <radialGradient id="roof"><stop stop-color="#ddd5c6"/><stop offset=".65" stop-color="#80796f"/><stop offset="1" stop-color="#292928"/></radialGradient>
+    <linearGradient id="gold" x1="0" x2="1"><stop stop-color="#8b6917"/><stop offset=".5" stop-color="#f5d971"/><stop offset="1" stop-color="#9b741d"/></linearGradient>
+    <filter id="blur"><feGaussianBlur stdDeviation="28"/></filter>
+  </defs>
+  <rect width="1600" height="900" fill="url(#bg)"/><ellipse cx="800" cy="388" rx="580" ry="255" fill="#d4af37" opacity=".18" filter="url(#blur)"/>
+  <path d="M271 744V395c0-145 117-262 262-262h534c145 0 262 117 262 262v349H271Z" fill="#111" stroke="url(#gold)" stroke-width="9"/>
+  <path d="M345 402c0-116 94-210 210-210h490c116 0 210 94 210 210v269H345V402Z" fill="url(#roof)" stroke="#a58e47" stroke-width="5"/>
+  <path d="M586 258c35-23 72-34 113-34h202c41 0 79 11 113 34l72 104H514l72-104Z" fill="#30302f" stroke="#e4c96c" stroke-width="4"/>
+  <path d="M682 291h236l43 62H639l43-62Z" fill="#0e1314" stroke="#6d7a79" stroke-width="4"/>
+  <path d="M468 540h664" stroke="#aa9d78" stroke-opacity=".68" stroke-width="4" stroke-dasharray="10 15"/>
+  <g fill="#f7e39a"><path d="m799 87 13 37 37 13-37 13-13 37-13-37-37-13 37-13 13-37Z"/><circle cx="377" cy="323" r="9"/><circle cx="1223" cy="323" r="9"/><circle cx="475" cy="228" r="5"/><circle cx="1125" cy="228" r="5"/></g>
+  <path d="M450 745c27-151 123-235 233-235h234c110 0 206 84 233 235H450Z" fill="#181616" stroke="#7b6525" stroke-width="6"/>
+</svg>
