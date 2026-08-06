@@ -11,6 +11,8 @@ interface PublicImageProps {
   sizes: string;
   className?: string;
   priority?: boolean;
+  quality?: number;
+  unoptimized?: boolean;
 }
 
 function getInitialSource(src: string) {
@@ -27,6 +29,8 @@ export default function PublicImage({
   sizes,
   className,
   priority = false,
+  quality,
+  unoptimized,
 }: PublicImageProps) {
   const [resolvedSource, setResolvedSource] = useState(() => getInitialSource(src));
 
@@ -37,6 +41,8 @@ export default function PublicImage({
       fill
       sizes={sizes}
       priority={priority}
+      quality={quality}
+      unoptimized={unoptimized}
       className={className}
       onError={() => {
         if (resolvedSource !== fallbackImage) {

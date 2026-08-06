@@ -18,10 +18,10 @@ export default function BareeqLogo({ className = '', showText = true, size = 'md
   }[size];
 
   const textSizes = {
-    sm: 'text-xl',
-    md: 'text-3xl',
-    lg: 'text-4xl',
-    xl: 'text-6xl',
+    sm: 'text-2xl sm:text-3xl',
+    md: 'text-[38px] sm:text-[46px]',
+    lg: 'text-[54px] sm:text-[66px]',
+    xl: 'text-[76px] sm:text-[92px]',
   }[size];
 
   const subtitleSizes = {
@@ -63,11 +63,8 @@ export default function BareeqLogo({ className = '', showText = true, size = 'md
       {/* Brand Typography */}
       {showText && (
         <div className="flex flex-col justify-center items-start text-left">
-          <span className={`font-black ${textSizes} tracking-tight gold-gradient-text leading-none font-sans`} translate="no">
-            بَرِيق
-          </span>
-          <span className={`${subtitleSizes} text-neutral-400 font-extrabold uppercase mt-1 font-sans`} translate="no">
-            BAREEQ MOBILE CAR CARE
+          <span className={`font-black ${textSizes} tracking-wider gold-gradient-text leading-none font-sans uppercase`} translate="no">
+            BAREEQ
           </span>
         </div>
       )}
