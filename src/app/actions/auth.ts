@@ -9,7 +9,7 @@ import { logAudit } from '@/lib/audit';
 import { loginSchema, registerSchema } from '@/lib/validations/auth';
 import { checkRateLimit, recordLoginFailure, isAccountLocked, clearLockout } from '@/lib/security/rate-limit';
 import { getClientIP, logSecurityEvent } from '@/lib/security/security-events';
-import { phoneLookupCandidates } from '@/lib/validations/phone';
+import { normalizePhone, phoneLookupCandidates } from '@/lib/validations/phone';
 import { getSafeLocalReturnPath } from '@/lib/auth/return-url';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
@@ -27,15 +27,16 @@ export async function loginAction(_prevState: unknown, formData: FormData) {
     return { error: parsed.error.errors[0]?.message || 'بيانات غير صالحة' };
   }
 
-  const { phone, password } = parsed.data;
+  const { phone: identifier, password } = parsed.data;
+  const isEmail = identifier.includes('@');
 
-  // Throttle both the canonical account identity and origin. A phone-only
-  // limit can be bypassed by cycling numbers, while an IP-only limit lets a
-  // distributed attack target one account indefinitely.
+  // Throttle both the canonical account identity and origin.
   const requestHeaders = await headers();
   const clientIP = getClientIP(requestHeaders);
+  const rateKey = isEmail ? `email:${identifier.toLowerCase()}` : `phone:${identifier}`;
+
   const [phoneRate, ipRate] = await Promise.all([
-    checkRateLimit(`phone:${phone}`, 'login'),
+    checkRateLimit(rateKey, 'login'),
     checkRateLimit(`ip:${clientIP}`, 'login'),
   ]);
   const rateCheck = {
@@ -45,56 +46,65 @@ export async function loginAction(_prevState: unknown, formData: FormData) {
   if (!rateCheck.allowed) {
     await logSecurityEvent({
       eventType: 'RATE_LIMIT_EXCEEDED',
-      description: `Rate limit exceeded for login: ${phone}`,
+      description: `Rate limit exceeded for login: ${identifier}`,
       ipAddress: clientIP,
-      metadata: { phone, resetIn: rateCheck.resetIn },
+      metadata: { identifier, resetIn: rateCheck.resetIn },
     });
     return { error: `تم تجاوز عدد المحاولات المسموحة. يرجى المحاولة بعد ${rateCheck.resetIn} ثانية.` };
   }
 
   // Account lockout check
-  if (await isAccountLocked(phone)) {
+  if (await isAccountLocked(identifier)) {
     return { error: 'تم تعليق الحساب مؤقتاً بسبب محاولات تسجيل دخول متعددة. يرجى المحاولة لاحقاً.' };
   }
 
-  const canonicalUser = await db.user.findUnique({ where: { phone } });
-  const legacyCandidates = phoneLookupCandidates(phone).filter((candidate) => candidate !== phone);
-  const legacyUsers = canonicalUser || legacyCandidates.length === 0
-    ? []
-    : await db.user.findMany({
-      where: { phone: { in: legacyCandidates } },
-      take: 2,
+  let user = null;
+  if (isEmail) {
+    user = await db.user.findFirst({
+      where: {
+        email: { equals: identifier.trim(), mode: 'insensitive' },
+        deletedAt: null,
+      },
     });
-  // A canonical record always wins. If two legacy identities normalize to the
-  // same value, fail safely until the migration/manual review resolves it.
-  const user = canonicalUser ?? (legacyUsers.length === 1 ? legacyUsers[0] : null);
+  } else {
+    const phone = normalizePhone(identifier);
+    const canonicalUser = await db.user.findUnique({ where: { phone } });
+    const legacyCandidates = phoneLookupCandidates(phone).filter((candidate) => candidate !== phone);
+    const legacyUsers = canonicalUser || legacyCandidates.length === 0
+      ? []
+      : await db.user.findMany({
+        where: { phone: { in: legacyCandidates } },
+        take: 2,
+      });
+    user = canonicalUser ?? (legacyUsers.length === 1 ? legacyUsers[0] : null);
+  }
 
   if (!user || !user.active || user.deletedAt) {
-    const lockResult = await recordLoginFailure(phone);
+    const lockResult = await recordLoginFailure(identifier);
     await logSecurityEvent({
       eventType: 'LOGIN_FAILURE',
-      description: `Failed login attempt for phone: ${phone}`,
+      description: `Failed login attempt for identifier: ${identifier}`,
       ipAddress: clientIP,
-      metadata: { phone, reason: 'user_not_found_or_inactive' },
+      metadata: { identifier, reason: 'user_not_found_or_inactive' },
     });
     if (lockResult.locked) {
       await logSecurityEvent({
         eventType: 'ACCOUNT_LOCKED',
-        description: `Account locked after repeated failures: ${phone}`,
-        metadata: { phone, lockoutMinutes: lockResult.lockoutMinutes },
+        description: `Account locked after repeated failures: ${identifier}`,
+        metadata: { identifier, lockoutMinutes: lockResult.lockoutMinutes },
       });
     }
-    return { error: 'رقم الهاتف أو كلمة المرور غير صحيحة' };
+    return { error: 'رقم الهاتف أو البريد الإلكتروني أو كلمة المرور غير صحيحة' };
   }
 
   const isValidPassword = await bcrypt.compare(password, user.passwordHash);
   if (!isValidPassword) {
-    const lockResult = await recordLoginFailure(phone);
+    const lockResult = await recordLoginFailure(identifier);
     await logSecurityEvent({
       eventType: 'LOGIN_FAILURE',
       description: `Failed login attempt for user: ${user.id}`,
       ipAddress: clientIP,
-      metadata: { userId: user.id, phone },
+      metadata: { userId: user.id, identifier },
     });
     if (lockResult.locked) {
       await logSecurityEvent({
@@ -103,11 +113,11 @@ export async function loginAction(_prevState: unknown, formData: FormData) {
         metadata: { userId: user.id, lockoutMinutes: lockResult.lockoutMinutes },
       });
     }
-    return { error: 'رقم الهاتف أو كلمة المرور غير صحيحة' };
+    return { error: 'رقم الهاتف أو البريد الإلكتروني أو كلمة المرور غير صحيحة' };
   }
 
   // Clear lockout on successful login
-  await clearLockout(phone);
+  await clearLockout(identifier);
 
   await createSession(user);
 

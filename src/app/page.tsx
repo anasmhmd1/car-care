@@ -2,6 +2,7 @@ import Link from 'next/link';
 import Navbar from '@/components/SafeNavbar';
 import Footer from '@/components/Footer';
 import PublicImage from '@/components/PublicImage';
+import BareeqLogo from '@/components/BareeqLogo';
 import { db } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth/session';
 import { createPublicMetadata } from '@/lib/seo';
@@ -171,16 +172,6 @@ export default async function HomePage() {
 
   const faqs = isFaqList(brand?.faqs) && brand.faqs.length > 0 ? brand.faqs : defaultFaqs;
 
-  // 6 Quick categories matching supercar selector bar
-  const quickCategories = [
-    { name: 'غسيل خارجي فقط', desc: 'تنظيف جاف وطبقة واكس', icon: Car, href: '/services' },
-    { name: 'غسيل داخلي فقط', desc: 'تنظيف وتطهير الفرش والجلد', icon: Sparkles, href: '/services' },
-    { name: 'غسيل شامل متكامل', desc: 'عناية كاملة داخلي وخارجي', icon: Award, href: '/services' },
-    { name: 'غسيل عميق للفرش', desc: 'إزالة البقع والعناية بالجلد', icon: ShieldCheck, href: '/services' },
-    { name: 'غسيل سقف السيارة', desc: 'تنظيف عميق لبطانة السقف', icon: Layers, href: '/services' },
-    { name: 'عناية حجرة الموتور', desc: 'تنظيف آمن بدون استخدام مياه', icon: Wrench, href: '/services' },
-  ];
-
   return (
     <div className="min-h-screen bg-[#050505] text-white flex flex-col font-sans selection:bg-[#cea355] selection:text-black">
       <Navbar user={user} />
@@ -225,7 +216,7 @@ export default async function HomePage() {
 
                 {/* Description */}
                 <p className="text-neutral-300 text-lg leading-relaxed max-w-xl font-normal drop-shadow-md">
-                  نقدم خدمة غسيل جاف وعناية احترافية متنقلة تحافظ على طلاء السيارة ومظهرها الداخلي والخارجي، بأعلى مستوى من الجودة والرفاهية.
+                  نقدم خدمة غسيل جاف وعناية احترافية متنقلة تحافظ على طلاء السيارة ومظهرها الداخلي والخارجي، بأعلى مستوى من الجودة والاحترافية.
                 </p>
 
                 {/* CTA Buttons */}
@@ -315,7 +306,7 @@ export default async function HomePage() {
             {/* Bottom: Description + Side-by-Side Centered Buttons sitting directly over background */}
             <div className="space-y-4 pt-14 pb-2 text-center">
               <p className="text-neutral-200 text-xs sm:text-sm leading-relaxed text-right font-normal drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)]">
-                نقدم خدمة غسيل جاف وعناية احترافية متنقلة تحافظ على طلاء السيارة ومظهرها الداخلي والخارجي، بأعلى مستوى من الجودة والرفاهية.
+                نقدم خدمة غسيل جاف وعناية احترافية متنقلة تحافظ على طلاء السيارة ومظهرها الداخلي والخارجي، بأعلى مستوى من الجودة والاحترافية.
               </p>
 
               <div className="flex flex-row items-center justify-center gap-2.5 pt-1 w-full">
@@ -386,109 +377,118 @@ export default async function HomePage() {
         </section>
 
         {/* ---------------------------------------------------- */}
-        {/* 2. CATEGORY ICON SELECTOR BAR */}
+        {/* 3. QUALITY PILLARS & BRANDED PRODUCTS SHOWCASE */}
         {/* ---------------------------------------------------- */}
-        <section className="py-12 bg-[#080808] border-y border-neutral-800/80 relative">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center justify-between mb-6">
-              <span className="text-xs font-bold text-[#edce8b] uppercase tracking-wider">اختيارات سريعة</span>
-              <span className="text-xs text-neutral-400">حدد نوع الخدمة لمشاهدة التفاصيل</span>
-            </div>
+        <section id="why-bareeq" className="py-12 sm:py-20 lg:py-28 bg-[#050505] relative overflow-hidden">
+          {/* Subtle Ambient Background Glows */}
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[300px] bg-[#cea355]/5 rounded-full blur-[140px] pointer-events-none" />
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-              {quickCategories.map((cat, idx) => {
-                const IconComp = cat.icon;
-                return (
-                  <Link
-                    key={idx}
-                    href={cat.href}
-                    className="group p-5 rounded-2xl glass-card border border-[#cea355]/20 hover:border-[#cea355] hover:bg-[#16140e] glass-card-hover text-center flex flex-col items-center justify-center space-y-3"
-                  >
-                    <div className="w-13 h-13 rounded-2xl bg-[#cea355]/10 border border-[#cea355]/30 text-[#edce8b] flex items-center justify-center group-hover:scale-110 group-hover:bg-[#cea355] group-hover:text-black transition-all duration-300">
-                      <IconComp className="w-6 h-6" aria-hidden="true" />
-                    </div>
-                    <div>
-                      <h3 className="text-xs sm:text-sm font-extrabold text-white group-hover:text-[#edce8b] transition-colors">{cat.name}</h3>
-                      <p className="text-[11px] text-neutral-400 mt-1 line-clamp-1">{cat.desc}</p>
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-        </section>
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 space-y-8 sm:space-y-12">
 
-        {/* ---------------------------------------------------- */}
-        {/* 3. QUALITY PILLARS — BENTO GRID */}
-        {/* ---------------------------------------------------- */}
-        <section id="why-bareeq" className="py-32 bg-[#050505] relative overflow-hidden">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-
-            <div className="text-center max-w-3xl mx-auto mb-20 space-y-4">
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#cea355]/10 border border-[#cea355]/30 text-xs font-bold text-[#edce8b]">
-                <ShieldCheck className="w-4 h-4 text-[#cea355]" />
-                <span>منظومة عناية احترافية متكاملة</span>
-              </div>
-              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white leading-tight">
+            {/* Section Header */}
+            <div className="text-center max-w-4xl mx-auto space-y-4 px-2">
+              <h2 className="text-2xl xs:text-3xl sm:text-4xl lg:text-5xl font-black text-white leading-snug sm:leading-tight lg:leading-[1.28] tracking-tight">
                 لماذا تختار غسيل <span className="gold-gradient-text">بريق</span> الجاف بدلاً من الغسيل التقليدي بالمياه؟
               </h2>
-              <p className="text-neutral-400 text-sm sm:text-base leading-relaxed max-w-2xl mx-auto">
-                نقدم بديلاً أكثر أماناً وتنظيماً يحمي سيارتك من بهتان الدهان والبارومة مع توفير وقتك وجهدك.
+              <p className="text-neutral-300 text-xs sm:text-base lg:text-lg leading-relaxed max-w-3xl mx-auto font-normal">
+                نعتمد على تركيبات مخصصة بأعلى معايير الجودة، مصممة خصيصاً لحماية طلاء سيارتك ومظهرها الداخلي بدون قطرة مياه.
               </p>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
+            {/* Ultra-Wide 16:9 BAREEQ Branded Panoramic Product Banner Image */}
+            <div className="relative w-full rounded-2xl lg:rounded-3xl border border-[#cea355]/40 bg-[#070707] shadow-[0_15px_60px_rgba(0,0,0,0.95)] overflow-hidden group">
+              <div className="relative w-full aspect-[16/9] sm:aspect-[16/8] lg:aspect-[16/7.5] overflow-hidden bg-[#070707]">
+                <PublicImage
+                  src="/images/bareeq_dry_product_v11.png"
+                  alt="منتجات بريق BAREEQ الرسمية للعناية الجافة بالسيارات"
+                  sizes="100vw"
+                  priority
+                  className="w-full h-full object-cover object-center scale-105 group-hover:scale-110 transition-transform duration-700"
+                />
+              </div>
+            </div>
 
-              {/* Right 2 Callouts */}
-              <div className="lg:col-span-3 flex flex-col justify-between space-y-6">
-                <div className="p-7 rounded-3xl glass-card border border-[#cea355]/25 space-y-3 hover:border-[#cea355] transition-all glass-card-hover text-right flex-1 flex flex-col justify-center">
-                  <div className="w-11 h-11 rounded-xl gold-gradient flex items-center justify-center text-black font-black text-base shadow-md">1</div>
-                  <h3 className="text-lg font-bold text-white">9 مواد مصنعة محلياً</h3>
+            {/* 4 Feature Pillars Grid (2x2 on Mobile, 4 Columns on Desktop) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-5 lg:gap-6">
+
+              {/* Pillar 1 */}
+              <div className="relative rounded-2xl lg:rounded-3xl p-5 sm:p-6 bg-gradient-to-b from-[#151515] via-[#101010] to-[#0a0a0a] border border-[#cea355]/25 hover:border-[#cea355] transition-all duration-300 glass-card-hover flex flex-col justify-between space-y-4 group overflow-hidden">
+                <div className="absolute top-0 left-4 right-4 h-[1px] bg-gradient-to-r from-transparent via-[#cea355]/50 to-transparent pointer-events-none" />
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="w-10 h-10 rounded-xl bg-[#cea355]/15 border border-[#cea355]/40 flex items-center justify-center text-[#edce8b] group-hover:scale-110 group-hover:bg-[#cea355] group-hover:text-black transition-all">
+                      <Layers className="w-5 h-5" />
+                    </div>
+                    <span className="w-7 h-7 rounded-lg gold-gradient text-black font-black text-xs flex items-center justify-center shadow-md">
+                      1
+                    </span>
+                  </div>
+                  <h3 className="text-base sm:text-lg font-bold text-white group-hover:text-[#edce8b] transition-colors leading-tight">
+                    منتجات عناية مخصصة فائقة الجودة
+                  </h3>
                   <p className="text-xs text-neutral-300 leading-relaxed">
-                    منتج مخصص آمن لكل سطح: الدهان، الجلد، الفرش، التابلوه، الزجاج، والجنوط والموتور.
+                    تركيبات احترافية آمنة لكل سطح بالسيارة: الدهان، الجلد، الفرش، التابلوه، الزجاج، والجنوط والموتور.
                   </p>
                 </div>
+              </div>
 
-                <div className="p-7 rounded-3xl glass-card border border-[#cea355]/25 space-y-3 hover:border-[#cea355] transition-all glass-card-hover text-right flex-1 flex flex-col justify-center">
-                  <div className="w-11 h-11 rounded-xl gold-gradient flex items-center justify-center text-black font-black text-base shadow-md">2</div>
-                  <h3 className="text-lg font-bold text-white">غسيل جاف 100% بدون مياه</h3>
+              {/* Pillar 2 */}
+              <div className="relative rounded-2xl lg:rounded-3xl p-5 sm:p-6 bg-gradient-to-b from-[#151515] via-[#101010] to-[#0a0a0a] border border-[#cea355]/25 hover:border-[#cea355] transition-all duration-300 glass-card-hover flex flex-col justify-between space-y-4 group overflow-hidden">
+                <div className="absolute top-0 left-4 right-4 h-[1px] bg-gradient-to-r from-transparent via-[#cea355]/50 to-transparent pointer-events-none" />
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="w-10 h-10 rounded-xl bg-[#cea355]/15 border border-[#cea355]/40 flex items-center justify-center text-[#edce8b] group-hover:scale-110 group-hover:bg-[#cea355] group-hover:text-black transition-all">
+                      <Sparkles className="w-5 h-5" />
+                    </div>
+                    <span className="w-7 h-7 rounded-lg gold-gradient text-black font-black text-xs flex items-center justify-center shadow-md">
+                      2
+                    </span>
+                  </div>
+                  <h3 className="text-base sm:text-lg font-bold text-white group-hover:text-[#edce8b] transition-colors leading-tight">
+                    غسيل جاف 100% بدون مياه
+                  </h3>
                   <p className="text-xs text-neutral-300 leading-relaxed">
                     يمنع تشكل البارومة والصدأ، ولا يسبب أي تسريب مياه للدوائر الكهربائية والحساسات.
                   </p>
                 </div>
               </div>
 
-              {/* Center Hero Product Visual (Uncropped Photo Showcase) */}
-              <div className="lg:col-span-6 relative text-center flex flex-col items-center justify-center">
-                <div className="relative rounded-3xl p-5 border border-[#cea355]/40 bg-gradient-to-b from-[#141414] to-[#080808] shadow-2xl w-full h-full flex flex-col justify-between">
-                  <div className="relative w-full h-[360px] sm:h-[420px] flex items-center justify-center overflow-hidden rounded-2xl bg-[#090909] p-3">
-                    <PublicImage
-                      src="/images/bareeq_dry_product.png"
-                      alt="منتجات بريق المتخصصة للعناية الجافة بالسيارات"
-                      sizes="(min-width: 1024px) 40vw, 90vw"
-                      className="w-full h-full object-contain mx-auto rounded-2xl hover:scale-105 transition-transform duration-700"
-                    />
+              {/* Pillar 3 */}
+              <div className="relative rounded-2xl lg:rounded-3xl p-5 sm:p-6 bg-gradient-to-b from-[#151515] via-[#101010] to-[#0a0a0a] border border-[#cea355]/25 hover:border-[#cea355] transition-all duration-300 glass-card-hover flex flex-col justify-between space-y-4 group overflow-hidden">
+                <div className="absolute top-0 left-4 right-4 h-[1px] bg-gradient-to-r from-transparent via-[#cea355]/50 to-transparent pointer-events-none" />
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="w-10 h-10 rounded-xl bg-[#cea355]/15 border border-[#cea355]/40 flex items-center justify-center text-[#edce8b] group-hover:scale-110 group-hover:bg-[#cea355] group-hover:text-black transition-all">
+                      <ShieldCheck className="w-5 h-5" />
+                    </div>
+                    <span className="w-7 h-7 rounded-lg gold-gradient text-black font-black text-xs flex items-center justify-center shadow-md">
+                      3
+                    </span>
                   </div>
-                  <div className="mt-4 p-5 rounded-2xl bg-black/90 border border-[#cea355]/30 backdrop-blur-md text-center space-y-1">
-                    <span className="text-sm font-black text-[#edce8b] block">تركيبة الواكس الواقية للدهان من بريق</span>
-                    <span className="text-xs text-neutral-300">تمنح لمعاناً فائقاً وتمنع التصاق الأتربة والخدوش السطحية</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Left 2 Callouts */}
-              <div className="lg:col-span-3 flex flex-col justify-between space-y-6">
-                <div className="p-7 rounded-3xl glass-card border border-[#cea355]/25 space-y-3 hover:border-[#cea355] transition-all glass-card-hover text-right flex-1 flex flex-col justify-center">
-                  <div className="w-11 h-11 rounded-xl gold-gradient flex items-center justify-center text-black font-black text-base shadow-md">3</div>
-                  <h3 className="text-lg font-bold text-white">طبقة واكس واقية</h3>
+                  <h3 className="text-base sm:text-lg font-bold text-white group-hover:text-[#edce8b] transition-colors leading-tight">
+                    طبقة واكس واقية
+                  </h3>
                   <p className="text-xs text-neutral-300 leading-relaxed">
                     تمنح طبقة حماية على الدهان تقلل التصاق الأتربة وتساعد في الحفاظ على القيمة السوقية للسيارة.
                   </p>
                 </div>
+              </div>
 
-                <div className="p-7 rounded-3xl glass-card border border-[#cea355]/25 space-y-3 hover:border-[#cea355] transition-all glass-card-hover text-right flex-1 flex flex-col justify-center">
-                  <div className="w-11 h-11 rounded-xl gold-gradient flex items-center justify-center text-black font-black text-base shadow-md">4</div>
-                  <h3 className="text-lg font-bold text-white">تجهيز كامل بدون إزعاج</h3>
+              {/* Pillar 4 */}
+              <div className="relative rounded-2xl lg:rounded-3xl p-5 sm:p-6 bg-gradient-to-b from-[#151515] via-[#101010] to-[#0a0a0a] border border-[#cea355]/25 hover:border-[#cea355] transition-all duration-300 glass-card-hover flex flex-col justify-between space-y-4 group overflow-hidden">
+                <div className="absolute top-0 left-4 right-4 h-[1px] bg-gradient-to-r from-transparent via-[#cea355]/50 to-transparent pointer-events-none" />
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="w-10 h-10 rounded-xl bg-[#cea355]/15 border border-[#cea355]/40 flex items-center justify-center text-[#edce8b] group-hover:scale-110 group-hover:bg-[#cea355] group-hover:text-black transition-all">
+                      <Wrench className="w-5 h-5" />
+                    </div>
+                    <span className="w-7 h-7 rounded-lg gold-gradient text-black font-black text-xs flex items-center justify-center shadow-md">
+                      4
+                    </span>
+                  </div>
+                  <h3 className="text-base sm:text-lg font-bold text-white group-hover:text-[#edce8b] transition-colors leading-tight">
+                    تجهيز كامل بدون إزعاج
+                  </h3>
                   <p className="text-xs text-neutral-300 leading-relaxed">
                     فريق بريق مجهز بوحدات تشغيل ذاتية كاملة دون الحاجة لمصدر مياه أو كهرباء من موقعك.
                   </p>

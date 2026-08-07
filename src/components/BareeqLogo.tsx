@@ -36,7 +36,7 @@ export default function BareeqLogo({ className = '', showText = true, size = 'md
         <div className="w-full h-full rounded-[14px] bg-[#080808] flex items-center justify-center relative overflow-hidden p-1">
           {/* Ambient inner glow */}
           <div className="absolute inset-0 bg-gradient-to-br from-[#edce8b]/20 via-transparent to-transparent pointer-events-none" />
-          
+
           <svg viewBox="155 120 285 300" className="w-full h-full relative z-10 drop-shadow-[0_2px_8px_rgba(237,206,139,0.3)]" aria-hidden="true" focusable="false">
             <defs>
               <linearGradient id={gradientId} x1="203.51" y1="217.65" x2="533.26" y2="464.87" gradientUnits="userSpaceOnUse">

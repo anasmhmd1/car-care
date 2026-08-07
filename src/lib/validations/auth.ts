@@ -1,12 +1,27 @@
 import { z } from 'zod';
-import { optionalPhoneSchema, phoneSchema } from '@/lib/validations/phone';
+import { isCanonicalPhone, normalizePhone, optionalPhoneSchema, phoneSchema } from '@/lib/validations/phone';
 
 // --------------------------------------------------------
 // Auth Schemas
 // --------------------------------------------------------
 
+export const loginIdentifierSchema = z
+  .string({ required_error: 'رقم الهاتف أو البريد الإلكتروني مطلوب' })
+  .trim()
+  .min(1, 'رقم الهاتف أو البريد الإلكتروني مطلوب')
+  .refine(
+    (val) => {
+      if (val.includes('@')) {
+        return z.string().email().safeParse(val).success;
+      }
+      const normalized = normalizePhone(val);
+      return isCanonicalPhone(normalized);
+    },
+    { message: 'يرجى إدخال رقم هاتف صحيح أو بريد إلكتروني صالح' }
+  );
+
 export const loginSchema = z.object({
-  phone: phoneSchema,
+  phone: loginIdentifierSchema,
   password: z.string().min(1, 'كلمة المرور مطلوبة'),
 });
 

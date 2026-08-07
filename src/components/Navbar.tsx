@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { User, LogOut, Menu, X, Car, Home, Layers, UserPlus, LogIn, MapPin, HelpCircle } from 'lucide-react';
+import { User, LogOut, Car, Home, Layers, MapPin, HelpCircle } from 'lucide-react';
 import BareeqLogo from '@/components/BareeqLogo';
 import SkipLink from '@/components/SkipLink';
 import { logoutAction } from '@/app/actions/auth';

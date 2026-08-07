@@ -364,7 +364,7 @@ async function main() {
       key: 'owner',
       fullName: 'المهندس طارق المالكي',
       phone: '201111111111',
-      email: 'owner@bareeq.car',
+      email: 'bbareeq1@gmail.com',
       whatsapp: '201111111111',
       role: UserRole.OWNER,
       passwordHash: sharedPasswordHash,
