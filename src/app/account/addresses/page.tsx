@@ -27,6 +27,7 @@ export default async function AddressesPage({
     db.coverageZone.findMany({
       where: { branch: { status: 'ACTIVE' } },
       include: {
+        branch: { select: { nameAr: true } },
         areas: {
           where: { active: true },
           orderBy: [{ priority: 'asc' }, { compound: 'asc' }],
@@ -42,7 +43,7 @@ export default async function AddressesPage({
 
   const coverageZones = rawCoverageZones.map((z) => ({
     id: z.id,
-    name: z.name,
+    name: z.branch?.nameAr ? `${z.name} (${z.branch.nameAr})` : z.name,
     areas: z.areas.map((a) => ({
       id: a.id,
       compound: a.compound,

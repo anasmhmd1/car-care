@@ -25,12 +25,13 @@ export default async function AreasPage() {
     db.coverageZone.findMany({
       where: { branch: { status: 'ACTIVE' } },
       include: {
+        branch: { select: { nameAr: true } },
         areas: {
           where: { active: true },
           orderBy: [{ priority: 'asc' }, { compound: 'asc' }],
         },
       },
-      orderBy: { name: 'asc' },
+      orderBy: [{ branch: { nameAr: 'asc' } }, { name: 'asc' }],
     }),
     getPublicBranchContact(),
   ]);
@@ -67,10 +68,15 @@ export default async function AreasPage() {
                 key={zone.id}
                 className="p-8 rounded-3xl bg-[#121212] border border-[#cea355]/30 hover:border-[#cea355] transition-all duration-300 flex flex-col justify-start space-y-5 glass-card-hover group"
               >
-                <div className="border-b border-neutral-800 pb-4">
+                <div className="border-b border-neutral-800 pb-4 flex items-center justify-between gap-2">
                   <h2 className="text-xl font-black text-white group-hover:text-[#edce8b] transition-colors">
                     {cleanZoneName(zone.name)}
                   </h2>
+                  {zone.branch?.nameAr && (
+                    <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-[#cea355]/15 text-[#edce8b] border border-[#cea355]/30 shrink-0">
+                      {zone.branch.nameAr}
+                    </span>
+                  )}
                 </div>
 
                 {zone.description && (

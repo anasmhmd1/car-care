@@ -1346,22 +1346,6 @@ export default function BookingWizardClient({
               </div>
             </div>
 
-            {bookingBranches.length > 1 && (
-              <fieldset>
-                <legend className="mb-3 text-xs font-bold text-white">اختر الفرع المنفذ</legend>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {bookingBranches.map((branch) => (
-                    <label key={branch.id} className={`flex cursor-pointer gap-3 rounded-2xl border p-4 transition-colors ${selectedBranchId === branch.id ? 'border-[#cea355] bg-[#cea355]/10' : 'border-neutral-800 hover:border-neutral-700'}`}>
-                      <input type="radio" name="booking-branch" value={branch.id} checked={selectedBranchId === branch.id} onChange={() => selectBranch(branch.id)} className="mt-1 size-4 accent-[#cea355]" />
-                      <span>
-                        <span className="block font-bold text-white">{branch.nameAr}</span>
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
-            )}
-
             {addresses.length > 0 && (
               <fieldset>
                 <legend className="mb-3 text-xs font-bold text-white">عناويني المحفوظة</legend>
@@ -1393,7 +1377,7 @@ export default function BookingWizardClient({
                             </span>
                             {area ? (
                               <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20 font-bold">
-                                متاح للحجز
+                                {area.zone.branch?.nameAr || 'الفرع الرئيسي'} · متاح للحجز
                               </span>
                             ) : (
                               <span className="text-[10px] text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20 font-bold">
@@ -1428,7 +1412,7 @@ export default function BookingWizardClient({
                     <div>
                       <span className="block font-bold text-white">عنوان جديد</span>
                       <span className="mt-1 block text-xs text-neutral-400">
-                        اختر النطاق والكمبوند بالأسفل.
+                        اختر الفرع والمنطقة والحي بالأسفل.
                       </span>
                     </div>
                   </label>
@@ -1436,8 +1420,27 @@ export default function BookingWizardClient({
               </fieldset>
             )}
 
-            {/* 2-Tier Cascading Location Selection: Zone Dropdown -> Compound Dropdown */}
-            <div className="grid gap-5 sm:grid-cols-2">
+            {/* 3-Tier Cascading Location Selection: Branch -> Zone -> Compound */}
+            <div className="grid gap-5 sm:grid-cols-3">
+              <div>
+                <label htmlFor="booking-branch" className={labelClass}>
+                  الفرع المنفذ
+                </label>
+                <select
+                  id="booking-branch"
+                  value={selectedBranchId}
+                  disabled={selectedAddressId !== 'new'}
+                  onChange={(e) => selectBranch(e.target.value)}
+                  className={inputClass}
+                >
+                  {bookingBranches.map((b) => (
+                    <option key={b.id} value={b.id} className="bg-neutral-900 text-white">
+                      {b.nameAr}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div>
                 <label htmlFor="coverage-zone" className={labelClass}>
                   المنطقة / النطاق الرئيسي
@@ -1449,11 +1452,17 @@ export default function BookingWizardClient({
                   onChange={(e) => handleZoneChange(e.target.value)}
                   className={inputClass}
                 >
-                  {branchZones.map((z) => (
-                    <option key={z.id} value={z.id} className="bg-neutral-900 text-white">
-                      {z.name}
+                  {branchZones.length > 0 ? (
+                    branchZones.map((z) => (
+                      <option key={z.id} value={z.id} className="bg-neutral-900 text-white">
+                        {z.name}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="" className="bg-neutral-900 text-neutral-400">
+                      لا توجد مناطق مضافة لهذا الفرع
                     </option>
-                  ))}
+                  )}
                 </select>
               </div>
 
@@ -1472,11 +1481,17 @@ export default function BookingWizardClient({
                   aria-invalid={invalidField('coverage-area')}
                   className={inputClass}
                 >
-                  {zoneCompounds.map((area) => (
-                    <option key={area.id} value={area.id} className="bg-neutral-900 text-white">
-                      {area.compound}
+                  {zoneCompounds.length > 0 ? (
+                    zoneCompounds.map((area) => (
+                      <option key={area.id} value={area.id} className="bg-neutral-900 text-white">
+                        {area.compound}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="" className="bg-neutral-900 text-neutral-400">
+                      لا توجد أحياء أو كمبوندات
                     </option>
-                  ))}
+                  )}
                 </select>
               </div>
             </div>
