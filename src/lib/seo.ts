@@ -14,7 +14,7 @@ export const siteUrl = resolveSiteUrl();
 export const siteName = 'BAREEQ';
 
 interface PublicMetadataOptions {
-  title: string;
+  title?: string;
   description: string;
   path: string;
 }
@@ -24,7 +24,7 @@ export function createPublicMetadata({
   description,
   path,
 }: PublicMetadataOptions): Metadata {
-  const brandTitle = 'BAREEQ';
+  const brandTitle = title === 'BAREEQ' ? 'BAREEQ' : `${title} | BAREEQ`;
   return {
     title: brandTitle,
     description,

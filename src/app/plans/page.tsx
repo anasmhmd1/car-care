@@ -4,7 +4,7 @@ import Footer from '@/components/Footer';
 import { getCurrentUser } from '@/lib/auth/session';
 import { db } from '@/lib/db';
 import { createPublicMetadata } from '@/lib/seo';
-import { Award, CheckCircle2, Layers } from 'lucide-react';
+import { Award, CheckCircle2 } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 

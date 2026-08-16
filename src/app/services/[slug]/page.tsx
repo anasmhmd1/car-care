@@ -4,7 +4,6 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import Navbar from '@/components/SafeNavbar';
 import Footer from '@/components/Footer';
-import PublicImage from '@/components/PublicImage';
 import { getCurrentUser } from '@/lib/auth/session';
 import { db } from '@/lib/db';
 import { createPublicMetadata, serializeJsonLd, siteUrl } from '@/lib/seo';

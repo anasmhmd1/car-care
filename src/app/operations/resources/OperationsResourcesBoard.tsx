@@ -10,14 +10,10 @@ import {
   Boxes,
   CarFront,
   ClipboardList,
-  Droplet,
-  Hash,
   History,
   Package,
   Plus,
-  RefreshCw,
   Save,
-  Scale,
   ShieldCheck,
   Trash2,
   Truck,
@@ -671,7 +667,7 @@ function EmployeeStockAllocationForm({
       </label>
 
       <label className="text-xs font-bold text-white/70">نوع العملية
-        <select value={type} onChange={(e) => setType(e.target.value as any)} className={inputClass}>
+        <select value={type} onChange={(e) => setType(e.target.value as 'ALLOCATION' | 'ADJUSTMENT' | 'RETURN')} className={inputClass}>
           <option value="ALLOCATION">تسليم عهدة جديدة / شحن (+ إضافة)</option>
           <option value="ADJUSTMENT">تسوية جرد (تعديل الرصيد الفعلي)</option>
           <option value="RETURN">إرجاع عهدة للمخزن (- خصم)</option>
@@ -870,7 +866,7 @@ function EmployeeStockPanel({
                   <div className="mt-5 space-y-3">
                     {stocks.length === 0 ? (
                       <p className="rounded-2xl border border-dashed border-white/10 p-5 text-center text-xs text-white/40">
-                        لم تُخصص أي مواد في عهدة هذا الموظف بعد. اضغط "شحن / تسوية" لتسليم العهدة.
+                        لم تُخصص أي مواد في عهدة هذا الموظف بعد. اضغط &quot;شحن / تسوية&quot; لتسليم العهدة.
                       </p>
                     ) : (
                       stocks.map((stock) => {

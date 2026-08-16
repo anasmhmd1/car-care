@@ -27,6 +27,7 @@ export default function BareeqLogo({
       role="img"
       aria-label="بريق | BAREEQ"
     >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src="/images/bareeq_official_logo.png"
         alt="بريق | BAREEQ"

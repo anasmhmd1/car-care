@@ -15,20 +15,14 @@ import {
   Search,
   ShieldCheck,
   StickyNote,
-  UserCheck,
   UserRound,
-  UserX,
   X,
-  Layers,
   CalendarCheck,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toggleCustomerBlockAction, updateCustomerAccountAction } from '@/app/actions/owner';
 import type {
-  CustomerAddressDto,
-  CustomerBookingSummaryDto,
   CustomerDto,
-  CustomerVehicleDto,
 } from './OwnerCommandCenter';
 
 export type ManagedCustomerDto = CustomerDto;

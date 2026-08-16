@@ -1297,7 +1297,7 @@ function PermissionOverrideForm({
           </select>
         </label>
         <label className="text-[11px] font-bold text-white/50">
-          الفرع ''
+          الفرع
           <select
             name="branchId"
             required={scopeType === 'BRANCH'}

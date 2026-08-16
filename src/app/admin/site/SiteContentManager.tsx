@@ -3,7 +3,7 @@
 import type { FormEvent } from 'react';
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { CheckCircle2, FileText, LoaderCircle, RotateCcw } from 'lucide-react';
+import { CheckCircle2, LoaderCircle, RotateCcw } from 'lucide-react';
 import { updateFaqsContentAction, updateHomepageContentAction } from '@/app/actions/owner-brand';
 import { HelpCircle, Plus, Trash2 } from 'lucide-react';
 import { DEFAULT_HOMEPAGE_CONTENT, type FaqItem, type HomepageContent } from '@/lib/homepage-content';

@@ -11,13 +11,10 @@ import {
   CheckCircle2,
   LoaderCircle,
   RotateCcw,
-  Sparkles,
   Eye,
   EyeOff,
   MoveUp,
   MoveDown,
-  Image as ImageIcon,
-  HelpCircle
 } from 'lucide-react';
 import PublicImage from '@/components/PublicImage';
 import {
@@ -25,7 +22,7 @@ import {
   PRESET_COLLECTION_IMAGES,
   type ServiceCollection,
 } from '@/lib/service-collections';
-import { saveServiceCollectionsAction, resetServiceCollectionsAction } from '@/app/actions/owner-collections';
+import { saveServiceCollectionsAction } from '@/app/actions/owner-collections';
 
 interface ServiceOption {
   id: string;

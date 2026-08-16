@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, Trash2, CheckCircle2, Navigation, Pencil, AlertCircle, Building2, MapPin } from 'lucide-react';
+import { Plus, Trash2, CheckCircle2, Navigation, Pencil, AlertCircle, Building2 } from 'lucide-react';
 import { sanitizeLocationUrl } from '@/lib/security/url';
 
 export interface CoverageAreaItem {

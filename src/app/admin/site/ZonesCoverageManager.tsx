@@ -12,7 +12,6 @@ import {
   Building2,
   X,
   Compass,
-  Layers,
 } from 'lucide-react';
 import { saveZoneWithAreasAction, deleteZoneAction } from '@/app/actions/owner-zones';
 

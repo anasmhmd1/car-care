@@ -15,9 +15,7 @@ import {
   EyeOff,
   MoveUp,
   MoveDown,
-  Image as ImageIcon,
   HelpCircle,
-  Upload,
 } from 'lucide-react';
 import PublicImage from '@/components/PublicImage';
 import {

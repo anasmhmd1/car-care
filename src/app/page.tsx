@@ -2,26 +2,19 @@ import Link from 'next/link';
 import Navbar from '@/components/SafeNavbar';
 import Footer from '@/components/Footer';
 import PublicImage from '@/components/PublicImage';
-import BareeqLogo from '@/components/BareeqLogo';
 import { db } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth/session';
 import { createPublicMetadata } from '@/lib/seo';
-import { getPublicBranchContact, phoneHref, whatsappHref } from '@/lib/public-contact';
 import { readServiceCollections } from '@/lib/service-collections';
 import { readGalleryItems } from '@/lib/gallery-items';
 import {
   Sparkles,
   Calendar,
   ShieldCheck,
-  Award,
   ChevronRight,
-  CheckCircle2,
   Star,
   MapPin,
   AlertCircle,
-  Phone,
-  MessageCircle,
-  Car,
   Wrench,
   ShieldAlert,
   ArrowLeft,
@@ -55,7 +48,6 @@ function isFaqList(value: unknown): value is Array<{ q: string; a: string }> {
 
 export default async function HomePage() {
   let user: Awaited<ReturnType<typeof getCurrentUser>> = null;
-  let branchContact: Awaited<ReturnType<typeof getPublicBranchContact>> = null;
   let testimonials: Array<{
     id: string;
     score: number;
@@ -68,7 +60,6 @@ export default async function HomePage() {
   try {
     const results = await Promise.all([
       getCurrentUser().catch(() => null),
-      getPublicBranchContact().catch(() => null),
       db.customerServiceRating.findMany({
         where: { approvedForPublic: true, comment: { not: null } },
         orderBy: { createdAt: 'desc' },
@@ -84,7 +75,7 @@ export default async function HomePage() {
       db.brandSettings.findFirst({ select: { homepageContent: true, faqs: true } }).catch(() => null),
     ]);
 
-    [user, branchContact, testimonials, brand] = results;
+    [user, testimonials, brand] = results;
   } catch (err) {
     console.error('Error fetching HomePage data:', err);
   }

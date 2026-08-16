@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   type ChangeEvent,
-  type FormEvent,
   useEffect,
   useMemo,
   useRef,
@@ -26,7 +25,6 @@ import {
   Sparkles,
   UploadCloud,
   UserRound,
-  Compass,
   Copy,
   Check,
 } from 'lucide-react';
@@ -174,19 +172,10 @@ interface Props {
   initialSelection: InitialSelection;
 }
 
-interface CreatedBooking {
-  id: string;
-  number: string;
-  depositAmount: number;
-  branchId: string;
-}
-
 interface UiError {
   message: string;
   fieldId?: string;
 }
-
-type ProofStage = 'idle' | 'uploading-file' | 'submitting-proof';
 
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 const ALLOWED_UPLOAD_TYPES = new Set([
@@ -473,7 +462,7 @@ export default function BookingWizardClient({
   const [vehicleSize, setVehicleSize] = useState<VehicleSize>(
     defaultVehicle?.vehicleSize ?? 'SEDAN',
   );
-  const [selectedAddonIds, setSelectedAddonIds] = useState<string[]>([]);
+  const [selectedAddonIds] = useState<string[]>([]);
   const [vehicleMake, setVehicleMake] = useState(defaultVehicle?.make ?? '');
   const [vehicleModel, setVehicleModel] = useState(defaultVehicle?.model ?? '');
   const [vehicleYear, setVehicleYear] = useState(
@@ -507,10 +496,9 @@ export default function BookingWizardClient({
   const [whatsapp, setWhatsapp] = useState(user?.whatsapp || user?.phone || '');
   const [customerNotes, setCustomerNotes] = useState('');
   const [policyAccepted, setPolicyAccepted] = useState(false);
-  const [useCredit, setUseCredit] = useState(false);
+  const [useCredit] = useState(false);
   const [bookingSubmitting, setBookingSubmitting] = useState(false);
 
-  const [createdBooking, setCreatedBooking] = useState<CreatedBooking | null>(null);
   const [guestConfirmed, setGuestConfirmed] = useState<{
     bookingNumber: string;
     serviceName: string;
@@ -523,12 +511,11 @@ export default function BookingWizardClient({
   const [senderPhoneOrAccount, setSenderPhoneOrAccount] = useState(user?.phone || '');
   const [referenceNumber, setReferenceNumber] = useState('');
   const [amountSubmitted, setAmountSubmitted] = useState('');
-  const [transferTimestamp, setTransferTimestamp] = useState(() => dateTimeInputValue(new Date()));
+  const [transferTimestamp] = useState(() => dateTimeInputValue(new Date()));
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [proofPreviewUrl, setProofPreviewUrl] = useState<string>('');
   const [copiedMethodId, setCopiedMethodId] = useState<string>('');
   const [uploadedProofFileId, setUploadedProofFileId] = useState('');
-  const [proofStage, setProofStage] = useState<ProofStage>('idle');
 
   const [uiError, setUiError] = useState<UiError | null>(null);
   const errorRef = useRef<HTMLDivElement>(null);
@@ -538,10 +525,10 @@ export default function BookingWizardClient({
     for (const area of coverageAreas) {
       branches.set(area.zone.branchId, {
         id: area.zone.branchId,
-        nameAr: area.zone.branch.nameAr,
+        nameAr: area.zone.branch?.nameAr || 'الفرع الرئيسي',
       });
     }
-    return [...branches.values()];
+    return Array.from(branches.values());
   }, [coverageAreas]);
 
   const branchCoverageAreas = useMemo(
@@ -549,22 +536,27 @@ export default function BookingWizardClient({
     [coverageAreas, selectedBranchId],
   );
 
-  // Group branch coverage areas by zone (الزونات)
   const branchZones = useMemo(() => {
-    const zonesMap = new Map<string, { id: string; name: string; areas: CoverageAreaDto[] }>();
+    const zonesMap = new Map<string, { id: string; name: string; branchId: string; areas: CoverageAreaDto[] }>();
     for (const area of branchCoverageAreas) {
-      const zoneKey = area.zone.id || area.zone.name || 'default_zone';
-      const zoneName = area.zone.name || area.city || 'نطاق التغطية الرئيسي';
-      if (!zonesMap.has(zoneKey)) {
-        zonesMap.set(zoneKey, { id: zoneKey, name: zoneName, areas: [] });
+      const z = area.zone;
+      const zoneId = z.id || z.name || 'default_zone';
+      const zoneName = z.name || area.city || 'نطاق التغطية الرئيسي';
+      if (!zonesMap.has(zoneId)) {
+        zonesMap.set(zoneId, {
+          id: zoneId,
+          name: zoneName,
+          branchId: z.branchId,
+          areas: [],
+        });
       }
-      zonesMap.get(zoneKey)!.areas.push(area);
+      zonesMap.get(zoneId)!.areas.push(area);
     }
-    return [...zonesMap.values()];
+    return Array.from(zonesMap.values());
   }, [branchCoverageAreas]);
 
   const [selectedZoneId, setSelectedZoneId] = useState(
-    () => initialArea?.zone?.id || initialArea?.zone?.name || '',
+    () => initialArea?.zone?.id || '',
   );
 
   const activeZone = useMemo(() => {
@@ -586,9 +578,6 @@ export default function BookingWizardClient({
 
   const selectedArea = branchCoverageAreas.find((area) => area.id === selectedAreaId) || branchCoverageAreas[0];
   const supportWhatsApp = supportContact?.whatsapp || supportContact?.phone;
-  const hasUnsupportedSavedAddress = addresses.some(
-    (address) => !areaForAddress(address, coverageAreas),
-  );
   const selectedVehicle = vehicles.find((vehicle) => vehicle.id === selectedVehicleId);
   const selectedAddress = addresses.find((address) => address.id === selectedAddressId);
   const selectedSubscription = subscriptions.find(
@@ -600,8 +589,8 @@ export default function BookingWizardClient({
     [selectedAddonIds],
   );
   const availablePaymentMethods = useMemo(
-    () => paymentMethods.filter((method) => method.branchId === (selectedArea?.zone.branchId ?? createdBooking?.branchId)),
-    [selectedArea?.zone.branchId, createdBooking?.branchId, paymentMethods],
+    () => paymentMethods.filter((method) => method.branchId === selectedArea?.zone.branchId),
+    [selectedArea?.zone.branchId, paymentMethods],
   );
 
   const variant = service.variants.find((item) => item.vehicleSize === vehicleSize);
@@ -662,8 +651,8 @@ export default function BookingWizardClient({
   }, [estimatedTransferAmount]);
 
   useEffect(() => {
-    if (fullName.trim() && !senderName) setSenderName(fullName.trim());
-    if (phone.trim() && !senderPhoneOrAccount) setSenderPhoneOrAccount(phone.trim());
+    if (fullName.trim()) setSenderName((prev) => prev || fullName.trim());
+    if (phone.trim()) setSenderPhoneOrAccount((prev) => prev || phone.trim());
   }, [fullName, phone]);
 
   useEffect(() => {
@@ -804,14 +793,6 @@ export default function BookingWizardClient({
       setGateInstructions('');
       setLocationUrl('');
     }
-  }
-
-  function toggleAddon(addonId: string) {
-    setSelectedAddonIds((current) =>
-      current.includes(addonId)
-        ? current.filter((item) => item !== addonId)
-        : [...current, addonId],
-    );
   }
 
   function validateVehicleDetails() {
@@ -1899,6 +1880,7 @@ export default function BookingWizardClient({
                   <label htmlFor="payment-proof-file-input" className="flex cursor-pointer flex-col items-center rounded-2xl border border-dashed border-neutral-700 bg-[#0a0a0a] px-5 py-8 text-center transition-colors hover:border-[#cea355]">
                     {proofPreviewUrl ? (
                       <div className="space-y-3 flex flex-col items-center">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={proofPreviewUrl} alt="معاينة إثبات التحويل" className="max-h-48 rounded-xl object-contain border border-neutral-700 shadow-md" />
                         <span className="text-xs text-emerald-400 font-bold flex items-center gap-1">
                           <CheckCircle2 className="size-4" />

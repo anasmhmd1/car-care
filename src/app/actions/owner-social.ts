@@ -6,7 +6,6 @@ import { z } from 'zod';
 import { requireRole } from '@/lib/auth/session';
 import { db } from '@/lib/db';
 import {
-  socialLinksSchema,
   DEFAULT_SOCIAL_LINKS,
   type SocialLinks,
 } from '@/lib/social-links';

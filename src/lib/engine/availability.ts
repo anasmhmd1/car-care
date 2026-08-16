@@ -2,13 +2,10 @@ import {
   BookingHoldStatus,
   BookingStatus,
   Prisma,
-  UserRole,
   VehicleSize,
 } from '@prisma/client';
 import { db } from '@/lib/db';
-import { expireAwaitingPaymentBooking } from './booking-expiration';
 import { calculateBookingQuote } from './pricing';
-import { BookingTransitionError } from './transition';
 import { isCoverageAreaEligible, resolveTravelMinutes } from './operations-math';
 import {
   dayOfWeekForLocalDate,

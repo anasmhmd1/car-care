@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
-import { Phone, MessageCircle, MessageSquare, X, ChevronLeft } from 'lucide-react';
+import { Phone, MessageCircle, X, ChevronLeft } from 'lucide-react';
 import { phoneHref, whatsappHref } from '@/lib/contact-links';
 
 interface FloatingContactWidgetProps {
@@ -41,7 +41,7 @@ export default function FloatingContactWidget({
             if (data.whatsapp) setWhatsapp(data.whatsapp);
           }
         }
-      } catch (err) {
+      } catch {
         // Fallback to initial props
       }
     }
@@ -49,7 +49,7 @@ export default function FloatingContactWidget({
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [isInternalAdminRoute]);
 
   // Close when clicking outside or pressing Escape
   useEffect(() => {

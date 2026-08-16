@@ -15,7 +15,7 @@ import {
 } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 import bcrypt from 'bcryptjs';
-import { getCurrentUser, requireRole } from '@/lib/auth/session';
+import { getCurrentUser } from '@/lib/auth/session';
 import { db } from '@/lib/db';
 import { evaluateRequestedInterval } from '@/lib/engine/availability';
 import { expireAwaitingPaymentBooking } from '@/lib/engine/booking-expiration';
