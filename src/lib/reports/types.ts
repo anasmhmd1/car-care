@@ -67,6 +67,9 @@ export interface ReportsResult {
     byTeam: CountValueRow[];
   };
   financial: {
+    totalGrossSales: number;
+    bookingGrossSales: number;
+    subscriptionGrossSales: number;
     verifiedPaymentCount: number;
     verifiedPaymentAmount: number;
     partialBookingCount: number;

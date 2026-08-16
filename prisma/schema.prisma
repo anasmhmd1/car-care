@@ -206,6 +206,13 @@ enum MaterialMovementType {
   WASTE
 }
 
+enum EmployeeMovementType {
+  ALLOCATION
+  CONSUMPTION_BY_BOOKING
+  ADJUSTMENT
+  RETURN
+}
+
 enum InvoiceStatus {
   ISSUED
   VOID
@@ -289,6 +296,8 @@ model User {
   reviewedSubscriptionPaymentProofs SubscriptionPaymentProof[]   @relation("SubscriptionPaymentProofReviewer")
   assignedBookings                  Booking[]                    @relation("BookingAssignedEmployee")
   inventoryMovements                InventoryMovement[]          @relation("InventoryMovementActor")
+  employeeMaterialStocks            EmployeeMaterialStock[]      @relation("EmployeeStockUser")
+  employeeInventoryMovementsCreated EmployeeInventoryMovement[]  @relation("EmployeeInventoryActor")
   issuedInvoices                    Invoice[]                    @relation("InvoiceIssuer")
   approvedCustomerRatings           CustomerServiceRating[]      @relation("CustomerServiceRatingApprover")
   assignedSupportTickets            SupportTicket[]              @relation("SupportTicketAssignee")
@@ -385,6 +394,7 @@ model Branch {
   slotUnitMinutes      Int            @default(60)
   arrivalWindowMinutes Int            @default(30)
   travelBufferMinutes  Int            @default(30)
+  restBufferMinutes    Int            @default(0)
   dailyBookingLimit    Int            @default(20)
   assignmentMode       AssignmentMode @default(MANUAL)
   createdAt            DateTime       @default(now())
@@ -750,6 +760,7 @@ model Material {
 
   serviceRequirements ServiceMaterialRequirement[]
   branchStocks        BranchMaterialStock[]
+  employeeStocks      EmployeeMaterialStock[]
 }
 
 model ServiceMaterialRequirement {
@@ -803,6 +814,44 @@ model InventoryMovement {
   createdBy   User                @relation("InventoryMovementActor", fields: [createdByUserId], references: [id], onDelete: Restrict)
 
   @@index([branchStockId, createdAt])
+  @@index([bookingId])
+}
+
+model EmployeeMaterialStock {
+  id             String   @id @default(uuid())
+  employeeId     String
+  materialId     String
+  quantityOnHand Float    @default(0)
+  minAlertLevel  Float?
+  active         Boolean  @default(true)
+  updatedAt      DateTime @updatedAt
+  createdAt      DateTime @default(now())
+
+  employee  User                        @relation("EmployeeStockUser", fields: [employeeId], references: [id], onDelete: Cascade)
+  material  Material                    @relation(fields: [materialId], references: [id], onDelete: Restrict)
+  movements EmployeeInventoryMovement[]
+
+  @@unique([employeeId, materialId])
+  @@index([employeeId, active])
+  @@index([materialId])
+}
+
+model EmployeeInventoryMovement {
+  id              String               @id @default(uuid())
+  employeeStockId String
+  bookingId       String?
+  type            EmployeeMovementType
+  quantityChange  Float
+  balanceAfter    Float
+  reason          String?
+  createdByUserId String
+  createdAt       DateTime             @default(now())
+
+  employeeStock EmployeeMaterialStock @relation(fields: [employeeStockId], references: [id], onDelete: Cascade)
+  booking       Booking?              @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  createdBy     User                  @relation("EmployeeInventoryActor", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@index([employeeStockId, createdAt])
   @@index([bookingId])
 }
 
@@ -1012,8 +1061,9 @@ model Booking {
   complaints          Complaint[]
   qualityReview       QualityReview?
   visitLedgerEntries  SubscriptionVisitLedger[]
-  inventoryMovements  InventoryMovement[]
-  invoice             Invoice?
+  inventoryMovements         InventoryMovement[]
+  employeeMovements          EmployeeInventoryMovement[]
+  invoice                    Invoice?
   customerRating      CustomerServiceRating?
   supportTickets      SupportTicket[]
 

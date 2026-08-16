@@ -129,56 +129,6 @@ function normalizeVehicleSize(value?: string): VehicleSize | undefined {
 }
 
 async function expireStaleHolds(tx: Prisma.TransactionClient, now: Date) {
-  const staleHolds = await tx.bookingHold.findMany({
-    where: {
-      status: BookingHoldStatus.ACTIVE,
-      expiresAt: { lte: now },
-    },
-    select: { bookingId: true },
-  });
-
-  for (const bookingId of [...new Set(staleHolds.map((hold) => hold.bookingId))]) {
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`hold-expiry:${bookingId}`}))`;
-    const booking = await tx.booking.findFirst({
-      where: {
-        id: bookingId,
-        deletedAt: null,
-        bookingStatus: {
-          in: [BookingStatus.REQUEST_SUBMITTED, BookingStatus.AWAITING_PAYMENT_PROOF],
-        },
-        holds: {
-          some: {
-            status: BookingHoldStatus.ACTIVE,
-            expiresAt: { lte: now },
-          },
-        },
-      },
-      select: {
-        id: true,
-        customerId: true,
-        creditAppliedAmount: true,
-        subscriptionId: true,
-        bookingStatus: true,
-        customer: { select: { userId: true } },
-      },
-    });
-    if (!booking) continue;
-
-    try {
-      await expireAwaitingPaymentBooking(tx, {
-        booking,
-        actor: { id: booking.customer.userId, role: UserRole.CUSTOMER },
-        now,
-      });
-    } catch (error) {
-      if (
-        error instanceof BookingTransitionError
-        && ['STALE_BOOKING_STATUS', 'TRANSITION_BLOCKED'].includes(error.code)
-      ) continue;
-      throw error;
-    }
-  }
-
   await tx.bookingHold.updateMany({
     where: {
       status: BookingHoldStatus.ACTIVE,
@@ -418,6 +368,8 @@ function findFeasibleTeamIds(
       }
     }
 
+    const restBufferMs = (branch.restBufferMinutes ?? 0) * 60_000;
+
     if (team.bookings.length + team.holds.length >= team.dailyCapacity) continue;
     if (team.holds.some((hold) => intervalsOverlap(slotStart, slotEnd, hold.slotStartTime, hold.slotEndTime))) continue;
     if (team.bookings.some((booking) => intervalsOverlap(slotStart, slotEnd, booking.startAt, booking.endAt))) continue;
@@ -427,7 +379,8 @@ function findFeasibleTeamIds(
       .toSorted((first, second) => second.endAt.getTime() - first.endAt.getTime())[0];
     if (previous) {
       const requiredTravel = getTravelMinutes(previous.coverageArea.zoneId, area.zoneId);
-      if (previous.endAt.getTime() + requiredTravel * 60_000 > slotStart.getTime()) continue;
+      const totalBufferMs = requiredTravel * 60_000 + restBufferMs;
+      if (previous.endAt.getTime() + totalBufferMs > slotStart.getTime()) continue;
     } else if (!canReachFirstTaskFromBase({
       baseZoneId: team.baseZoneId,
       targetZoneId: area.zoneId,
@@ -443,7 +396,24 @@ function findFeasibleTeamIds(
       .toSorted((first, second) => first.startAt.getTime() - second.startAt.getTime())[0];
     if (next) {
       const requiredTravel = getTravelMinutes(area.zoneId, next.coverageArea.zoneId);
-      if (slotEnd.getTime() + requiredTravel * 60_000 > next.startAt.getTime()) continue;
+      const totalBufferMs = requiredTravel * 60_000 + restBufferMs;
+      if (slotEnd.getTime() + totalBufferMs > next.startAt.getTime()) continue;
+    }
+
+    if (restBufferMs > 0) {
+      const previousHold = team.holds
+        .filter((hold) => hold.slotEndTime <= slotStart)
+        .toSorted((first, second) => second.slotEndTime.getTime() - first.slotEndTime.getTime())[0];
+      if (previousHold && previousHold.slotEndTime.getTime() + restBufferMs > slotStart.getTime()) {
+        continue;
+      }
+
+      const nextHold = team.holds
+        .filter((hold) => hold.slotStartTime >= slotEnd)
+        .toSorted((first, second) => first.slotStartTime.getTime() - second.slotStartTime.getTime())[0];
+      if (nextHold && slotEnd.getTime() + restBufferMs > nextHold.slotStartTime.getTime()) {
+        continue;
+      }
     }
 
     feasible.push(team.id);
@@ -545,5 +515,9 @@ export async function calculateAvailableSlots(request: SlotRequest): Promise<Ava
     }
 
     return slots;
-  }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
+  }, {
+    isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
+    timeout: 15000,
+    maxWait: 5000,
+  });
 }

@@ -11,7 +11,7 @@ function resolveSiteUrl() {
 }
 
 export const siteUrl = resolveSiteUrl();
-export const siteName = 'بريق | Bareeq';
+export const siteName = 'BAREEQ';
 
 interface PublicMetadataOptions {
   title: string;
@@ -20,18 +20,19 @@ interface PublicMetadataOptions {
 }
 
 export function createPublicMetadata({
-  title,
+  title = 'BAREEQ',
   description,
   path,
 }: PublicMetadataOptions): Metadata {
+  const brandTitle = 'BAREEQ';
   return {
-    title,
+    title: brandTitle,
     description,
     alternates: {
       canonical: path,
     },
     openGraph: {
-      title,
+      title: brandTitle,
       description,
       url: path,
       siteName,
@@ -39,18 +40,18 @@ export function createPublicMetadata({
       type: 'website',
       images: [
         {
-          url: '/logo.svg',
-          width: 600,
-          height: 600,
-          alt: 'شعار بريق للعناية المتنقلة بالسيارات',
+          url: '/images/bareeq_official_logo.png',
+          width: 1200,
+          height: 630,
+          alt: 'BAREEQ',
         },
       ],
     },
     twitter: {
       card: 'summary_large_image',
-      title,
+      title: brandTitle,
       description,
-      images: ['/logo.svg'],
+      images: ['/images/bareeq_official_logo.png'],
     },
   };
 }

@@ -160,6 +160,7 @@ export interface SetupBranchDto {
   slotUnitMinutes: number;
   arrivalWindowMinutes: number;
   travelBufferMinutes: number;
+  restBufferMinutes: number;
   dailyBookingLimit: number;
   assignmentMode: AssignmentModeCode;
   workingHours: BranchHoursDto[];
@@ -247,6 +248,7 @@ interface SetupCenterProps {
 type SetupMutation = (formData: FormData) => Promise<SetupActionResult>;
 type SectionId =
   | 'overview'
+  | 'operations_management'
   | 'workforce'
   | 'teams'
   | 'coverage'
@@ -456,7 +458,7 @@ function ConfirmationDialog({
         </div>
         <p className="mt-4 text-sm leading-7 text-white/55">{request.description}</p>
         <label className="mt-5 block text-xs font-bold text-white/70">
-          سبب الإجراء *
+          سبب الإجراء
           <textarea
             value={reason}
             onChange={(event) => setReason(event.target.value)}
@@ -517,10 +519,18 @@ function OverviewSection({
   const governedServices = services.filter((service) => service.cancellationPolicyActive).length;
   const readiness = [
     {
-      label: 'القوة العاملة',
-      value: employees.filter((employee) => employee.active).length,
-      suffix: 'حساب نشط',
-      ready: employees.some((employee) => employee.active),
+      label: 'إدارة التشغيل',
+      value: employees.filter((employee) => employee.role === 'OPERATIONS_MANAGER' && employee.active).length,
+      suffix: 'مدير تشغيل',
+      ready: employees.some((employee) => employee.role === 'OPERATIONS_MANAGER' && employee.active),
+      section: 'operations_management' as SectionId,
+      icon: ShieldCheck,
+    },
+    {
+      label: 'موظفو التنفيذ',
+      value: employees.filter((employee) => employee.role === 'EMPLOYEE' && employee.active).length,
+      suffix: 'فني بالفرع',
+      ready: employees.some((employee) => employee.role === 'EMPLOYEE' && employee.active),
       section: 'workforce' as SectionId,
       icon: UserRoundCog,
     },
@@ -618,11 +628,12 @@ function OverviewSection({
       </Panel>
 
       <Panel title="قواعد المحرك الحالية" description="قيم الفرع التي تدخل مباشرة في حساب المواعيد والإسناد.">
-        <dl className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           {[
             ['وحدة الموعد', branch.slotUnitMinutes + ' دقيقة'],
             ['نافذة الوصول', branch.arrivalWindowMinutes + ' دقيقة'],
             ['احتياطي الانتقال', branch.travelBufferMinutes + ' دقيقة'],
+            ['راحة بين السلوتات', (branch.restBufferMinutes ?? 0) + ' دقيقة'],
             ['حد الحجوزات', branch.dailyBookingLimit + ' يوميًا'],
             ['نمط الإسناد', branch.assignmentMode === 'AUTOMATIC' ? 'تلقائي' : 'يدوي'],
           ].map(([label, value]) => (
@@ -654,7 +665,7 @@ function BranchIdentityForm({ branch, tools }: {
         <input type="hidden" name="branchId" value={branch.id} />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <label className="text-xs font-bold text-white/65">
-            اسم الفرع بالعربية *
+            اسم الفرع بالعربية
             <input name="nameAr" required minLength={2} maxLength={200} defaultValue={branch.nameAr} className={inputClass} />
           </label>
           <label className="text-xs font-bold text-white/65">
@@ -662,11 +673,11 @@ function BranchIdentityForm({ branch, tools }: {
             <input name="nameEn" dir="ltr" maxLength={200} defaultValue={branch.nameEn ?? ''} className={inputClass} />
           </label>
           <label className="text-xs font-bold text-white/65">
-            كود الفرع *
+            كود الفرع
             <input name="code" dir="ltr" required minLength={2} maxLength={32} pattern="[A-Za-z0-9][A-Za-z0-9_-]*" defaultValue={branch.code} className={inputClass + ' uppercase'} />
           </label>
           <label className="text-xs font-bold text-white/65">
-            المنطقة الزمنية *
+            المنطقة الزمنية
             <input name="timezone" dir="ltr" required list={'setup-timezones-' + branch.id} defaultValue={branch.timezone} className={inputClass} />
             <datalist id={'setup-timezones-' + branch.id}>
               <option value="Africa/Cairo" />
@@ -676,24 +687,239 @@ function BranchIdentityForm({ branch, tools }: {
             </datalist>
           </label>
           <label className="text-xs font-bold text-white/65">
-            الهاتف *
+            الهاتف
             <input name="phone" dir="ltr" required minLength={8} maxLength={20} defaultValue={branch.phone} className={inputClass} />
           </label>
           <label className="text-xs font-bold text-white/65">
-            واتساب *
+            واتساب
             <input name="whatsapp" dir="ltr" required minLength={8} maxLength={20} defaultValue={branch.whatsapp} className={inputClass} />
           </label>
           <label className="text-xs font-bold text-white/65 sm:col-span-2">
-            العنوان *
+            العنوان
             <input name="address" required minLength={3} maxLength={500} defaultValue={branch.address} className={inputClass} />
           </label>
         </div>
         <label className="block text-xs font-bold text-white/65">
-          سبب هذا التعديل *
+          سبب هذا التعديل
           <input name="changeReason" required minLength={5} maxLength={500} placeholder="سبب واضح يظهر في سجل التدقيق" className={inputClass} />
         </label>
         <div className="flex justify-end border-t border-white/8 pt-5">
           <SaveButton pending={tools.pending} label="حفظ بيانات الفرع" />
+        </div>
+      </form>
+    </Panel>
+  );
+}
+
+function OperationsManagementSection({
+  branch,
+  allBranches,
+  employees,
+  permissions,
+  tools,
+}: {
+  branch: SetupBranchDto;
+  allBranches: SetupBranchDto[];
+  employees: SetupEmployeeDto[];
+  permissions: SetupPermissionDto[];
+  tools: SectionTools;
+}) {
+  const [selectedId, setSelectedId] = useState<string>('new');
+  const operationsManagers = employees.filter((e) => e.role === 'OPERATIONS_MANAGER');
+  const selected = operationsManagers.find((m) => m.id === selectedId);
+
+  return (
+    <div className="grid gap-6 xl:grid-cols-[minmax(300px,0.85fr)_minmax(480px,1.15fr)]">
+      <Panel
+        title="إدارة التشغيل (المدراء)"
+        description={`${operationsManagers.length} مدير تشغيل مسجل بالنظام · يمكن للمدير إدارة أكثر من فرع`}
+        actions={(
+          <button type="button" onClick={() => setSelectedId('new')} className={secondaryButtonClass}>
+            <Plus className="size-4" aria-hidden="true" />
+            مدير تشغيل جديد
+          </button>
+        )}
+      >
+        {operationsManagers.length ? (
+          <div className="space-y-2.5">
+            {operationsManagers.map((manager) => {
+              const managerBranches = allBranches.filter((b) => manager.branchIds.includes(b.id));
+              return (
+                <button
+                  key={manager.id}
+                  type="button"
+                  onClick={() => setSelectedId(manager.id)}
+                  className={'w-full rounded-xl border p-4 text-right transition ' + (
+                    selectedId === manager.id
+                      ? 'border-[#d4af37]/35 bg-[#d4af37]/8'
+                      : 'border-white/8 bg-black/25 hover:border-white/18'
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-black text-white/85 flex items-center gap-2">
+                        <ShieldCheck className="size-4 text-[#d4af37]" />
+                        <span>{manager.fullName}</span>
+                      </p>
+                      <p dir="ltr" className="mt-1 text-left text-xs text-white/40">{manager.phone}</p>
+                    </div>
+                    <StatusPill active={manager.active} />
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[11px]">
+                    <span className="text-white/40 text-[10px]">الفروع المُدارة:</span>
+                    {managerBranches.length > 0 ? (
+                      managerBranches.map((b) => (
+                        <span key={b.id} className="rounded-md border border-[#d4af37]/30 bg-[#d4af37]/15 px-2 py-0.5 font-bold text-[#f3e4a8]">
+                          {b.nameAr}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="rounded-md bg-white/[0.05] px-2 py-0.5 text-white/40">
+                        لم يتم تحديد فروع
+                      </span>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <EmptyState title="لا يوجد مدراء تشغيل" text="أنشئ أول حساب مدير تشغيل وحدد الفروع التي يشرف عليها." />
+        )}
+      </Panel>
+
+      <div className="space-y-6">
+        <OperationsManagerForm
+          key={selected?.id ?? 'new'}
+          branch={branch}
+          allBranches={allBranches}
+          manager={selected}
+          tools={tools}
+        />
+        {selected ? (
+          <PermissionOverridesPanel
+            key={selected.id + '-permissions'}
+            employee={selected}
+            branches={allBranches.filter((candidate) => selected.branchIds.includes(candidate.id))}
+            permissions={permissions}
+            tools={tools}
+          />
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function OperationsManagerForm({
+  branch,
+  allBranches,
+  manager,
+  tools,
+}: {
+  branch: SetupBranchDto;
+  allBranches: SetupBranchDto[];
+  manager?: SetupEmployeeDto;
+  tools: SectionTools;
+}) {
+  function submit(event: FormEvent<HTMLFormElement>) {
+    tools.execute(saveSetupEmployeeAction, formDataFrom(event));
+  }
+
+  return (
+    <Panel
+      title={manager ? 'تعديل مدير التشغيل: ' + manager.fullName : 'إنشاء مدير تشغيل جديد'}
+      description="يمكن لمدير التشغيل إدارة وتنسيق العمليات عبر فرع واحد أو عدة فروع في نفس الوقت."
+    >
+      <form onSubmit={submit} className="space-y-5">
+        {manager ? <input type="hidden" name="employeeId" value={manager.id} /> : null}
+        <input type="hidden" name="branchId" value={branch.id} />
+        <input type="hidden" name="role" value="OPERATIONS_MANAGER" />
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="text-xs font-bold text-white/65">
+            الاسم الكامل
+            <input name="fullName" required minLength={2} maxLength={100} defaultValue={manager?.fullName ?? ''} className={inputClass} />
+          </label>
+          <label className="text-xs font-bold text-white/65">
+            الهاتف (رقم تسجيل الدخول)
+            <input name="phone" dir="ltr" required minLength={8} maxLength={20} defaultValue={manager?.phone ?? ''} className={inputClass} />
+          </label>
+          <label className="text-xs font-bold text-white/65">
+            واتساب (اختياري)
+            <input name="whatsapp" dir="ltr" maxLength={20} defaultValue={manager?.whatsapp ?? ''} className={inputClass} />
+          </label>
+          <label className="text-xs font-bold text-white/65">
+            البريد الإلكتروني (اختياري)
+            <input name="email" type="email" dir="ltr" defaultValue={manager?.email ?? ''} className={inputClass} />
+          </label>
+          <label className="text-xs font-bold text-white/65 sm:col-span-2">
+            {manager ? 'كلمة مرور مؤقتة جديدة (اتركها فارغة للإبقاء على الحالية)' : 'كلمة المرور المؤقتة'}
+            <input
+              name="temporaryPassword"
+              type="password"
+              required={!manager}
+              minLength={manager ? undefined : 12}
+              maxLength={128}
+              autoComplete="new-password"
+              className={inputClass}
+            />
+          </label>
+        </div>
+
+        {/* Multi-Branch Selector */}
+        <div className="rounded-2xl border border-[#d4af37]/25 bg-black/40 p-4">
+          <p className="text-xs font-black text-[#f3e4a8] flex items-center gap-2">
+            <ShieldCheck className="size-4 text-[#d4af37]" />
+            <span>الفروع المُدارة بواسطة هذا المدير (إدارة فروع متعددة)</span>
+          </p>
+          <p className="mt-1 text-xs text-white/45">حدد كافة الفروع التي يستطيع مدير التشغيل إدارتها ومتابعة حجوزاتها وفرقها:</p>
+          <div className="mt-3 grid gap-2.5 sm:grid-cols-2">
+            {allBranches.map((b) => {
+              const isChecked = manager ? manager.branchIds.includes(b.id) : b.id === branch.id;
+              return (
+                <label key={b.id} className="flex items-center gap-3 rounded-xl border border-white/8 bg-black/50 p-3 text-xs font-bold text-white/85 hover:border-[#d4af37]/40 cursor-pointer transition">
+                  <input
+                    type="checkbox"
+                    name="branchIds"
+                    value={b.id}
+                    defaultChecked={isChecked}
+                    className="size-4 accent-[#d4af37]"
+                  />
+                  <span>{b.nameAr} <span dir="ltr" className="text-white/35 font-mono">({b.code})</span></span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+
+        <BooleanField
+          name="active"
+          label="الحساب نشط"
+          defaultChecked={manager?.active ?? true}
+          description="إيقاف الحساب يمنع مدير التشغيل من الدخول للنظام."
+        />
+
+        <div className="flex flex-col gap-3 border-t border-white/8 pt-5 sm:flex-row sm:justify-between">
+          {manager && manager.active ? (
+            <button
+              type="button"
+              disabled={tools.pending}
+              onClick={() => tools.requestConfirmation({
+                title: 'تعطيل حساب مدير التشغيل ' + manager.fullName,
+                description: 'سيتم إنهاء جلساته الحالية مع الاحتفاظ بسجل عملياته وقراراته.',
+                action: deactivateSetupEmployeeAction,
+                entityId: manager.id,
+                branchId: branch.id,
+                confirmLabel: 'تعطيل الحساب',
+              })}
+              className={dangerButtonClass}
+            >
+              <Trash2 className="size-4" aria-hidden="true" />
+              تعطيل الحساب
+            </button>
+          ) : <span />}
+          <SaveButton pending={tools.pending} label={manager ? 'حفظ تعديلات المدير' : 'إنشاء مدير التشغيل'} />
         </div>
       </form>
     </Panel>
@@ -714,22 +940,24 @@ function WorkforceSection({
   tools: SectionTools;
 }) {
   const [selectedId, setSelectedId] = useState<string>('new');
-  const selected = employees.find((employee) => employee.id === selectedId);
+  const fieldEmployees = employees.filter((e) => e.role === 'EMPLOYEE' && e.branchIds.includes(branch.id));
+  const selected = fieldEmployees.find((employee) => employee.id === selectedId);
+
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(280px,0.75fr)_minmax(480px,1.25fr)]">
       <Panel
-        title="دليل الموظفين"
-        description={employees.length + ' حساب داخل ' + branch.nameAr}
+        title="موظفو التنفيذ والفنيين"
+        description={`${fieldEmployees.length} فني مسجل في فرع ${branch.nameAr}`}
         actions={(
           <button type="button" onClick={() => setSelectedId('new')} className={secondaryButtonClass}>
             <Plus className="size-4" aria-hidden="true" />
-            حساب جديد
+            فني جديد
           </button>
         )}
       >
-        {employees.length ? (
+        {fieldEmployees.length ? (
           <div className="space-y-2">
-            {employees.map((employee) => (
+            {fieldEmployees.map((employee) => (
               <button
                 key={employee.id}
                 type="button"
@@ -749,20 +977,17 @@ function WorkforceSection({
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
                   <span className="rounded-full bg-white/[0.055] px-2 py-1 text-white/45">
-                    {employee.role === 'OPERATIONS_MANAGER' ? 'مدير تشغيل' : 'موظف تنفيذ'}
-                  </span>
-                  <span className="rounded-full bg-white/[0.055] px-2 py-1 text-white/45">
                     {employee.teamId ? 'مرتبط بفريق' : 'غير مرتبط بفريق'}
                   </span>
                 </div>
               </button>
             ))}
           </div>
-        ) : <EmptyState title="لا يوجد موظفون" text="أنشئ أول حساب ثم اربطه بفريق." />}
+        ) : <EmptyState title="لا يوجد موظفو تنفيذ" text="أنشئ أول حساب فني للفرع ثم اربطه بفريق العمل." />}
       </Panel>
 
       <div className="space-y-6">
-        <EmployeeForm
+        <FieldEmployeeForm
           key={selected?.id ?? 'new'}
           branch={branch}
           employee={selected}
@@ -781,7 +1006,7 @@ function WorkforceSection({
             title="استثناءات الصلاحيات"
             description="أنشئ الحساب أولًا، ثم أضف فقط الاستثناءات اللازمة فوق صلاحيات الدور الافتراضية."
           >
-            <EmptyState title="لا يوجد حساب محدد" text="اختر موظفًا محفوظًا لإدارة استثناءات صلاحياته." />
+            <EmptyState title="لا يوجد حساب محدد" text="اختر فنيًا محفوظًا لإدارة استثناءات صلاحياته." />
           </Panel>
         )}
       </div>
@@ -789,7 +1014,7 @@ function WorkforceSection({
   );
 }
 
-function EmployeeForm({
+function FieldEmployeeForm({
   branch,
   employee,
   tools,
@@ -803,40 +1028,34 @@ function EmployeeForm({
   }
   return (
     <Panel
-      title={employee ? 'تعديل حساب ' + employee.fullName : 'إنشاء حساب تشغيل'}
+      title={employee ? 'تعديل الفني: ' + employee.fullName : 'إنشاء حساب فني جديد'}
       description={employee
         ? 'اترك كلمة المرور فارغة ما لم تكن تريد إعادة ضبطها.'
-        : 'سيُطلب من الموظف تغيير كلمة المرور المؤقتة عند أول دخول.'}
+        : 'سيُطلب من الفني تغيير كلمة المرور المؤقتة عند أول تسجيل دخول.'}
     >
       <form onSubmit={submit} className="space-y-5">
         {employee ? <input type="hidden" name="employeeId" value={employee.id} /> : null}
         <input type="hidden" name="branchId" value={branch.id} />
+        <input type="hidden" name="role" value="EMPLOYEE" />
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="text-xs font-bold text-white/65">
-            الاسم الكامل *
+            الاسم الكامل
             <input name="fullName" required minLength={2} maxLength={100} defaultValue={employee?.fullName ?? ''} className={inputClass} />
           </label>
           <label className="text-xs font-bold text-white/65">
-            الدور *
-            <select name="role" defaultValue={employee?.role ?? 'EMPLOYEE'} className={inputClass}>
-              <option value="EMPLOYEE">موظف تنفيذ</option>
-              <option value="OPERATIONS_MANAGER">مدير تشغيل</option>
-            </select>
-          </label>
-          <label className="text-xs font-bold text-white/65">
-            الهاتف *
+            الهاتف (رقم تسجيل الدخول)
             <input name="phone" dir="ltr" required minLength={8} maxLength={20} defaultValue={employee?.phone ?? ''} className={inputClass} />
           </label>
           <label className="text-xs font-bold text-white/65">
-            واتساب
+            واتساب (اختياري)
             <input name="whatsapp" dir="ltr" maxLength={20} defaultValue={employee?.whatsapp ?? ''} className={inputClass} />
           </label>
           <label className="text-xs font-bold text-white/65">
-            البريد الإلكتروني
+            البريد الإلكتروني (اختياري)
             <input name="email" type="email" dir="ltr" defaultValue={employee?.email ?? ''} className={inputClass} />
           </label>
-          <label className="text-xs font-bold text-white/65">
-            {employee ? 'كلمة مرور مؤقتة جديدة' : 'كلمة المرور المؤقتة *'}
+          <label className="text-xs font-bold text-white/65 sm:col-span-2">
+            {employee ? 'كلمة مرور مؤقتة جديدة (اتركها فارغة للإبقاء على الحالية)' : 'كلمة المرور المؤقتة'}
             <input
               name="temporaryPassword"
               type="password"
@@ -847,6 +1066,9 @@ function EmployeeForm({
               className={inputClass}
             />
           </label>
+        </div>
+        <div className="rounded-xl border border-white/8 bg-black/20 p-3 text-xs text-white/50">
+          📍 الفرع المسند: <span className="font-bold text-white/80">{branch.nameAr}</span> ({branch.code})
         </div>
         <BooleanField
           name="active"
@@ -1047,7 +1269,7 @@ function PermissionOverrideForm({
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="text-[11px] font-bold text-white/50">
-          الصلاحية *
+          الصلاحية
           <select name="permissionCode" required defaultValue={override?.permissionCode ?? availablePermissions[0]?.code} className={inputClass}>
             {availablePermissions.map((permission) => (
               <option key={permission.code} value={permission.code}>{permission.nameAr} — {permission.code}</option>
@@ -1055,14 +1277,14 @@ function PermissionOverrideForm({
           </select>
         </label>
         <label className="text-[11px] font-bold text-white/50">
-          الأثر *
+          الأثر
           <select name="effect" required defaultValue={override?.effect ?? 'GRANT'} className={inputClass}>
             <option value="GRANT">GRANT — منح صريح</option>
             <option value="DENY">DENY — منع صريح</option>
           </select>
         </label>
         <label className="text-[11px] font-bold text-white/50">
-          النطاق *
+          النطاق
           <select
             name="scopeType"
             required
@@ -1075,7 +1297,7 @@ function PermissionOverrideForm({
           </select>
         </label>
         <label className="text-[11px] font-bold text-white/50">
-          الفرع {scopeType === 'BRANCH' ? '*' : ''}
+          الفرع ''
           <select
             name="branchId"
             required={scopeType === 'BRANCH'}
@@ -1097,7 +1319,7 @@ function PermissionOverrideForm({
         </label>
       </div>
       <label className="mt-3 block text-[11px] font-bold text-white/50">
-        سبب {override ? 'التعديل' : 'التفويض'} *
+        سبب {override ? 'التعديل' : 'التفويض'}
         <input
           name="auditReason"
           required
@@ -1234,15 +1456,15 @@ function TeamForm({
         <input type="hidden" name="branchId" value={branch.id} />
         <div className="grid gap-4 sm:grid-cols-3">
           <label className="text-xs font-bold text-white/65 sm:col-span-1">
-            اسم الفريق *
+            اسم الفريق
             <input name="name" required minLength={2} maxLength={100} defaultValue={team?.name ?? ''} className={inputClass} />
           </label>
           <label className="text-xs font-bold text-white/65">
-            السعة اليومية *
+            السعة اليومية
             <input name="dailyCapacity" type="number" min={1} max={100} required defaultValue={team?.dailyCapacity ?? 5} className={inputClass} />
           </label>
           <label className="text-xs font-bold text-white/65">
-            أولوية الإسناد *
+            أولوية الإسناد
             <input name="assignmentPriority" type="number" min={1} max={100} required defaultValue={team?.assignmentPriority ?? 1} className={inputClass} />
           </label>
         </div>
@@ -1490,7 +1712,7 @@ function ZoneEditor({
         {zone ? <input type="hidden" name="zoneId" value={zone.id} /> : null}
         <input type="hidden" name="branchId" value={branch.id} />
         <label className="block text-xs font-bold text-white/65">
-          اسم الزون *
+          اسم الزون
           <input name="name" required minLength={2} maxLength={200} defaultValue={zone?.name ?? ''} className={inputClass} />
         </label>
         <label className="block text-xs font-bold text-white/65">
@@ -1552,23 +1774,23 @@ function AreaEditor({
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="text-xs font-bold text-white/65">
-          المحافظة *
-          <input name="governorate" required defaultValue={area?.governorate ?? 'الجيزة'} className={inputClass} />
+          المحافظة
+          <input name="governorate" required defaultValue={area?.governorate ?? ''} placeholder="المحافظة" className={inputClass} />
         </label>
         <label className="text-xs font-bold text-white/65">
-          المدينة *
-          <input name="city" required defaultValue={area?.city ?? 'الشيخ زايد'} className={inputClass} />
+          المدينة
+          <input name="city" required defaultValue={area?.city ?? ''} placeholder="المدينة" className={inputClass} />
         </label>
         <label className="text-xs font-bold text-white/65">
-          الحي *
+          الحي
           <input name="district" required defaultValue={area?.district ?? ''} className={inputClass} />
         </label>
         <label className="text-xs font-bold text-white/65">
-          الكمبوند / المنطقة *
+          الكمبوند / المنطقة
           <input name="compound" required defaultValue={area?.compound ?? ''} className={inputClass} />
         </label>
         <label className="text-xs font-bold text-white/65">
-          أولوية العرض *
+          أولوية العرض
           <input name="priority" type="number" min={1} max={1000} required defaultValue={area?.priority ?? 1} className={inputClass} />
         </label>
         <label className="text-xs font-bold text-white/65">
@@ -1700,30 +1922,56 @@ function ScheduleSection({ branch, employees, tools }: {
           className="space-y-5"
         >
           <input type="hidden" name="branchId" value={branch.id} />
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <label className="text-xs font-bold text-white/65">
-              وحدة الموعد بالدقائق *
+              وحدة الموعد بالدقائق
               <input name="slotUnitMinutes" type="number" min={15} max={240} required defaultValue={branch.slotUnitMinutes} className={inputClass} />
             </label>
             <label className="text-xs font-bold text-white/65">
-              نافذة الوصول *
+              نافذة الوصول
               <input name="arrivalWindowMinutes" type="number" min={0} max={180} required defaultValue={branch.arrivalWindowMinutes} className={inputClass} />
             </label>
             <label className="text-xs font-bold text-white/65">
-              احتياطي الانتقال *
+              احتياطي الانتقال (بين المناطق)
               <input name="travelBufferMinutes" type="number" min={0} max={180} required defaultValue={branch.travelBufferMinutes} className={inputClass} />
             </label>
             <label className="text-xs font-bold text-white/65">
-              الحد اليومي *
+              وقت البريك بين السلوتات (بالدقائق)
+              <input
+                name="restBufferMinutes"
+                type="number"
+                min={0}
+                max={180}
+                required
+                defaultValue={branch.restBufferMinutes ?? 0}
+                className={inputClass}
+                placeholder="0 = بدون بريك، 15 = ربع ساعة، 60 = سلوت كامل"
+              />
+            </label>
+            <label className="text-xs font-bold text-white/65">
+              الحد اليومي
               <input name="dailyBookingLimit" type="number" min={1} max={500} required defaultValue={branch.dailyBookingLimit} className={inputClass} />
             </label>
             <label className="text-xs font-bold text-white/65">
-              نمط الإسناد *
+              نمط الإسناد
               <select name="assignmentMode" defaultValue={branch.assignmentMode} className={inputClass}>
                 <option value="AUTOMATIC">تلقائي حسب المحرك</option>
                 <option value="MANUAL">يدوي من التشغيل</option>
               </select>
             </label>
+          </div>
+          <div className="rounded-xl border border-[#cea355]/20 bg-[#cea355]/[0.04] p-4 text-xs leading-5 text-white/70 space-y-1.5">
+            <p className="font-bold text-[#edce8b]">💡 تخصيص وقت البريك والراحة بين كل سلوت وآخر (Rest Buffer):</p>
+            <p className="text-white/65">
+              يمكنك تحديد وقت فاصل (بريك) بين السلوتات والحجوزات المتتالية لنفس الفريق:
+            </p>
+            <ul className="list-disc list-inside space-y-1 text-white/55 text-[11px] pr-2">
+              <li><strong className="text-white">0 دقيقة:</strong> بدون أي بريك (حجوزات متتالية مباشرة).</li>
+              <li><strong className="text-white">15 دقيقة:</strong> بريك ربع ساعة بين كل موعد والآخر لفريق العمل.</li>
+              <li><strong className="text-white">30 دقيقة:</strong> بريك نصف ساعة راحة وتجهيز.</li>
+              <li><strong className="text-white">60 دقيقة:</strong> ترك سلوت كامل فاضي (ساعة كاملة) بين كل حجزين.</li>
+              <li>أو يمكنك كتابة أي عدد دقائق مخصص (حتى 180 دقيقة).</li>
+            </ul>
           </div>
           <div className="flex justify-end border-t border-white/8 pt-5">
             <SaveButton pending={tools.pending} label="حفظ قواعد المحرك" />
@@ -1912,11 +2160,11 @@ function BlackoutsPanel({ branch, tools }: { branch: SetupBranchDto; tools: Sect
       >
         <input type="hidden" name="branchId" value={branch.id} />
         <label className="text-xs font-bold text-white/65">
-          التاريخ *
+          التاريخ
           <input name="date" type="date" required className={inputClass} />
         </label>
         <label className="text-xs font-bold text-white/65">
-          السبب *
+          السبب
           <input name="reason" required minLength={2} maxLength={500} placeholder="صيانة، عطلة رسمية…" className={inputClass} />
         </label>
         <SaveButton pending={tools.pending} label="إضافة إغلاق" />
@@ -2117,24 +2365,24 @@ function TimeOffForm({
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="text-[11px] font-bold text-white/50">
-          تاريخ البداية *
+          تاريخ البداية
           <input name="startDate" type="date" required defaultValue={start?.date ?? ''} className={inputClass} />
         </label>
         <label className="text-[11px] font-bold text-white/50">
-          وقت البداية *
+          وقت البداية
           <input name="startTime" type="time" required defaultValue={start?.time ?? ''} className={inputClass} />
         </label>
         <label className="text-[11px] font-bold text-white/50">
-          تاريخ النهاية *
+          تاريخ النهاية
           <input name="endDate" type="date" required defaultValue={end?.date ?? ''} className={inputClass} />
         </label>
         <label className="text-[11px] font-bold text-white/50">
-          وقت النهاية *
+          وقت النهاية
           <input name="endTime" type="time" required defaultValue={end?.time ?? ''} className={inputClass} />
         </label>
       </div>
       <label className="mt-3 block text-[11px] font-bold text-white/50">
-        سبب الإجازة *
+        سبب الإجازة
         <input
           name="reason"
           required
@@ -2147,7 +2395,7 @@ function TimeOffForm({
       </label>
       {timeOff ? (
         <label className="mt-3 block text-[11px] font-bold text-white/50">
-          سبب هذا التعديل *
+          سبب هذا التعديل
           <input
             name="changeReason"
             required
@@ -2246,21 +2494,21 @@ function PaymentMethodForm({
         <input type="hidden" name="branchId" value={branch.id} />
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="text-xs font-bold text-white/65">
-            الاسم الظاهر *
+            الاسم الظاهر
             <input name="name" required minLength={2} maxLength={200} defaultValue={method?.name ?? ''} className={inputClass} />
           </label>
           <label className="text-xs font-bold text-white/65">
-            النوع *
+            النوع
             <select name="type" defaultValue={method?.type ?? 'VODAFONE_CASH'} className={inputClass}>
               {PAYMENT_TYPES.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}
             </select>
           </label>
           <label className="text-xs font-bold text-white/65">
-            رقم الحساب / المعرّف *
+            رقم الحساب / المعرّف
             <input name="accountNumber" dir="ltr" required maxLength={100} defaultValue={method?.accountNumber ?? ''} className={inputClass} />
           </label>
           <label className="text-xs font-bold text-white/65">
-            اسم صاحب الحساب *
+            اسم صاحب الحساب
             <input name="accountName" required minLength={2} maxLength={200} defaultValue={method?.accountName ?? ''} className={inputClass} />
           </label>
         </div>
@@ -2461,13 +2709,13 @@ function ChecklistEditor({
         <input type="hidden" name="serviceId" value={service.id} />
         <div className="grid gap-4 sm:grid-cols-[220px_1fr]">
           <label className="text-xs font-bold text-white/65">
-            المرحلة *
+            المرحلة
             <select name="stage" defaultValue={template?.stage ?? 'TEAM_PREPARATION'} className={inputClass}>
               {STAGES.map((stage) => <option key={stage.value} value={stage.value}>{stage.label}</option>)}
             </select>
           </label>
           <label className="text-xs font-bold text-white/65">
-            اسم القائمة *
+            اسم القائمة
             <input name="name" required minLength={2} maxLength={200} defaultValue={template?.name ?? ''} className={inputClass} />
           </label>
         </div>
@@ -2504,7 +2752,7 @@ function ChecklistEditor({
                 </div>
                 <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_110px]">
                   <label className="text-[11px] font-bold text-white/45">
-                    نص البند *
+                    نص البند
                     <input
                       required
                       minLength={2}
@@ -2638,7 +2886,8 @@ export default function SetupCenter({ actor, branches, employees, permissions, s
     icon: typeof Gauge;
   }> = [
     { id: 'overview', label: 'خريطة الجاهزية', hint: 'ملخص الفرع', icon: Gauge },
-    { id: 'workforce', label: 'الموظفون', hint: 'الحسابات والصلاحيات', icon: UserRoundCog },
+    { id: 'operations_management', label: 'إدارة التشغيل', hint: 'المدراء والفروع المتعددة', icon: ShieldCheck },
+    { id: 'workforce', label: 'موظفو التنفيذ', hint: 'الفنيين وحسابات الفرع', icon: UserRoundCog },
     { id: 'teams', label: 'الفرق', hint: 'الأعضاء والقدرات', icon: UsersRound },
     { id: 'coverage', label: 'التغطية والتنقل', hint: 'الزونات والمصفوفة', icon: MapPinned },
     { id: 'schedule', label: 'الوقت والسعة', hint: 'الساعات والإغلاقات', icon: CalendarClock },
@@ -2657,6 +2906,9 @@ export default function SetupCenter({ actor, branches, employees, permissions, s
     content = <EmptyState title="لا يوجد فرع قابل للإعداد" text="أنشئ فرعًا من إدارة النظام أولًا." />;
   } else {
     switch (section) {
+      case 'operations_management':
+        content = <OperationsManagementSection key={branch.id} branch={branch} allBranches={branches} employees={employees} permissions={permissions} tools={sectionTools} />;
+        break;
       case 'workforce':
         content = <WorkforceSection key={branch.id} branch={branch} allBranches={branches} employees={branchEmployees} permissions={permissions} tools={sectionTools} />;
         break;

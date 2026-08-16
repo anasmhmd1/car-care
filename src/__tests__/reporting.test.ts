@@ -89,6 +89,9 @@ describe('report CSV', () => {
         byTeam: [],
       },
       financial: {
+        totalGrossSales: 500,
+        bookingGrossSales: 500,
+        subscriptionGrossSales: 0,
         verifiedPaymentCount: 1,
         verifiedPaymentAmount: 500,
         partialBookingCount: 0,

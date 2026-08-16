@@ -26,6 +26,9 @@ import {
   Sparkles,
   UploadCloud,
   UserRound,
+  Compass,
+  Copy,
+  Check,
 } from 'lucide-react';
 import { createBookingAction, uploadPaymentProofAction } from '@/app/actions/booking';
 import { BOOKING_TERMS_VERSION } from '@/lib/policies/versions';
@@ -84,7 +87,7 @@ interface CoverageAreaDto {
   city: string;
   district: string;
   compound: string;
-  zone: { branchId: string; branch: { nameAr: string } };
+  zone: { id?: string; name?: string; branchId: string; branch: { nameAr: string } };
 }
 
 interface PaymentMethodDto {
@@ -159,7 +162,7 @@ interface InitialSelection {
 }
 
 interface Props {
-  user: BookingUser;
+  user: BookingUser | null;
   service: ServiceDto;
   coverageAreas: CoverageAreaDto[];
   paymentMethods: PaymentMethodDto[];
@@ -194,8 +197,8 @@ const ALLOWED_UPLOAD_TYPES = new Set([
 ]);
 
 const inputClass =
-  'w-full rounded-xl border border-white/15 bg-white/[0.04] px-4 py-3 text-white placeholder:text-white/35 transition-colors hover:border-white/25 focus-visible:border-[#d4af37] focus-visible:ring-2 focus-visible:ring-[#d4af37]/25 disabled:cursor-not-allowed disabled:opacity-60';
-const labelClass = 'mb-2 block text-sm font-medium text-white/80';
+  'w-full rounded-xl border border-neutral-700 bg-[#0a0a0a] px-4 py-3 text-white placeholder:text-neutral-500 transition-colors hover:border-neutral-500 focus-visible:border-[#cea355] focus-visible:ring-2 focus-visible:ring-[#cea355]/25 disabled:cursor-not-allowed disabled:opacity-60 text-sm font-medium';
+const labelClass = 'mb-2 block text-xs font-bold text-white';
 
 const vehicleSizes: Array<{ value: VehicleSize; label: string; description: string }> = [
   { value: 'SEDAN', label: 'سيدان', description: 'سيارة صغيرة أو متوسطة' },
@@ -246,9 +249,59 @@ function dateTimeInputValue(date: Date) {
 }
 
 function defaultBookingDate() {
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  return dateInputValue(tomorrow);
+  const today = new Date();
+  return dateInputValue(today);
+}
+
+export interface UpcomingDay {
+  dateStr: string;
+  dayName: string;
+  dayNumber: number;
+  monthName: string;
+  isToday: boolean;
+  isTomorrow: boolean;
+}
+
+export function format12HourTime(timeStr: string): string {
+  if (!timeStr) return '';
+  const match = /^(\d{1,2}):(\d{2})$/.exec(timeStr.trim());
+  if (match) {
+    let hour = parseInt(match[1], 10);
+    const minute = match[2];
+    const period = hour >= 12 ? 'م' : 'ص';
+    if (hour === 0) {
+      hour = 12;
+    } else if (hour > 12) {
+      hour -= 12;
+    }
+    const hourFormatted = String(hour).padStart(2, '0');
+    return `${hourFormatted}:${minute} ${period}`;
+  }
+  return timeStr;
+}
+
+export function getUpcoming7Days(): UpcomingDay[] {
+  const days: UpcomingDay[] = [];
+  const now = new Date();
+  const dayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+  const monthNames = [
+    'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
+    'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر',
+  ];
+
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i);
+    const dateStr = dateInputValue(d);
+    days.push({
+      dateStr,
+      dayName: dayNames[d.getDay()],
+      dayNumber: d.getDate(),
+      monthName: monthNames[d.getMonth()],
+      isToday: i === 0,
+      isTomorrow: i === 1,
+    });
+  }
+  return days;
 }
 
 function normalizePhone(value: string) {
@@ -276,14 +329,66 @@ function isAvailableSlot(value: unknown): value is AvailableSlotDto {
   );
 }
 
+function normalizeText(text: string) {
+  return (text || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\u064B-\u065F]/g, '')
+    .replace(/[أإآ]/g, 'ا')
+    .replace(/ى/g, 'ي')
+    .replace(/ة/g, 'ه')
+    .replace(/\s+/g, ' ');
+}
+
 function areaForAddress(address: AddressDto, coverageAreas: CoverageAreaDto[]) {
-  return coverageAreas.find(
+  if (!address || !coverageAreas.length) return undefined;
+
+  // 1. Exact match on all 4 fields
+  const exact = coverageAreas.find(
     (area) =>
       area.governorate === address.governorate &&
       area.city === address.city &&
       area.district === address.district &&
       area.compound === address.compound,
   );
+  if (exact) return exact;
+
+  // 2. Normalized match on all 4 fields
+  const normGov = normalizeText(address.governorate);
+  const normCity = normalizeText(address.city);
+  const normDist = normalizeText(address.district);
+  const normComp = normalizeText(address.compound);
+
+  const normalizedExact = coverageAreas.find((area) => {
+    return (
+      normalizeText(area.governorate) === normGov &&
+      normalizeText(area.city) === normCity &&
+      normalizeText(area.district) === normDist &&
+      normalizeText(area.compound) === normComp
+    );
+  });
+  if (normalizedExact) return normalizedExact;
+
+  // 3. Match by compound name
+  if (normComp) {
+    const compoundMatch = coverageAreas.find((area) => {
+      const aComp = normalizeText(area.compound);
+      return aComp === normComp || (normComp.length >= 3 && (aComp.includes(normComp) || normComp.includes(aComp)));
+    });
+    if (compoundMatch) return compoundMatch;
+  }
+
+  // 4. Match by city & district
+  if (normCity && normDist) {
+    const cityDistrictMatch = coverageAreas.find(
+      (area) =>
+        normalizeText(area.city) === normCity &&
+        normalizeText(area.district) === normDist,
+    );
+    if (cityDistrictMatch) return cityDistrictMatch;
+  }
+
+  return undefined;
 }
 
 function subscriptionIssue(
@@ -397,22 +502,31 @@ export default function BookingWizardClient({
   const [slotsError, setSlotsError] = useState('');
   const [availabilityRetry, setAvailabilityRetry] = useState(0);
 
-  const [fullName, setFullName] = useState(user.fullName);
-  const [phone, setPhone] = useState(user.phone);
-  const [whatsapp, setWhatsapp] = useState(user.whatsapp || user.phone);
+  const [fullName, setFullName] = useState(user?.fullName || '');
+  const [phone, setPhone] = useState(user?.phone || '');
+  const [whatsapp, setWhatsapp] = useState(user?.whatsapp || user?.phone || '');
   const [customerNotes, setCustomerNotes] = useState('');
   const [policyAccepted, setPolicyAccepted] = useState(false);
   const [useCredit, setUseCredit] = useState(false);
   const [bookingSubmitting, setBookingSubmitting] = useState(false);
 
   const [createdBooking, setCreatedBooking] = useState<CreatedBooking | null>(null);
+  const [guestConfirmed, setGuestConfirmed] = useState<{
+    bookingNumber: string;
+    serviceName: string;
+    dateStr: string;
+    contactPhone: string;
+  } | null>(null);
+
   const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState('');
-  const [senderName, setSenderName] = useState(user.fullName);
-  const [senderPhoneOrAccount, setSenderPhoneOrAccount] = useState(user.phone);
+  const [senderName, setSenderName] = useState(user?.fullName || '');
+  const [senderPhoneOrAccount, setSenderPhoneOrAccount] = useState(user?.phone || '');
   const [referenceNumber, setReferenceNumber] = useState('');
   const [amountSubmitted, setAmountSubmitted] = useState('');
   const [transferTimestamp, setTransferTimestamp] = useState(() => dateTimeInputValue(new Date()));
   const [proofFile, setProofFile] = useState<File | null>(null);
+  const [proofPreviewUrl, setProofPreviewUrl] = useState<string>('');
+  const [copiedMethodId, setCopiedMethodId] = useState<string>('');
   const [uploadedProofFileId, setUploadedProofFileId] = useState('');
   const [proofStage, setProofStage] = useState<ProofStage>('idle');
 
@@ -429,11 +543,48 @@ export default function BookingWizardClient({
     }
     return [...branches.values()];
   }, [coverageAreas]);
+
   const branchCoverageAreas = useMemo(
     () => coverageAreas.filter((area) => area.zone.branchId === selectedBranchId),
     [coverageAreas, selectedBranchId],
   );
-  const selectedArea = branchCoverageAreas.find((area) => area.id === selectedAreaId);
+
+  // Group branch coverage areas by zone (الزونات)
+  const branchZones = useMemo(() => {
+    const zonesMap = new Map<string, { id: string; name: string; areas: CoverageAreaDto[] }>();
+    for (const area of branchCoverageAreas) {
+      const zoneKey = area.zone.id || area.zone.name || 'default_zone';
+      const zoneName = area.zone.name || area.city || 'نطاق التغطية الرئيسي';
+      if (!zonesMap.has(zoneKey)) {
+        zonesMap.set(zoneKey, { id: zoneKey, name: zoneName, areas: [] });
+      }
+      zonesMap.get(zoneKey)!.areas.push(area);
+    }
+    return [...zonesMap.values()];
+  }, [branchCoverageAreas]);
+
+  const [selectedZoneId, setSelectedZoneId] = useState(
+    () => initialArea?.zone?.id || initialArea?.zone?.name || '',
+  );
+
+  const activeZone = useMemo(() => {
+    return branchZones.find((z) => z.id === selectedZoneId) || branchZones[0];
+  }, [branchZones, selectedZoneId]);
+
+  const zoneCompounds = useMemo(() => {
+    return activeZone ? activeZone.areas : branchCoverageAreas;
+  }, [activeZone, branchCoverageAreas]);
+
+  function handleZoneChange(newZoneId: string) {
+    setSelectedZoneId(newZoneId);
+    const z = branchZones.find((item) => item.id === newZoneId);
+    if (z && z.areas[0]) {
+      setSelectedAreaId(z.areas[0].id);
+      setSelectedSubscriptionId('');
+    }
+  }
+
+  const selectedArea = branchCoverageAreas.find((area) => area.id === selectedAreaId) || branchCoverageAreas[0];
   const supportWhatsApp = supportContact?.whatsapp || supportContact?.phone;
   const hasUnsupportedSavedAddress = addresses.some(
     (address) => !areaForAddress(address, coverageAreas),
@@ -449,8 +600,8 @@ export default function BookingWizardClient({
     [selectedAddonIds],
   );
   const availablePaymentMethods = useMemo(
-    () => paymentMethods.filter((method) => method.branchId === createdBooking?.branchId),
-    [createdBooking?.branchId, paymentMethods],
+    () => paymentMethods.filter((method) => method.branchId === (selectedArea?.zone.branchId ?? createdBooking?.branchId)),
+    [selectedArea?.zone.branchId, createdBooking?.branchId, paymentMethods],
   );
 
   const variant = service.variants.find((item) => item.vehicleSize === vehicleSize);
@@ -470,7 +621,7 @@ export default function BookingWizardClient({
   );
   const estimatedTotal = subscriptionApplies ? addonsPrice : basePrice + addonsPrice;
   const estimatedDeposit = subscriptionApplies
-    ? addonsPrice
+    ? 0
     : calculateEstimatedDeposit(estimatedTotal, service);
   const estimatedCreditApplied = useCredit ? Math.min(creditBalance, estimatedTotal) : 0;
   const estimatedTransferAmount = Math.max(0, estimatedDeposit - estimatedCreditApplied);
@@ -478,14 +629,45 @@ export default function BookingWizardClient({
     fullName.trim().length >= 2 &&
     /^\+?[0-9]{10,15}$/.test(normalizePhone(phone)) &&
     /^\+?[0-9]{10,15}$/.test(normalizePhone(whatsapp));
-  const useSavedContact = Boolean(selectedSubscriptionId) && hasSavedContact;
+  const useSavedContact = Boolean(user) && hasSavedContact;
+  const upcomingDays = useMemo(() => getUpcoming7Days(), []);
+  const modelYears = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    const years: number[] = [];
+    for (let y = currentYear + 1; y >= 1980; y--) {
+      years.push(y);
+    }
+    return years;
+  }, []);
 
   useEffect(() => {
     if (uiError) errorRef.current?.focus();
   }, [uiError]);
 
   useEffect(() => {
-    if (step !== 4) return;
+    if (!selectedArea) return;
+    const branchMethods = paymentMethods.filter(
+      (method) => method.branchId === selectedArea.zone.branchId,
+    );
+    const initialMethod = branchMethods.find((method) => method.isDefault) ?? branchMethods[0];
+    if (initialMethod) {
+      setSelectedPaymentMethodId((prev) => prev || initialMethod.id);
+    }
+  }, [selectedArea, paymentMethods]);
+
+  useEffect(() => {
+    if (estimatedTransferAmount > 0) {
+      setAmountSubmitted(String(estimatedTransferAmount));
+    }
+  }, [estimatedTransferAmount]);
+
+  useEffect(() => {
+    if (fullName.trim() && !senderName) setSenderName(fullName.trim());
+    if (phone.trim() && !senderPhoneOrAccount) setSenderPhoneOrAccount(phone.trim());
+  }, [fullName, phone]);
+
+  useEffect(() => {
+    if (step !== 3) return;
     if (!selectedArea || !selectedDate) {
       setAvailableSlots([]);
       setSelectedSlot(null);
@@ -595,6 +777,7 @@ export default function BookingWizardClient({
     if (!area) return;
     setSelectedBranchId(area.zone.branchId);
     setSelectedAreaId(area.id);
+    setSelectedZoneId(area.zone.id || area.zone.name || '');
     setStreet(address.street);
     setBuildingNumber(address.buildingNumber);
     setUnitNumber(address.unitNumber ?? '');
@@ -604,15 +787,15 @@ export default function BookingWizardClient({
   }
 
   function selectBranch(branchId: string) {
-    const firstAreaForBranch = coverageAreas.find((area) => area.zone.branchId === branchId);
+    const areasInBranch = coverageAreas.filter((area) => area.zone.branchId === branchId);
+    const firstAreaForBranch = areasInBranch[0];
     setSelectedBranchId(branchId);
     setSelectedAreaId(firstAreaForBranch?.id ?? '');
+    setSelectedZoneId(firstAreaForBranch?.zone?.id || firstAreaForBranch?.zone?.name || '');
     setSelectedSubscriptionId('');
     setUiError(null);
 
     if (selectedAddressId !== 'new') {
-      // A saved address belongs to its own coverage branch. Requiring a fresh
-      // selection prevents sending an address to a different branch by mistake.
       setSelectedAddressId('new');
       setStreet('');
       setBuildingNumber('');
@@ -629,10 +812,10 @@ export default function BookingWizardClient({
         ? current.filter((item) => item !== addonId)
         : [...current, addonId],
     );
-    setUiError(null);
   }
 
   function validateVehicleDetails() {
+    if (selectedVehicleId !== 'new') return true;
     if (!vehicleMake.trim()) {
       showError('اكتب ماركة السيارة.', 'vehicle-make');
       return false;
@@ -641,13 +824,15 @@ export default function BookingWizardClient({
       showError('اكتب موديل السيارة.', 'vehicle-model');
       return false;
     }
-    const parsedYear = Number(vehicleYear);
+    const yearNumber = Number(vehicleYear);
+    const currentYear = new Date().getFullYear();
     if (
-      !Number.isInteger(parsedYear) ||
-      parsedYear < 1990 ||
-      parsedYear > new Date().getFullYear() + 1
+      !vehicleYear.trim() ||
+      Number.isNaN(yearNumber) ||
+      yearNumber < 1990 ||
+      yearNumber > currentYear + 1
     ) {
-      showError('اكتب سنة موديل صحيحة من 1990 حتى السنة القادمة.', 'vehicle-year');
+      showError(`سنة الموديل يجب أن تكون بين 1990 و ${currentYear + 1}.`, 'vehicle-year');
       return false;
     }
     if (!vehicleColor.trim()) {
@@ -658,6 +843,7 @@ export default function BookingWizardClient({
   }
 
   function validateAddress() {
+    if (selectedAddressId !== 'new') return true;
     if (!selectedArea) {
       showError('اختر منطقة التغطية.', 'coverage-area');
       return false;
@@ -670,63 +856,89 @@ export default function BookingWizardClient({
       showError('اكتب رقم المبنى أو الفيلا.', 'building-number');
       return false;
     }
-    if (!isValidLocationUrl(locationUrl)) {
-      showError('اكتب رابط موقع صحيحًا يبدأ بـ http:// أو https://', 'location-url');
+    if (locationUrl.trim() && !isValidLocationUrl(locationUrl.trim())) {
+      showError('رابط الموقع يجب أن يكون رابط خرائط صالح (Google Maps).', 'location-url');
       return false;
     }
     return true;
   }
 
   function validateContact() {
-    if (fullName.trim().length < 2) {
-      showError('اكتب اسم التواصل كاملًا.', 'contact-name');
+    if (!fullName.trim() || fullName.trim().length < 2) {
+      showError('اكتب الاسم الكامل.', 'contact-name');
       return false;
     }
-    if (!/^\+?[0-9]{10,15}$/.test(normalizePhone(phone))) {
-      showError('اكتب رقم تواصل صحيحًا من 10 إلى 15 رقمًا.', 'contact-phone');
+    const cleanPhone = normalizePhone(phone);
+    if (!/^\+?[0-9]{10,15}$/.test(cleanPhone)) {
+      showError('رقم التواصل يجب أن يكون رقم هاتف صالح.', 'contact-phone');
       return false;
     }
-    if (!/^\+?[0-9]{10,15}$/.test(normalizePhone(whatsapp))) {
-      showError('اكتب رقم واتساب صحيحًا من 10 إلى 15 رقمًا.', 'contact-whatsapp');
+    const cleanWhatsapp = normalizePhone(whatsapp);
+    if (!/^\+?[0-9]{10,15}$/.test(cleanWhatsapp)) {
+      showError('رقم واتساب يجب أن يكون رقم هاتف صالح.', 'contact-whatsapp');
       return false;
     }
     return true;
   }
 
   async function createBooking() {
-    if (!selectedArea || !selectedSlot) {
-      showError('اختر منطقة وموعدًا متاحًا قبل تأكيد الحجز.');
+    if (!selectedArea) {
+      showError('اختر منطقة التغطية.');
+      goToStep(2);
       return;
     }
-    if (!validateVehicleDetails() || !validateAddress() || !validateContact()) return;
-    if (!policyAccepted) {
-      showError('وافق على سياسة الحجز والإلغاء لإكمال الطلب.', 'policy-accepted');
+    if (!selectedSlot) {
+      showError('اختر موعد الخدمة.');
+      goToStep(3);
       return;
+    }
+    if (!validateVehicleDetails()) {
+      goToStep(1);
+      return;
+    }
+    if (!validateAddress()) {
+      goToStep(2);
+      return;
+    }
+    if (!validateContact()) {
+      goToStep(4);
+      return;
+    }
+    const requiresPaymentProof = estimatedTransferAmount > 0;
+    const parsedAmount = Number(amountSubmitted || estimatedTransferAmount);
+
+    if (requiresPaymentProof) {
+      if (!selectedPaymentMethodId) {
+        showError('اختر وسيلة التحويل المعتمدة.', 'payment-methods');
+        return;
+      }
+      if (!senderName.trim()) {
+        showError('اكتب اسم صاحب الحساب المحول منه.', 'sender-name');
+        return;
+      }
+      if (!senderPhoneOrAccount.trim()) {
+        showError('اكتب رقم الهاتف أو الحساب المحول منه.', 'sender-account');
+        return;
+      }
+      if (!Number.isInteger(parsedAmount) || parsedAmount <= 0) {
+        showError('اكتب المبلغ المحول كرقم صحيح أكبر من صفر.', 'amount-submitted');
+        return;
+      }
+      if (!proofFile && !uploadedProofFileId) {
+        showError('اختر صورة أو ملف إثبات التحويل من جهازك.', 'payment-proof-file');
+        return;
+      }
     }
 
     setBookingSubmitting(true);
     setUiError(null);
+
     const formData = new FormData();
     formData.append('serviceId', service.id);
     formData.append('coverageAreaId', selectedArea.id);
     formData.append('vehicleSize', vehicleSize);
     formData.append('startAt', selectedSlot.startAt);
     formData.append('addonIds', JSON.stringify(selectedAddonIds));
-    formData.append('vehicleMake', vehicleMake.trim());
-    formData.append('vehicleModel', vehicleModel.trim());
-    formData.append('vehicleYear', vehicleYear);
-    formData.append('vehicleColor', vehicleColor.trim());
-    formData.append('plateNumber', plateNumber.trim());
-    formData.append('street', street.trim());
-    formData.append('buildingNumber', buildingNumber.trim());
-    formData.append('unitNumber', unitNumber.trim());
-    formData.append('landmark', landmark.trim());
-    formData.append('gateInstructions', gateInstructions.trim());
-    formData.append('locationUrl', locationUrl.trim());
-    formData.append('customerNotes', customerNotes.trim());
-    formData.append('contactName', fullName.trim());
-    formData.append('contactPhone', normalizePhone(phone));
-    formData.append('contactWhatsapp', normalizePhone(whatsapp));
     formData.append('policyAccepted', 'true');
     formData.append('policyVersion', BOOKING_TERMS_VERSION);
     if (service.cancellationPolicy.policyId) {
@@ -736,10 +948,34 @@ export default function BookingWizardClient({
       'acceptedCancellationPolicyRevision',
       service.cancellationPolicy.revision,
     );
-    if (selectedVehicleId !== 'new') formData.append('vehicleId', selectedVehicleId);
-    if (selectedAddressId !== 'new') formData.append('addressId', selectedAddressId);
-    if (selectedSubscriptionId) formData.append('subscriptionId', selectedSubscriptionId);
-    if (useCredit) formData.append('useCredit', 'true');
+    formData.append('contactName', fullName.trim());
+    formData.append('contactPhone', normalizePhone(phone));
+    formData.append('contactWhatsapp', normalizePhone(whatsapp));
+    if (customerNotes.trim()) formData.append('customerNotes', customerNotes.trim());
+    if (useCredit && creditBalance > 0) formData.append('useCredit', 'true');
+
+    if (selectedVehicleId !== 'new') {
+      formData.append('vehicleId', selectedVehicleId);
+    }
+    formData.append('vehicleMake', vehicleMake.trim());
+    formData.append('vehicleModel', vehicleModel.trim());
+    formData.append('vehicleYear', vehicleYear.trim());
+    formData.append('vehicleColor', vehicleColor.trim());
+    if (plateNumber.trim()) formData.append('plateNumber', plateNumber.trim());
+
+    if (selectedAddressId !== 'new') {
+      formData.append('addressId', selectedAddressId);
+    }
+    formData.append('street', street.trim());
+    formData.append('buildingNumber', buildingNumber.trim());
+    if (unitNumber.trim()) formData.append('unitNumber', unitNumber.trim());
+    if (landmark.trim()) formData.append('landmark', landmark.trim());
+    if (gateInstructions.trim()) formData.append('gateInstructions', gateInstructions.trim());
+    if (locationUrl.trim()) formData.append('locationUrl', locationUrl.trim());
+
+    if (selectedSubscriptionId) {
+      formData.append('subscriptionId', selectedSubscriptionId);
+    }
 
     try {
       const result = await createBookingAction(formData);
@@ -752,29 +988,61 @@ export default function BookingWizardClient({
         return;
       }
 
-      const booking: CreatedBooking = {
-        id: result.bookingId,
-        number: result.bookingNumber,
-        depositAmount: result.depositAmount,
-        branchId: selectedArea.zone.branchId,
-      };
-      setCreatedBooking(booking);
+      if (requiresPaymentProof && result.paymentRequired) {
+        let bookingFileId = uploadedProofFileId;
+        if (!bookingFileId && proofFile) {
+          const preparedProof = await prepareImageForUpload(proofFile);
+          const uploadData = new FormData();
+          uploadData.append('file', preparedProof);
+          uploadData.append('bookingId', result.bookingId);
+          uploadData.append('category', 'payment-proofs');
 
-      if (!result.paymentRequired) {
-        router.push(`/account/bookings/${result.bookingId}`);
-        return;
+          const uploadResponse = await fetch('/api/upload', {
+            method: 'POST',
+            body: uploadData,
+          });
+          const uploadPayload: unknown = await uploadResponse.json().catch(() => null);
+          if (
+            !uploadResponse.ok ||
+            !isRecord(uploadPayload) ||
+            uploadPayload.success !== true ||
+            typeof uploadPayload.bookingFileId !== 'string'
+          ) {
+            throw new Error(responseError(uploadPayload, 'تم حجز الموعد بنجاح لكن تعذر رفع ملف إثبات التحويل. يمكنك إرساله من صفحة حجزك.'));
+          }
+          bookingFileId = uploadPayload.bookingFileId;
+          setUploadedProofFileId(bookingFileId);
+        }
+
+        const proofData = new FormData();
+        proofData.append('bookingId', result.bookingId);
+        proofData.append('paymentMethodId', selectedPaymentMethodId);
+        proofData.append('bookingFileId', bookingFileId);
+        proofData.append('senderName', senderName.trim());
+        proofData.append('senderPhoneOrAccount', senderPhoneOrAccount.trim());
+        proofData.append('referenceNumber', referenceNumber.trim());
+        proofData.append('amountSubmitted', String(parsedAmount));
+        proofData.append('transferTimestamp', new Date(transferTimestamp || Date.now()).toISOString());
+
+        const proofResult = await uploadPaymentProofAction(proofData);
+        if ('error' in proofResult && proofResult.error) {
+          showError(proofResult.error);
+          return;
+        }
       }
 
-      const branchMethods = paymentMethods.filter(
-        (method) => method.branchId === selectedArea.zone.branchId,
-      );
-      const initialMethod = branchMethods.find((method) => method.isDefault) ?? branchMethods[0];
-      setSelectedPaymentMethodId(initialMethod?.id ?? '');
-      setAmountSubmitted(result.depositAmount > 0 ? String(result.depositAmount) : '');
-      setTransferTimestamp(dateTimeInputValue(new Date()));
-      goToStep(7);
-    } catch {
-      showError('تعذر الاتصال بالخادم لإنشاء الحجز. حاول مرة أخرى.');
+      if (user) {
+        router.push(`/account/bookings/${result.bookingId}`);
+      } else {
+        setGuestConfirmed({
+          bookingNumber: result.bookingNumber,
+          serviceName: service.nameAr,
+          dateStr: selectedSlot.timeStr,
+          contactPhone: phone,
+        });
+      }
+    } catch (err) {
+      showError(err instanceof Error ? err.message : 'تعذر إتمام الحجز. حاول مرة أخرى.');
     } finally {
       setBookingSubmitting(false);
     }
@@ -786,118 +1054,124 @@ export default function BookingWizardClient({
     setUiError(null);
     if (!file) {
       setProofFile(null);
+      setProofPreviewUrl('');
       return;
     }
     if (!ALLOWED_UPLOAD_TYPES.has(file.type)) {
       setProofFile(null);
+      setProofPreviewUrl('');
       event.target.value = '';
       showError('اختر صورة JPG أو PNG أو WEBP أو ملف PDF.', 'payment-proof-file');
       return;
     }
     if (file.size > MAX_UPLOAD_BYTES) {
       setProofFile(null);
+      setProofPreviewUrl('');
       event.target.value = '';
       showError('حجم الملف يجب ألا يتجاوز 10 ميجابايت.', 'payment-proof-file');
       return;
     }
     setProofFile(file);
+    if (file.type.startsWith('image/')) {
+      setProofPreviewUrl(URL.createObjectURL(file));
+    } else {
+      setProofPreviewUrl('');
+    }
   }
 
-  async function submitPaymentProof(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!createdBooking) {
-      showError('بيانات الحجز غير متاحة. ارجع إلى حجوزاتك وحاول مرة أخرى.');
-      return;
-    }
-    if (!selectedPaymentMethodId) {
-      showError('اختر وسيلة التحويل.', 'payment-methods');
-      return;
-    }
-    if (!proofFile && !uploadedProofFileId) {
-      showError('اختر صورة أو ملف إثبات التحويل.', 'payment-proof-file');
-      return;
-    }
-    const parsedAmount = Number(amountSubmitted);
-    if (!Number.isInteger(parsedAmount) || parsedAmount <= 0) {
-      showError('اكتب المبلغ المحول كرقم صحيح أكبر من صفر.', 'amount-submitted');
-      return;
-    }
-
-    setUiError(null);
-    let bookingFileId = uploadedProofFileId;
-
-    try {
-      if (!bookingFileId) {
-        setProofStage('uploading-file');
-        const preparedProof = await prepareImageForUpload(proofFile as File);
-        const uploadData = new FormData();
-        uploadData.append('file', preparedProof);
-        uploadData.append('bookingId', createdBooking.id);
-        uploadData.append('category', 'payment-proofs');
-
-        const uploadResponse = await fetch('/api/upload', {
-          method: 'POST',
-          body: uploadData,
-        });
-        const uploadPayload: unknown = await uploadResponse.json().catch(() => null);
-        if (
-          !uploadResponse.ok ||
-          !isRecord(uploadPayload) ||
-          uploadPayload.success !== true ||
-          typeof uploadPayload.bookingFileId !== 'string'
-        ) {
-          throw new Error(responseError(uploadPayload, 'تعذر رفع ملف إثبات التحويل.'));
-        }
-        bookingFileId = uploadPayload.bookingFileId;
-        setUploadedProofFileId(bookingFileId);
-      }
-
-      setProofStage('submitting-proof');
-      const proofData = new FormData();
-      proofData.append('bookingId', createdBooking.id);
-      proofData.append('paymentMethodId', selectedPaymentMethodId);
-      proofData.append('bookingFileId', bookingFileId);
-      proofData.append('senderName', senderName.trim());
-      proofData.append('senderPhoneOrAccount', senderPhoneOrAccount.trim());
-      proofData.append('referenceNumber', referenceNumber.trim());
-      proofData.append('amountSubmitted', String(parsedAmount));
-      proofData.append('transferTimestamp', new Date(transferTimestamp).toISOString());
-
-      const result = await uploadPaymentProofAction(proofData);
-      if ('error' in result && result.error) {
-        showError(result.error);
-        return;
-      }
-      if (!('success' in result) || !result.success) {
-        showError('تعذر إرسال إثبات التحويل. حاول مرة أخرى.');
-        return;
-      }
-      router.push(`/account/bookings/${createdBooking.id}`);
-    } catch (error) {
-      showError(
-        error instanceof Error ? error.message : 'تعذر إرسال إثبات التحويل. حاول مرة أخرى.',
-      );
-    } finally {
-      setProofStage('idle');
+  function copyToClipboard(text: string, id: string) {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+      setCopiedMethodId(id);
+      setTimeout(() => setCopiedMethodId(''), 2000);
     }
   }
 
   const invalidField = (fieldId: string) => uiError?.fieldId === fieldId;
-  const stepLabel = step === 7 ? 'إثبات التحويل' : `الخطوة ${step} من 6`;
-  const progress = step === 7 ? 100 : Math.round((step / 6) * 100);
+  const stepLabel = `الخطوة ${step} من 5`;
+  const progress = Math.round((step / 5) * 100);
+
+  // If Guest completed booking, show luxurious confirmation card
+  if (guestConfirmed) {
+    return (
+      <section dir="rtl" className="rounded-3xl border border-[#cea355]/40 bg-[#121212] p-8 sm:p-12 text-center shadow-2xl space-y-8 animate-in fade-in duration-500">
+        <div className="w-16 h-16 rounded-2xl gold-gradient flex items-center justify-center mx-auto shadow-xl shadow-[#cea355]/20 text-white">
+          <CheckCircle2 className="w-9 h-9 text-white" />
+        </div>
+
+        <div className="space-y-3">
+          <span className="text-xs font-bold px-3 py-1 rounded-full bg-[#cea355]/15 text-[#edce8b] border border-[#cea355]/30">
+            تم استلام وتأكيد طلبك بنجاح ✨
+          </span>
+          <h1 className="text-2xl sm:text-4xl font-black text-white">
+            شكراً لك! تم حجز خدمتك بنجاح
+          </h1>
+          <p className="text-white text-sm sm:text-base max-w-lg mx-auto leading-relaxed">
+            تم تسجيل طلب حجز خدمة <strong className="text-[#edce8b]">{guestConfirmed.serviceName}</strong> وسيقوم فريق خدمة عملاء بريق بالتواصل معك لتأكيد وصول الفريق في الموعد المحدد.
+          </p>
+        </div>
+
+        {/* Booking Details Card */}
+        <div className="max-w-md mx-auto p-6 sm:p-8 rounded-3xl bg-[#171717] border border-neutral-700 space-y-4 text-right">
+          <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
+            <span className="text-xs font-bold text-white">رقم الحجز:</span>
+            <span className="text-sm font-mono font-black text-[#edce8b] tracking-wider" dir="ltr">
+              {guestConfirmed.bookingNumber}
+            </span>
+          </div>
+          <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
+            <span className="text-xs font-bold text-white">الخدمة:</span>
+            <span className="text-xs font-bold text-white">{guestConfirmed.serviceName}</span>
+          </div>
+          <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
+            <span className="text-xs font-bold text-white">الموعد:</span>
+            <span className="text-xs font-bold text-white">{guestConfirmed.dateStr}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-white">رقم التواصل:</span>
+            <span className="text-xs font-bold text-white font-mono" dir="ltr">{guestConfirmed.contactPhone}</span>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
+          {supportWhatsApp && (
+            <a
+              href={whatsappHref(
+                supportWhatsApp,
+                `مرحباً، أود المتابعة بخصوص حجز رقم ${guestConfirmed.bookingNumber} لخدمة ${guestConfirmed.serviceName}`
+              )}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-emerald-500/15 border border-emerald-500/50 text-emerald-300 hover:bg-emerald-500/25 font-bold text-xs transition-all w-full sm:w-auto"
+            >
+              <MessageCircle className="w-4 h-4" />
+              <span>متابعة الحجز عبر WhatsApp</span>
+            </a>
+          )}
+          <Link
+            href="/services"
+            className="inline-flex items-center justify-center px-6 py-3.5 rounded-xl gold-gradient text-white font-bold text-xs hover:brightness-110 transition-all w-full sm:w-auto"
+          >
+            استعراض كافة الخدمات والباقات
+          </Link>
+        </div>
+      </section>
+    );
+  }
 
   if (coverageAreas.length === 0) {
     return (
-      <section dir="rtl" className="rounded-3xl border border-amber-400/25 bg-amber-400/[0.06] p-8 text-center">
-        <MapPin aria-hidden="true" className="mx-auto mb-4 size-10 text-amber-300" />
-        <h1 className="text-2xl font-bold">الحجز غير متاح مؤقتًا</h1>
-        <p className="mt-3 text-white/65">لا توجد منطقة تغطية نشطة لهذه الخدمة حاليًا.</p>
+      <section dir="rtl" className="rounded-3xl border border-amber-400/25 bg-amber-400/[0.06] p-8 text-center space-y-4">
+        <MapPin aria-hidden="true" className="mx-auto size-10 text-white" />
+        <h1 className="text-2xl font-bold text-white">الحجز غير متاح مؤقتًا</h1>
+        <p className="text-white text-sm">لا توجد منطقة تغطية نشطة لهذه الخدمة حاليًا.</p>
         {supportWhatsApp ? (
-          <a href={whatsappHref(supportWhatsApp, `أرغب في الاستفسار عن تغطية خدمة ${service.nameAr}`)} target="_blank" rel="noopener noreferrer" className="mt-6 inline-flex items-center gap-2 rounded-xl bg-[#d4af37] px-5 py-3 font-bold text-black hover:bg-[#e2c55d]">
+          <a href={whatsappHref(supportWhatsApp, `أرغب في الاستفسار عن تغطية خدمة ${service.nameAr}`)} target="_blank" rel="noopener noreferrer" className="mt-6 inline-flex items-center gap-2 rounded-xl gold-gradient px-5 py-3 font-bold text-white">
             <MessageCircle aria-hidden="true" className="size-4" /> تواصل عبر واتساب
           </a>
         ) : (
-          <Link href="/services" className="mt-6 inline-flex rounded-xl border border-white/20 px-5 py-3 font-semibold hover:border-[#d4af37] hover:text-[#d4af37]">
+          <Link href="/services" className="mt-6 inline-flex rounded-xl border border-neutral-700 px-5 py-3 font-semibold text-white hover:border-[#cea355]">
             العودة إلى الخدمات
           </Link>
         )}
@@ -906,23 +1180,31 @@ export default function BookingWizardClient({
   }
 
   return (
-    <section dir="rtl" aria-labelledby="booking-title">
-      <div className="mb-8">
-        <div className="mb-3 flex items-center justify-between gap-4 text-sm">
-          <span className="font-semibold text-[#d4af37]">{stepLabel}</span>
-          <span className="text-white/55">{service.nameAr}</span>
+    <section dir="rtl" aria-labelledby="booking-title" className="space-y-8">
+      
+      {/* Step Progress Bar */}
+      <div>
+        <div className="mb-3 flex items-center justify-between gap-4 text-xs font-bold">
+          <span className="text-white">{stepLabel}</span>
+          <span className="text-white">{service.nameAr}</span>
         </div>
-        <div className="h-1.5 overflow-hidden rounded-full bg-white/10" aria-hidden="true">
-          <div className="h-full rounded-full bg-[#d4af37] transition-[width] duration-300" style={{ width: `${progress}%` }} />
+        <div className="h-1.5 overflow-hidden rounded-full bg-neutral-800" aria-hidden="true">
+          <div className="h-full rounded-full gold-gradient transition-[width] duration-300" style={{ width: `${progress}%` }} />
         </div>
       </div>
 
-      <div className="mb-8">
-        <p className="mb-2 text-sm font-semibold text-[#d4af37]">حجز آمن ومؤكد</p>
-        <h1 id="booking-title" className="text-3xl font-bold tracking-tight sm:text-4xl">
+      {/* Title */}
+      <div>
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#141414] border border-[#cea355]/40 text-xs font-bold text-white mb-3">
+          <Sparkles className="w-3.5 h-3.5 text-white" />
+          <span>حجز خدمة مباشر بدون تعقيد</span>
+        </div>
+        <h1 id="booking-title" className="text-3xl sm:text-4xl font-black text-white">
           حجز {service.nameAr}
         </h1>
-        <p className="mt-3 text-white/55">أكمل البيانات التالية، وسنؤكد السعر والموعد من النظام قبل الدفع.</p>
+        <p className="mt-2 text-sm text-white leading-relaxed">
+          أكمل البيانات التالية وسنقوم بتأكيد السعر والموعد فوراً.
+        </p>
       </div>
 
       {uiError && (
@@ -930,110 +1212,131 @@ export default function BookingWizardClient({
           ref={errorRef}
           role="alert"
           tabIndex={-1}
-          className="mb-6 rounded-2xl border border-red-400/35 bg-red-500/10 px-5 py-4 text-sm text-red-100 focus-visible:ring-2 focus-visible:ring-red-300"
+          className="rounded-2xl border border-red-500/40 bg-red-500/10 px-5 py-4 text-sm font-bold text-red-200 focus-visible:ring-2 focus-visible:ring-red-300"
         >
           {uiError.message}
         </div>
       )}
 
-      <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-5 shadow-2xl shadow-black/25 sm:p-8">
+      <div className="rounded-3xl border border-neutral-800 bg-[#101010] p-6 sm:p-10 shadow-2xl">
+        
+        {/* Step 1: Vehicle Category & Details (MERGED) */}
         {step === 1 && (
-          <div>
-            <div className="mb-7 flex items-start gap-4">
-              <div className="rounded-2xl bg-[#d4af37]/10 p-3 text-[#d4af37]"><Car aria-hidden="true" /></div>
-              <div><h2 className="text-xl font-bold">اختر السيارة والإضافات</h2><p className="mt-1 text-sm text-white/50">حدد سيارة محفوظة أو أضف سيارة جديدة.</p></div>
+          <div className="space-y-8">
+            <div className="flex items-start gap-4">
+              <div className="rounded-2xl gold-gradient p-3 text-white"><Car aria-hidden="true" className="w-6 h-6" /></div>
+              <div>
+                <h2 className="text-xl font-bold text-white">بيانات وفئة السيارة</h2>
+                <p className="mt-1 text-xs text-white">حدد فئة السيارة وماركتها وموديلها ولونها وسنة الصنع.</p>
+              </div>
             </div>
 
-            <fieldset className="mb-7">
-              <legend className="mb-3 text-sm font-semibold text-white/80">سياراتي</legend>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {vehicles.map((vehicle) => (
-                  <label key={vehicle.id} className={`flex cursor-pointer gap-3 rounded-2xl border p-4 transition-colors ${selectedVehicleId === vehicle.id ? 'border-[#d4af37] bg-[#d4af37]/10' : 'border-white/10 hover:border-white/25'}`}>
-                    <input type="radio" name="saved-vehicle" value={vehicle.id} checked={selectedVehicleId === vehicle.id} onChange={() => selectVehicle(vehicle.id)} className="mt-1 size-4 accent-[#d4af37]" />
-                    <span><span className="block font-semibold">{vehicle.make} {vehicle.model} {vehicle.year}</span><span className="mt-1 block text-sm text-white/50">{vehicle.color}{vehicle.plateNumber ? ` · ${vehicle.plateNumber}` : ''}{vehicle.isDefault ? ' · الافتراضية' : ''}</span></span>
+            {vehicles.length > 0 && (
+              <fieldset>
+                <legend className="mb-3 text-xs font-bold text-white">سياراتي المحفوظة</legend>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {vehicles.map((vehicle) => (
+                    <label key={vehicle.id} className={`flex cursor-pointer gap-3 rounded-2xl border p-4 transition-colors ${selectedVehicleId === vehicle.id ? 'border-[#cea355] bg-[#cea355]/10' : 'border-neutral-800 hover:border-neutral-700'}`}>
+                      <input type="radio" name="saved-vehicle" value={vehicle.id} checked={selectedVehicleId === vehicle.id} onChange={() => selectVehicle(vehicle.id)} className="mt-1 size-4 accent-[#cea355]" />
+                      <span>
+                        <span className="block font-bold text-white">{vehicle.make} {vehicle.model} {vehicle.year}</span>
+                        <span className="mt-1 block text-xs text-white">{vehicle.color}{vehicle.plateNumber ? ` · ${vehicle.plateNumber}` : ''}{vehicle.isDefault ? ' · الافتراضية' : ''}</span>
+                      </span>
+                    </label>
+                  ))}
+                  <label className={`flex cursor-pointer gap-3 rounded-2xl border p-4 transition-colors ${selectedVehicleId === 'new' ? 'border-[#cea355] bg-[#cea355]/10' : 'border-neutral-800 hover:border-neutral-700'}`}>
+                    <input type="radio" name="saved-vehicle" value="new" checked={selectedVehicleId === 'new'} onChange={() => selectVehicle('new')} className="mt-1 size-4 accent-[#cea355]" />
+                    <span>
+                      <span className="block font-bold text-white">سيارة جديدة</span>
+                      <span className="mt-1 block text-xs text-white">أدخل بيانات السيارة بالأسفل.</span>
+                    </span>
                   </label>
-                ))}
-                <label className={`flex cursor-pointer gap-3 rounded-2xl border p-4 transition-colors ${selectedVehicleId === 'new' ? 'border-[#d4af37] bg-[#d4af37]/10' : 'border-white/10 hover:border-white/25'}`}>
-                  <input type="radio" name="saved-vehicle" value="new" checked={selectedVehicleId === 'new'} onChange={() => selectVehicle('new')} className="mt-1 size-4 accent-[#d4af37]" />
-                  <span><span className="block font-semibold">سيارة جديدة</span><span className="mt-1 block text-sm text-white/50">أدخل بياناتها في الخطوة التالية.</span></span>
-                </label>
-              </div>
-            </fieldset>
+                </div>
+              </fieldset>
+            )}
 
-            {selectedVehicleId === 'new' ? (
-              <fieldset className="mb-7">
-                <legend className="mb-3 text-sm font-semibold text-white/80">حجم السيارة</legend>
+            {selectedVehicleId === 'new' && (
+              <fieldset>
+                <legend className="mb-3 text-xs font-bold text-white">حجم وفئة السيارة</legend>
                 <div className="grid gap-3 sm:grid-cols-2">
                   {vehicleSizes.map((size) => (
-                    <label key={size.value} className={`flex cursor-pointer gap-3 rounded-2xl border p-4 transition-colors ${vehicleSize === size.value ? 'border-[#d4af37] bg-[#d4af37]/10' : 'border-white/10 hover:border-white/25'}`}>
-                      <input type="radio" name="vehicle-size" value={size.value} checked={vehicleSize === size.value} onChange={() => setVehicleSize(size.value)} className="mt-1 size-4 accent-[#d4af37]" />
-                      <span><span className="block font-semibold">{size.label}</span><span className="mt-1 block text-sm text-white/50">{size.description}</span></span>
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
-            ) : (
-              <p className="mb-7 rounded-xl bg-white/[0.04] px-4 py-3 text-sm text-white/60">حجم السيارة المسجل: <span className="font-semibold text-white">{vehicleSizes.find((size) => size.value === vehicleSize)?.label}</span></p>
-            )}
-
-            {service.addonLinks.length > 0 && (
-              <fieldset>
-                <legend className="mb-3 flex items-center gap-2 text-sm font-semibold text-white/80"><Sparkles aria-hidden="true" className="size-4 text-[#d4af37]" /> إضافات اختيارية</legend>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {service.addonLinks.map(({ addon }) => (
-                    <label key={addon.id} className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-4 transition-colors ${selectedAddonIds.includes(addon.id) ? 'border-[#d4af37] bg-[#d4af37]/10' : 'border-white/10 hover:border-white/25'}`}>
-                      <input type="checkbox" checked={selectedAddonIds.includes(addon.id)} onChange={() => toggleAddon(addon.id)} className="mt-1 size-4 accent-[#d4af37]" />
-                      <span className="flex-1"><span className="block font-semibold">{addon.nameAr}</span><span className="mt-1 block text-sm text-white/50">+ {formatCurrency(addon.price)} · {addon.durationMinutes} دقيقة</span></span>
+                    <label key={size.value} className={`flex cursor-pointer gap-3 rounded-2xl border p-4 transition-colors ${vehicleSize === size.value ? 'border-[#cea355] bg-[#cea355]/10' : 'border-neutral-800 hover:border-neutral-700'}`}>
+                      <input type="radio" name="vehicle-size" value={size.value} checked={vehicleSize === size.value} onChange={() => setVehicleSize(size.value)} className="mt-1 size-4 accent-[#cea355]" />
+                      <span>
+                        <span className="block font-bold text-white">{size.label}</span>
+                        <span className="mt-1 block text-xs text-white">{size.description}</span>
+                      </span>
                     </label>
                   ))}
                 </div>
               </fieldset>
             )}
-
-            <div className="mt-8 flex justify-end"><button data-testid="booking-step-1-next" type="button" onClick={() => goToStep(2)} className="inline-flex items-center gap-2 rounded-xl bg-[#d4af37] px-6 py-3 font-bold text-black hover:bg-[#e2c55d]">التالي <ArrowLeft aria-hidden="true" className="size-4" /></button></div>
-          </div>
-        )}
-
-        {step === 2 && (
-          <div>
-            <div className="mb-7 flex items-start gap-4"><div className="rounded-2xl bg-[#d4af37]/10 p-3 text-[#d4af37]"><Car aria-hidden="true" /></div><div><h2 className="text-xl font-bold">بيانات السيارة والاشتراك</h2><p className="mt-1 text-sm text-white/50">راجع بيانات السيارة واختر اشتراكًا مؤهلًا إن وجد.</p></div></div>
 
             {selectedVehicle ? (
-              <div className="mb-7 rounded-2xl border border-white/10 bg-white/[0.03] p-5"><p className="font-semibold">{selectedVehicle.make} {selectedVehicle.model} · {selectedVehicle.year}</p><p className="mt-2 text-sm text-white/55">{selectedVehicle.color}{selectedVehicle.plateNumber ? ` · ${selectedVehicle.plateNumber}` : ''}</p></div>
+              <div className="rounded-2xl border border-neutral-700 bg-[#161616] p-5">
+                <p className="font-bold text-white">{selectedVehicle.make} {selectedVehicle.model} · {selectedVehicle.year}</p>
+                <p className="mt-1 text-xs text-white">{selectedVehicle.color}{selectedVehicle.plateNumber ? ` · ${selectedVehicle.plateNumber}` : ''}</p>
+              </div>
             ) : (
-              <div className="mb-7 grid gap-5 sm:grid-cols-2">
-                <div><label htmlFor="vehicle-make" className={labelClass}>الماركة *</label><input id="vehicle-make" value={vehicleMake} onChange={(event) => setVehicleMake(event.target.value)} maxLength={100} autoComplete="off" aria-invalid={invalidField('vehicle-make')} className={inputClass} /></div>
-                <div><label htmlFor="vehicle-model" className={labelClass}>الموديل *</label><input id="vehicle-model" value={vehicleModel} onChange={(event) => setVehicleModel(event.target.value)} maxLength={100} autoComplete="off" aria-invalid={invalidField('vehicle-model')} className={inputClass} /></div>
-                <div><label htmlFor="vehicle-year" className={labelClass}>سنة الموديل *</label><input id="vehicle-year" type="number" inputMode="numeric" min={1990} max={new Date().getFullYear() + 1} value={vehicleYear} onChange={(event) => setVehicleYear(event.target.value)} aria-invalid={invalidField('vehicle-year')} className={inputClass} /></div>
-                <div><label htmlFor="vehicle-color" className={labelClass}>اللون *</label><input id="vehicle-color" value={vehicleColor} onChange={(event) => setVehicleColor(event.target.value)} maxLength={50} autoComplete="off" aria-invalid={invalidField('vehicle-color')} className={inputClass} /></div>
-                <div className="sm:col-span-2"><label htmlFor="plate-number" className={labelClass}>رقم اللوحة <span className="text-white/40">(اختياري)</span></label><input id="plate-number" value={plateNumber} onChange={(event) => setPlateNumber(event.target.value)} maxLength={20} autoComplete="off" className={inputClass} /></div>
+              <div className="space-y-4 pt-2">
+                <h3 className="text-xs font-bold text-white">مواصفات وتفاصيل السيارة</h3>
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <div>
+                    <label htmlFor="vehicle-make" className={labelClass}>الماركة (مثل: مرسيدس، بي إم دبليو، تويوتا)</label>
+                    <input id="vehicle-make" value={vehicleMake} onChange={(e) => setVehicleMake(e.target.value)} maxLength={100} className={inputClass} placeholder="الماركة" />
+                  </div>
+                  <div>
+                    <label htmlFor="vehicle-model" className={labelClass}>الموديل (مثل: C200، X5، كورولا)</label>
+                    <input id="vehicle-model" value={vehicleModel} onChange={(e) => setVehicleModel(e.target.value)} maxLength={100} className={inputClass} placeholder="الموديل" />
+                  </div>
+                  <div>
+                    <label htmlFor="vehicle-year" className={labelClass}>سنة الموديل</label>
+                    <select
+                      id="vehicle-year"
+                      value={vehicleYear}
+                      onChange={(e) => setVehicleYear(e.target.value)}
+                      className={inputClass}
+                    >
+                      <option value="" disabled className="bg-neutral-900 text-white">اختر سنة الموديل</option>
+                      {modelYears.map((y) => (
+                        <option key={y} value={String(y)} className="bg-neutral-900 text-white">
+                          {y}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor="vehicle-color" className={labelClass}>لون السيارة</label>
+                    <input id="vehicle-color" value={vehicleColor} onChange={(e) => setVehicleColor(e.target.value)} maxLength={50} className={inputClass} placeholder="أسود، أبيض، رمادي..." />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label htmlFor="plate-number" className={labelClass}>رقم اللوحة <span className="text-neutral-400 font-normal">(اختياري)</span></label>
+                    <input id="plate-number" value={plateNumber} onChange={(e) => setPlateNumber(e.target.value)} maxLength={20} className={inputClass} placeholder="أ ب ج 1234" />
+                  </div>
+                </div>
               </div>
             )}
 
             {subscriptions.length > 0 && (
               <fieldset>
-                <legend className="mb-3 text-sm font-semibold text-white/80">استخدام اشتراك</legend>
+                <legend className="mb-3 text-xs font-bold text-white">استخدام باقة اشتراك نشطة</legend>
                 <div className="space-y-3">
-                  <label className={`flex cursor-pointer gap-3 rounded-2xl border p-4 ${selectedSubscriptionId === '' ? 'border-[#d4af37] bg-[#d4af37]/10' : 'border-white/10'}`}><input type="radio" name="subscription" checked={selectedSubscriptionId === ''} onChange={() => setSelectedSubscriptionId('')} className="mt-1 size-4 accent-[#d4af37]" /><span><span className="block font-semibold">بدون اشتراك</span><span className="mt-1 block text-sm text-white/50">احتساب السعر العادي للخدمة.</span></span></label>
+                  <label className={`flex cursor-pointer gap-3 rounded-2xl border p-4 ${selectedSubscriptionId === '' ? 'border-[#cea355] bg-[#cea355]/10' : 'border-neutral-800'}`}>
+                    <input type="radio" name="subscription" checked={selectedSubscriptionId === ''} onChange={() => setSelectedSubscriptionId('')} className="mt-1 size-4 accent-[#cea355]" />
+                    <span>
+                      <span className="block font-bold text-white">بدون اشتراك</span>
+                      <span className="mt-1 block text-xs text-white">احتساب السعر المباشر للخدمة.</span>
+                    </span>
+                  </label>
                   {subscriptions.map((subscription) => {
                     const issue = subscriptionIssue(subscription, service.id, selectedArea?.zone.branchId, selectedVehicleId);
                     return (
-                      <label key={subscription.id} className={`flex gap-3 rounded-2xl border p-4 ${issue ? 'cursor-not-allowed border-white/5 opacity-55' : 'cursor-pointer'} ${selectedSubscriptionId === subscription.id ? 'border-[#d4af37] bg-[#d4af37]/10' : 'border-white/10'}`}>
-                        <input type="radio" name="subscription" value={subscription.id} checked={selectedSubscriptionId === subscription.id} disabled={Boolean(issue)} onChange={() => setSelectedSubscriptionId(subscription.id)} className="mt-1 size-4 accent-[#d4af37]" />
+                      <label key={subscription.id} className={`flex gap-3 rounded-2xl border p-4 ${issue ? 'cursor-not-allowed border-neutral-900 opacity-55' : 'cursor-pointer'} ${selectedSubscriptionId === subscription.id ? 'border-[#cea355] bg-[#cea355]/10' : 'border-neutral-800'}`}>
+                        <input type="radio" name="subscription" value={subscription.id} checked={selectedSubscriptionId === subscription.id} disabled={Boolean(issue)} onChange={() => setSelectedSubscriptionId(subscription.id)} className="mt-1 size-4 accent-[#cea355]" />
                         <span>
-                          <span className="block font-semibold">{subscription.plan.nameAr}</span>
-                          <span className="mt-1 block text-sm text-white/50">{subscription.remainingVisits} زيارات إجمالية متبقية · ينتهي {new Intl.DateTimeFormat('ar-EG', { dateStyle: 'medium' }).format(new Date(subscription.endDate))}</span>
-                          {subscription.serviceBalances && subscription.serviceBalances.length > 0 && (
-                            <span className="mt-2 block rounded-xl bg-black/30 p-2.5 text-xs text-neutral-300 space-y-1">
-                              <span className="block font-bold text-[#e5c45a] mb-1">رصيد الخدمات التفصيلي بالاشتراك:</span>
-                              {subscription.serviceBalances.map((sb) => (
-                                <span key={sb.serviceId} className={`block text-[11px] ${sb.serviceId === service.id ? 'font-bold text-[#e5c45a]' : 'text-neutral-400'}`}>
-                                  • {sb.service.nameAr}: <strong className="text-white">{sb.remainingVisits} زيارات</strong> {sb.serviceId === service.id ? '(الخدمة المختارة)' : ''}
-                                </span>
-                              ))}
-                            </span>
-                          )}
-                          {issue && <span className="mt-2 block text-xs text-amber-200">{issue}</span>}
+                          <span className="block font-bold text-white">{subscription.plan.nameAr}</span>
+                          <span className="mt-1 block text-xs text-white">{subscription.remainingVisits} زيارات متبقية</span>
+                          {issue && <span className="mt-2 block text-xs text-amber-300 font-bold">{issue}</span>}
                         </span>
                       </label>
                     );
@@ -1042,193 +1345,609 @@ export default function BookingWizardClient({
               </fieldset>
             )}
 
-            <div className="mt-8 flex items-center justify-between gap-3"><button type="button" onClick={() => goToStep(1)} className="inline-flex items-center gap-2 rounded-xl border border-white/15 px-5 py-3 font-semibold hover:border-white/35"><ArrowRight aria-hidden="true" className="size-4" /> السابق</button><button data-testid="booking-step-2-next" type="button" onClick={() => { if (validateVehicleDetails()) goToStep(3); }} className="inline-flex items-center gap-2 rounded-xl bg-[#d4af37] px-6 py-3 font-bold text-black hover:bg-[#e2c55d]">التالي <ArrowLeft aria-hidden="true" className="size-4" /></button></div>
+            <div className="flex justify-end pt-4">
+              <button data-testid="booking-step-1-next" type="button" onClick={() => { if (validateVehicleDetails()) goToStep(2); }} className="inline-flex items-center gap-2 rounded-xl gold-gradient px-6 py-3 font-bold text-white hover:brightness-110">
+                <span>التالي</span>
+                <ArrowLeft aria-hidden="true" className="size-4" />
+              </button>
+            </div>
           </div>
         )}
 
-        {step === 3 && (
-          <div>
-            <div className="mb-7 flex items-start gap-4"><div className="rounded-2xl bg-[#d4af37]/10 p-3 text-[#d4af37]"><MapPin aria-hidden="true" /></div><div><h2 className="text-xl font-bold">عنوان تنفيذ الخدمة</h2><p className="mt-1 text-sm text-white/50">اختر عنوانًا داخل نطاق التغطية أو أضف عنوانًا جديدًا.</p></div></div>
-
-            <fieldset className="mb-7">
-              <legend className="mb-3 text-sm font-semibold text-white/80">اختر الفرع المنفذ *</legend>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {bookingBranches.map((branch) => {
-                  const branchAreaCount = coverageAreas.filter((area) => area.zone.branchId === branch.id).length;
-                  return <label key={branch.id} className={`flex cursor-pointer gap-3 rounded-2xl border p-4 transition-colors ${selectedBranchId === branch.id ? 'border-[#d4af37] bg-[#d4af37]/10' : 'border-white/10 hover:border-white/25'}`}>
-                    <input type="radio" name="booking-branch" value={branch.id} checked={selectedBranchId === branch.id} onChange={() => selectBranch(branch.id)} className="mt-1 size-4 accent-[#d4af37]" />
-                    <span><span className="block font-semibold">{branch.nameAr}</span><span className="mt-1 block text-sm text-white/50">{branchAreaCount} مناطق تغطية متاحة لهذه الخدمة.</span></span>
-                  </label>;
-                })}
+        {/* Step 2: Location / Zone & Compound Dropdown */}
+        {step === 2 && (
+          <div className="space-y-8">
+            <div className="flex items-start gap-4">
+              <div className="rounded-2xl gold-gradient p-3 text-white"><MapPin aria-hidden="true" className="w-6 h-6" /></div>
+              <div>
+                <h2 className="text-xl font-bold text-white">عنوان تنفيذ الخدمة</h2>
+                <p className="mt-1 text-xs text-white">اختر المنطقة الرئيسية ثم الحي أو الكمبوند.</p>
               </div>
-              <p className="mt-3 text-xs leading-6 text-white/45">الفرع يحدد مناطق التغطية والمواعيد ووسائل التحويل المتاحة لحجزك.</p>
-            </fieldset>
+            </div>
 
-            {addresses.length > 0 && (
-              <fieldset className="mb-7">
-                <legend className="mb-3 text-sm font-semibold text-white/80">عناويني</legend>
+            {bookingBranches.length > 1 && (
+              <fieldset>
+                <legend className="mb-3 text-xs font-bold text-white">اختر الفرع المنفذ</legend>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  {addresses.map((address) => {
-                    const area = areaForAddress(address, coverageAreas);
-                    return <label key={address.id} className={`flex gap-3 rounded-2xl border p-4 ${area ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'} ${selectedAddressId === address.id ? 'border-[#d4af37] bg-[#d4af37]/10' : 'border-white/10'}`}><input type="radio" name="saved-address" checked={selectedAddressId === address.id} disabled={!area} onChange={() => selectAddress(address.id)} className="mt-1 size-4 accent-[#d4af37]" /><span><span className="block font-semibold">{address.compound}{address.isDefault ? ' · الافتراضي' : ''}</span><span className="mt-1 block text-sm text-white/50">{address.street}، {address.buildingNumber}</span>{!area && <span className="mt-2 block text-xs text-amber-200">خارج نطاق التغطية الحالية.</span>}</span></label>;
-                  })}
-                  <label className={`flex cursor-pointer gap-3 rounded-2xl border p-4 ${selectedAddressId === 'new' ? 'border-[#d4af37] bg-[#d4af37]/10' : 'border-white/10'}`}><input type="radio" name="saved-address" checked={selectedAddressId === 'new'} onChange={() => selectAddress('new')} className="mt-1 size-4 accent-[#d4af37]" /><span><span className="block font-semibold">عنوان جديد</span><span className="mt-1 block text-sm text-white/50">اكتب تفاصيل عنوان التنفيذ.</span></span></label>
+                  {bookingBranches.map((branch) => (
+                    <label key={branch.id} className={`flex cursor-pointer gap-3 rounded-2xl border p-4 transition-colors ${selectedBranchId === branch.id ? 'border-[#cea355] bg-[#cea355]/10' : 'border-neutral-800 hover:border-neutral-700'}`}>
+                      <input type="radio" name="booking-branch" value={branch.id} checked={selectedBranchId === branch.id} onChange={() => selectBranch(branch.id)} className="mt-1 size-4 accent-[#cea355]" />
+                      <span>
+                        <span className="block font-bold text-white">{branch.nameAr}</span>
+                      </span>
+                    </label>
+                  ))}
                 </div>
-                {hasUnsupportedSavedAddress && supportWhatsApp ? (
-                  <div data-testid="outside-coverage-contact" className="mt-4 flex flex-col gap-3 rounded-2xl border border-amber-400/25 bg-amber-400/[0.06] p-4 text-sm text-amber-100 sm:flex-row sm:items-center sm:justify-between">
-                    <p>العناوين المعلّمة خارج التغطية لا تعرض مواعيد. تواصل معنا للتحقق من إمكانية الخدمة.</p>
-                    <a href={whatsappHref(supportWhatsApp, `أرغب في التحقق من تغطية عنواني لخدمة ${service.nameAr}`)} target="_blank" rel="noopener noreferrer" className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-amber-300/35 px-4 py-2 font-bold hover:bg-amber-300/10">
-                      <MessageCircle aria-hidden="true" className="size-4" /> واتساب
-                    </a>
-                  </div>
-                ) : null}
               </fieldset>
             )}
 
-            <div className="mb-5"><label htmlFor="coverage-area" className={labelClass}>منطقة التغطية التابعة للفرع *</label><select id="coverage-area" value={selectedAreaId} disabled={selectedAddressId !== 'new'} onChange={(event) => { setSelectedAreaId(event.target.value); setSelectedSubscriptionId(''); }} aria-invalid={invalidField('coverage-area')} className={inputClass}>{branchCoverageAreas.map((area) => <option key={area.id} value={area.id} className="bg-neutral-900">{area.compound} — {area.district}، {area.city}</option>)}</select>{selectedAddressId !== 'new' && <p className="mt-2 text-xs text-white/45">المنطقة والفرع محددان من العنوان المحفوظ.</p>}</div>
+            {addresses.length > 0 && (
+              <fieldset>
+                <legend className="mb-3 text-xs font-bold text-white">عناويني المحفوظة</legend>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {addresses.map((address) => {
+                    const area = areaForAddress(address, coverageAreas);
+                    return (
+                      <label
+                        key={address.id}
+                        className={`flex gap-3 rounded-2xl border p-4 transition-all ${
+                          area
+                            ? 'cursor-pointer hover:border-neutral-700'
+                            : 'cursor-not-allowed border-neutral-800/60 bg-neutral-900/30 opacity-60'
+                        } ${selectedAddressId === address.id ? 'border-[#cea355] bg-[#cea355]/10' : 'border-neutral-800'}`}
+                      >
+                        <input
+                          type="radio"
+                          name="saved-address"
+                          checked={selectedAddressId === address.id}
+                          disabled={!area}
+                          onChange={() => selectAddress(address.id)}
+                          className="mt-1 size-4 accent-[#cea355]"
+                        />
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="block font-bold text-white">
+                              {address.compound || address.city}
+                              {address.isDefault ? ' · الافتراضي' : ''}
+                            </span>
+                            {area ? (
+                              <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20 font-bold">
+                                متاح للحجز
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20 font-bold">
+                                خارج التغطية
+                              </span>
+                            )}
+                          </div>
+                          <span className="mt-1 block text-xs text-neutral-400">
+                            {address.street}، {address.buildingNumber}
+                          </span>
+                          {!area && (
+                            <span className="mt-1.5 block text-[11px] text-amber-400/80">
+                              ⚠️ هذا العنوان مسجل خارج نطاق التغطية لفروع هذه الخدمة
+                            </span>
+                          )}
+                        </div>
+                      </label>
+                    );
+                  })}
+                  <label
+                    className={`flex cursor-pointer gap-3 rounded-2xl border p-4 transition-all hover:border-neutral-700 ${
+                      selectedAddressId === 'new' ? 'border-[#cea355] bg-[#cea355]/10' : 'border-neutral-800'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="saved-address"
+                      checked={selectedAddressId === 'new'}
+                      onChange={() => selectAddress('new')}
+                      className="mt-1 size-4 accent-[#cea355]"
+                    />
+                    <div>
+                      <span className="block font-bold text-white">عنوان جديد</span>
+                      <span className="mt-1 block text-xs text-neutral-400">
+                        اختر النطاق والكمبوند بالأسفل.
+                      </span>
+                    </div>
+                  </label>
+                </div>
+              </fieldset>
+            )}
+
+            {/* 2-Tier Cascading Location Selection: Zone Dropdown -> Compound Dropdown */}
+            <div className="grid gap-5 sm:grid-cols-2">
+              <div>
+                <label htmlFor="coverage-zone" className={labelClass}>
+                  المنطقة / النطاق الرئيسي
+                </label>
+                <select
+                  id="coverage-zone"
+                  value={activeZone?.id || ''}
+                  disabled={selectedAddressId !== 'new'}
+                  onChange={(e) => handleZoneChange(e.target.value)}
+                  className={inputClass}
+                >
+                  {branchZones.map((z) => (
+                    <option key={z.id} value={z.id} className="bg-neutral-900 text-white">
+                      {z.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="coverage-area" className={labelClass}>
+                  الحي / الكمبوند / المنطقة الفرعية
+                </label>
+                <select
+                  id="coverage-area"
+                  value={selectedAreaId}
+                  disabled={selectedAddressId !== 'new'}
+                  onChange={(e) => {
+                    setSelectedAreaId(e.target.value);
+                    setSelectedSubscriptionId('');
+                  }}
+                  aria-invalid={invalidField('coverage-area')}
+                  className={inputClass}
+                >
+                  {zoneCompounds.map((area) => (
+                    <option key={area.id} value={area.id} className="bg-neutral-900 text-white">
+                      {area.compound}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
 
             {selectedAddress ? (
-              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5"><p className="font-semibold">{selectedAddress.compound}، {selectedAddress.street}</p><p className="mt-2 text-sm text-white/55">{selectedAddress.buildingNumber}{selectedAddress.unitNumber ? `، وحدة ${selectedAddress.unitNumber}` : ''}{selectedAddress.landmark ? ` · ${selectedAddress.landmark}` : ''}</p></div>
+              <div className="rounded-2xl border border-neutral-700 bg-[#161616] p-5">
+                <p className="font-bold text-white">{selectedAddress.compound}، {selectedAddress.street}</p>
+                <p className="mt-1 text-xs text-white">{selectedAddress.buildingNumber}{selectedAddress.unitNumber ? `، وحدة ${selectedAddress.unitNumber}` : ''}</p>
+              </div>
             ) : (
               <div className="grid gap-5 sm:grid-cols-2">
-                <div><label htmlFor="street" className={labelClass}>الشارع *</label><input id="street" value={street} onChange={(event) => setStreet(event.target.value)} maxLength={200} autoComplete="street-address" aria-invalid={invalidField('street')} className={inputClass} /></div>
-                <div><label htmlFor="building-number" className={labelClass}>رقم المبنى أو الفيلا *</label><input id="building-number" value={buildingNumber} onChange={(event) => setBuildingNumber(event.target.value)} maxLength={100} autoComplete="address-line2" aria-invalid={invalidField('building-number')} className={inputClass} /></div>
-                <div><label htmlFor="unit-number" className={labelClass}>رقم الوحدة <span className="text-white/40">(اختياري)</span></label><input id="unit-number" value={unitNumber} onChange={(event) => setUnitNumber(event.target.value)} maxLength={50} autoComplete="address-line3" className={inputClass} /></div>
-                <div><label htmlFor="landmark" className={labelClass}>علامة مميزة <span className="text-white/40">(اختياري)</span></label><input id="landmark" value={landmark} onChange={(event) => setLandmark(event.target.value)} maxLength={200} autoComplete="off" className={inputClass} /></div>
-                <div className="sm:col-span-2"><label htmlFor="gate-instructions" className={labelClass}>تعليمات البوابة أو الدخول <span className="text-white/40">(اختياري)</span></label><textarea id="gate-instructions" rows={3} value={gateInstructions} onChange={(event) => setGateInstructions(event.target.value)} maxLength={500} className={inputClass} /></div>
-                <div className="sm:col-span-2"><label htmlFor="location-url" className={labelClass}>رابط الموقع على الخريطة <span className="text-white/40">(اختياري)</span></label><input id="location-url" type="url" dir="ltr" value={locationUrl} onChange={(event) => setLocationUrl(event.target.value)} placeholder="https://maps.google.com/..." autoComplete="url" aria-invalid={invalidField('location-url')} className={inputClass} /></div>
+                <div>
+                  <label htmlFor="street" className={labelClass}>اسم الشارع</label>
+                  <input id="street" value={street} onChange={(e) => setStreet(e.target.value)} maxLength={200} className={inputClass} placeholder="اسم الشارع" />
+                </div>
+                <div>
+                  <label htmlFor="building-number" className={labelClass}>رقم المبنى أو الفيلا</label>
+                  <input id="building-number" value={buildingNumber} onChange={(e) => setBuildingNumber(e.target.value)} maxLength={100} className={inputClass} placeholder="رقم الفيلا أو المبنى" />
+                </div>
+                <div>
+                  <label htmlFor="unit-number" className={labelClass}>رقم الوحدة <span className="text-neutral-400 font-normal">(اختياري)</span></label>
+                  <input id="unit-number" value={unitNumber} onChange={(e) => setUnitNumber(e.target.value)} maxLength={50} className={inputClass} placeholder="رقم الشقة أو الوحدة" />
+                </div>
+                <div>
+                  <label htmlFor="landmark" className={labelClass}>علامة مميزة <span className="text-neutral-400 font-normal">(اختياري)</span></label>
+                  <input id="landmark" value={landmark} onChange={(e) => setLandmark(e.target.value)} maxLength={200} className={inputClass} placeholder="بجوار كذا..." />
+                </div>
+                <div className="sm:col-span-2">
+                  <label htmlFor="gate-instructions" className={labelClass}>تعليمات البوابة أو الدخول <span className="text-neutral-400 font-normal">(اختياري)</span></label>
+                  <textarea id="gate-instructions" rows={2} value={gateInstructions} onChange={(e) => setGateInstructions(e.target.value)} maxLength={500} className={inputClass} placeholder="تعليمات الأمن أو الدخول..." />
+                </div>
+                <div className="sm:col-span-2">
+                  <label htmlFor="location-url" className={labelClass}>رابط الموقع على الخريطة <span className="text-neutral-400 font-normal">(اختياري)</span></label>
+                  <input id="location-url" type="url" dir="ltr" value={locationUrl} onChange={(e) => setLocationUrl(e.target.value)} placeholder="https://maps.google.com/..." className={inputClass} />
+                </div>
               </div>
             )}
 
-            <div className="mt-8 flex items-center justify-between gap-3"><button type="button" onClick={() => goToStep(2)} className="inline-flex items-center gap-2 rounded-xl border border-white/15 px-5 py-3 font-semibold hover:border-white/35"><ArrowRight aria-hidden="true" className="size-4" /> السابق</button><button data-testid="booking-step-3-next" type="button" onClick={() => { if (validateAddress()) goToStep(4); }} className="inline-flex items-center gap-2 rounded-xl bg-[#d4af37] px-6 py-3 font-bold text-black hover:bg-[#e2c55d]">التالي <ArrowLeft aria-hidden="true" className="size-4" /></button></div>
+            <div className="flex items-center justify-between gap-3 pt-4">
+              <button type="button" onClick={() => goToStep(1)} className="inline-flex items-center gap-2 rounded-xl border border-neutral-700 px-5 py-3 font-semibold text-white hover:border-white">
+                <ArrowRight aria-hidden="true" className="size-4" />
+                <span>السابق</span>
+              </button>
+              <button data-testid="booking-step-2-next" type="button" onClick={() => { if (validateAddress()) goToStep(3); }} className="inline-flex items-center gap-2 rounded-xl gold-gradient px-6 py-3 font-bold text-white hover:brightness-110">
+                <span>التالي</span>
+                <ArrowLeft aria-hidden="true" className="size-4" />
+              </button>
+            </div>
           </div>
         )}
 
-        {step === 4 && (
-          <div aria-busy={loadingSlots}>
-            <div className="mb-7 flex items-start gap-4"><div className="rounded-2xl bg-[#d4af37]/10 p-3 text-[#d4af37]"><CalendarDays aria-hidden="true" /></div><div><h2 className="text-xl font-bold">اختر الموعد</h2><p className="mt-1 text-sm text-white/50">المواعيد المعروضة محسوبة حسب الفرع ومدة الخدمة.</p></div></div>
-            <div className="mb-6"><label htmlFor="booking-date" className={labelClass}>تاريخ الخدمة *</label><input id="booking-date" type="date" min={dateInputValue(new Date())} value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} className={inputClass} /></div>
+        {/* Step 3: Time Slot Selection */}
+        {step === 3 && (
+          <div aria-busy={loadingSlots} className="space-y-8">
+            <div className="flex items-start gap-4">
+              <div className="rounded-2xl gold-gradient p-3 text-white"><CalendarDays aria-hidden="true" className="w-6 h-6" /></div>
+              <div>
+                <h2 className="text-xl font-bold text-white">اختر موعد الخدمة</h2>
+                <p className="mt-1 text-xs text-white">المواعيد المتاحة محسوبة بدقة حسب جاهزية فرق العمل.</p>
+              </div>
+            </div>
 
-            <div aria-live="polite">
+            {/* 7-Day Interactive Day Selector */}
+            <div className="space-y-3">
+              <label className={labelClass}>أيام الحجز المتاحة (الـ 7 أيام القادمة)</label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5">
+                {upcomingDays.map((day) => {
+                  const isSelected = selectedDate === day.dateStr;
+                  return (
+                    <button
+                      key={day.dateStr}
+                      type="button"
+                      onClick={() => {
+                        setSelectedDate(day.dateStr);
+                        setSelectedSlot(null);
+                      }}
+                      className={`flex flex-col items-center justify-center p-3 sm:p-3.5 rounded-2xl border transition-all text-center relative min-h-[96px] ${
+                        isSelected
+                          ? 'border-[#cea355] bg-[#cea355]/20 shadow-lg shadow-[#cea355]/15 ring-2 ring-[#cea355]'
+                          : 'border-neutral-800 bg-[#161616] hover:border-neutral-700 hover:bg-[#1f1f1f]'
+                      }`}
+                    >
+                      <div className="h-5 flex items-center justify-center mb-1">
+                        {day.isToday ? (
+                          <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-[#cea355] text-black whitespace-nowrap shadow-sm">
+                            اليوم
+                          </span>
+                        ) : day.isTomorrow ? (
+                          <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-white/20 text-white whitespace-nowrap shadow-sm">
+                            غداً
+                          </span>
+                        ) : (
+                          <span className="inline-block h-4" />
+                        )}
+                      </div>
+                      <span className={`text-sm font-bold block leading-tight ${isSelected ? 'text-[#edce8b]' : 'text-white'}`}>
+                        {day.dayName}
+                      </span>
+                      <span className="text-xs text-neutral-400 font-mono mt-1 block leading-none">
+                        {day.dayNumber} {day.monthName}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Slot Selection */}
+            <div aria-live="polite" className="space-y-3">
+              <label className={labelClass}>المواعيد المتاحة</label>
+
               {loadingSlots ? (
-                <div className="flex items-center justify-center gap-3 rounded-2xl border border-white/10 py-10 text-white/60"><LoaderCircle aria-hidden="true" className="size-5 animate-spin" /> جاري تحميل المواعيد…</div>
+                <div className="flex items-center justify-center gap-3 rounded-2xl border border-neutral-800 py-10 text-white font-bold bg-[#141414]">
+                  <LoaderCircle aria-hidden="true" className="size-5 animate-spin text-[#cea355]" />
+                  <span>جاري تحميل المواعيد المتاحة…</span>
+                </div>
               ) : slotsError ? (
-                <div className="rounded-2xl border border-amber-400/25 bg-amber-400/[0.06] p-5 text-sm text-amber-100"><p>{slotsError}</p><button type="button" onClick={() => setAvailabilityRetry((value) => value + 1)} className="mt-4 rounded-lg border border-amber-300/30 px-4 py-2 font-semibold hover:bg-amber-300/10">إعادة المحاولة</button></div>
+                <div className="rounded-2xl border border-amber-400/30 bg-amber-400/10 p-5 text-sm font-bold text-amber-200">
+                  <p>{slotsError}</p>
+                  <button type="button" onClick={() => setAvailabilityRetry((v) => v + 1)} className="mt-3 rounded-lg border border-amber-300/40 px-4 py-1.5 text-xs font-bold hover:bg-amber-300/10">
+                    إعادة المحاولة
+                  </button>
+                </div>
               ) : availableSlots.length === 0 ? (
-                <div className="rounded-2xl border border-white/10 py-10 text-center text-white/55">لا توجد مواعيد متاحة في هذا اليوم. جرّب تاريخًا آخر.</div>
+                <div className="rounded-2xl border border-neutral-800 bg-[#141414] p-8 text-center text-white space-y-2">
+                  <p className="font-bold text-sm text-neutral-300">
+                    لا توجد مواعيد متاحة في هذا اليوم.
+                  </p>
+                  <p className="text-xs text-neutral-400">
+                    جميع المواعيد محجوزة في منطقتك لهذا اليوم. يُرجى اختيار يوم آخر من الأيام بالأعلى.
+                  </p>
+                </div>
               ) : (
-                <fieldset><legend className="mb-3 text-sm font-semibold text-white/80">المواعيد المتاحة</legend><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{availableSlots.map((slot) => <label key={slot.startAt} className={`flex cursor-pointer items-center gap-3 rounded-2xl border p-4 ${selectedSlot?.startAt === slot.startAt ? 'border-[#d4af37] bg-[#d4af37]/10' : 'border-white/10 hover:border-white/25'}`}><input type="radio" name="booking-slot" checked={selectedSlot?.startAt === slot.startAt} onChange={() => setSelectedSlot(slot)} className="size-4 accent-[#d4af37]" /><span><span className="flex items-center gap-2 font-semibold"><Clock3 aria-hidden="true" className="size-4" />{slot.timeStr}</span><span className="mt-1 block text-xs text-white/45">{slot.totalDurationMinutes} دقيقة</span></span></label>)}</div></fieldset>
+                <fieldset>
+                  <legend className="sr-only">المواعيد المتاحة في هذا اليوم</legend>
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {availableSlots.map((slot) => {
+                      const isSelected = selectedSlot?.startAt === slot.startAt;
+                      return (
+                        <label
+                          key={slot.startAt}
+                          className={`flex cursor-pointer items-center gap-3 rounded-2xl border p-4 transition-all ${
+                            isSelected
+                              ? 'border-[#cea355] bg-[#cea355]/20 shadow-lg shadow-[#cea355]/15 ring-2 ring-[#cea355]'
+                              : 'border-neutral-800 bg-[#161616] hover:border-neutral-700 hover:bg-[#1f1f1f]'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="booking-slot"
+                            checked={isSelected}
+                            onChange={() => setSelectedSlot(slot)}
+                            className="size-4 accent-[#cea355]"
+                          />
+                          <span className="flex-1">
+                            <span className="flex items-center gap-2 font-black text-white text-sm">
+                              <Clock3 aria-hidden="true" className="size-4 text-[#cea355]" />
+                              <span>{format12HourTime(slot.timeStr)}</span>
+                            </span>
+                            <span className="mt-1 block text-xs text-neutral-400 font-semibold">
+                              مدة الخدمة: {slot.totalDurationMinutes} دقيقة
+                            </span>
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </fieldset>
               )}
             </div>
 
-            <div className="mt-8 flex items-center justify-between gap-3"><button type="button" onClick={() => goToStep(3)} className="inline-flex items-center gap-2 rounded-xl border border-white/15 px-5 py-3 font-semibold hover:border-white/35"><ArrowRight aria-hidden="true" className="size-4" /> السابق</button><button data-testid="booking-step-4-next" type="button" disabled={!selectedSlot || loadingSlots} onClick={() => { if (!selectedSlot) { showError('اختر موعدًا متاحًا.', 'booking-slots'); return; } goToStep(5); }} className="inline-flex items-center gap-2 rounded-xl bg-[#d4af37] px-6 py-3 font-bold text-black hover:bg-[#e2c55d] disabled:cursor-not-allowed disabled:opacity-50">التالي <ArrowLeft aria-hidden="true" className="size-4" /></button></div>
+            <div className="flex items-center justify-between gap-3 pt-4">
+              <button type="button" onClick={() => goToStep(2)} className="inline-flex items-center gap-2 rounded-xl border border-neutral-700 px-5 py-3 font-semibold text-white hover:border-white">
+                <ArrowRight aria-hidden="true" className="size-4" />
+                <span>السابق</span>
+              </button>
+              <button data-testid="booking-step-3-next" type="button" disabled={!selectedSlot || loadingSlots} onClick={() => { if (!selectedSlot) { showError('اختر موعدًا متاحًا.', 'booking-slots'); return; } goToStep(4); }} className="inline-flex items-center gap-2 rounded-xl gold-gradient px-6 py-3 font-bold text-white hover:brightness-110 disabled:opacity-50">
+                <span>التالي</span>
+                <ArrowLeft aria-hidden="true" className="size-4" />
+              </button>
+            </div>
           </div>
         )}
 
-        {step === 5 && (
-          <div>
-            <div className="mb-7 flex items-start gap-4"><div className="rounded-2xl bg-[#d4af37]/10 p-3 text-[#d4af37]"><UserRound aria-hidden="true" /></div><div><h2 className="text-xl font-bold">بيانات التواصل</h2><p className="mt-1 text-sm text-white/50">{useSavedContact ? 'سنستخدم بيانات حسابك المحفوظة لهذا الحجز بالاشتراك.' : 'سنستخدم هذه البيانات للتنسيق بخصوص الحجز.'}</p></div></div>
+        {/* Step 4: Contact Details */}
+        {step === 4 && (
+          <div className="space-y-8">
+            <div className="flex items-start gap-4">
+              <div className="rounded-2xl gold-gradient p-3 text-white"><UserRound aria-hidden="true" className="w-6 h-6" /></div>
+              <div>
+                <h2 className="text-xl font-bold text-white">بيانات التواصل</h2>
+                <p className="mt-1 text-xs text-white">سنستخدم هذه البيانات للتنسيق معك وتأكيد وصول الفريق.</p>
+              </div>
+            </div>
+
             {useSavedContact ? (
-              <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.05] p-5">
-                <p className="font-semibold text-emerald-200">بياناتك محفوظة — لن نطلب إدخالها مرة أخرى.</p>
-                <p className="mt-2 text-sm text-white/65">{fullName} · <span dir="ltr">{phone}</span> · <span dir="ltr">{whatsapp}</span></p>
-                <Link href="/account/profile" className="mt-3 inline-flex text-sm font-semibold text-[#d4af37] underline underline-offset-4">تعديل بيانات الحساب</Link>
+              <div className="rounded-2xl border border-emerald-400/30 bg-emerald-400/10 p-5 space-y-2">
+                <p className="font-bold text-emerald-200">بيانات حسابك محفوظة ومسجلة:</p>
+                <p className="text-sm font-bold text-white">{fullName} · <span dir="ltr">{phone}</span> · <span dir="ltr">{whatsapp}</span></p>
+                <Link href="/account/profile" className="inline-flex text-xs font-bold text-white underline underline-offset-4">تعديل بيانات الحساب</Link>
               </div>
             ) : (
               <div className="grid gap-5 sm:grid-cols-2">
-                <div className="sm:col-span-2"><label htmlFor="contact-name" className={labelClass}>الاسم الكامل *</label><input id="contact-name" value={fullName} onChange={(event) => setFullName(event.target.value)} autoComplete="name" maxLength={200} aria-invalid={invalidField('contact-name')} className={inputClass} /></div>
-                <div><label htmlFor="contact-phone" className={labelClass}>رقم التواصل *</label><input id="contact-phone" type="tel" dir="ltr" inputMode="tel" value={phone} onChange={(event) => setPhone(event.target.value)} autoComplete="tel" maxLength={20} aria-invalid={invalidField('contact-phone')} className={inputClass} /></div>
-                <div><label htmlFor="contact-whatsapp" className={labelClass}>رقم واتساب *</label><input id="contact-whatsapp" type="tel" dir="ltr" inputMode="tel" value={whatsapp} onChange={(event) => setWhatsapp(event.target.value)} autoComplete="tel" maxLength={20} aria-invalid={invalidField('contact-whatsapp')} className={inputClass} /></div>
+                <div className="sm:col-span-2">
+                  <label htmlFor="contact-name" className={labelClass}>الاسم الكامل</label>
+                  <input id="contact-name" value={fullName} onChange={(e) => setFullName(e.target.value)} maxLength={200} className={inputClass} placeholder="الاسم الكامل" />
+                </div>
+                <div>
+                  <label htmlFor="contact-phone" className={labelClass}>رقم الهاتف للاتصال</label>
+                  <input id="contact-phone" type="tel" dir="ltr" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={20} className={inputClass} placeholder="01XXXXXXXXX" />
+                </div>
+                <div>
+                  <label htmlFor="contact-whatsapp" className={labelClass}>رقم واتساب للتنسيق</label>
+                  <input id="contact-whatsapp" type="tel" dir="ltr" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} maxLength={20} className={inputClass} placeholder="01XXXXXXXXX" />
+                </div>
               </div>
             )}
-            <div className="mt-5"><label htmlFor="customer-notes" className={labelClass}>ملاحظات للفريق <span className="text-white/40">(اختياري)</span></label><textarea id="customer-notes" rows={4} value={customerNotes} onChange={(event) => setCustomerNotes(event.target.value)} maxLength={1000} className={inputClass} /><p className="mt-2 text-xs text-white/40">{customerNotes.length}/1000</p></div>
-            <div className="mt-8 flex items-center justify-between gap-3"><button type="button" onClick={() => goToStep(4)} className="inline-flex items-center gap-2 rounded-xl border border-white/15 px-5 py-3 font-semibold hover:border-white/35"><ArrowRight aria-hidden="true" className="size-4" /> السابق</button><button data-testid="booking-step-5-next" type="button" onClick={() => { if (validateContact()) goToStep(6); }} className="inline-flex items-center gap-2 rounded-xl bg-[#d4af37] px-6 py-3 font-bold text-black hover:bg-[#e2c55d]">مراجعة الحجز <ArrowLeft aria-hidden="true" className="size-4" /></button></div>
+
+            <div>
+              <label htmlFor="customer-notes" className={labelClass}>ملاحظات خاصة للفريق <span className="text-neutral-400 font-normal">(اختياري)</span></label>
+              <textarea id="customer-notes" rows={3} value={customerNotes} onChange={(e) => setCustomerNotes(e.target.value)} maxLength={1000} className={inputClass} placeholder="أي تعليمات أو ملاحظات إضافية ترغب في إبلاغها للفريق..." />
+            </div>
+
+            <div className="flex items-center justify-between gap-3 pt-4">
+              <button type="button" onClick={() => goToStep(3)} className="inline-flex items-center gap-2 rounded-xl border border-neutral-700 px-5 py-3 font-semibold text-white hover:border-white">
+                <ArrowRight aria-hidden="true" className="size-4" />
+                <span>السابق</span>
+              </button>
+              <button data-testid="booking-step-4-next" type="button" onClick={() => { if (validateContact()) goToStep(5); }} className="inline-flex items-center gap-2 rounded-xl gold-gradient px-6 py-3 font-bold text-white hover:brightness-110">
+                <span>مراجعة وتأكيد الحجز</span>
+                <ArrowLeft aria-hidden="true" className="size-4" />
+              </button>
+            </div>
           </div>
         )}
 
-        {step === 6 && selectedArea && selectedSlot && (
-          <div>
-            <div className="mb-7 flex items-start gap-4"><div className="rounded-2xl bg-[#d4af37]/10 p-3 text-[#d4af37]"><ClipboardCheck aria-hidden="true" /></div><div><h2 className="text-xl font-bold">راجع الحجز</h2><p className="mt-1 text-sm text-white/50">السعر النهائي والتوفر سيؤكدهما النظام عند الإرسال.</p></div></div>
-            <dl className="divide-y divide-white/10 rounded-2xl border border-white/10 bg-white/[0.025] px-5">
-              <div className="grid gap-2 py-4 sm:grid-cols-[140px_1fr]"><dt className="text-sm text-white/45">السيارة</dt><dd className="font-medium">{vehicleMake} {vehicleModel} · {vehicleYear} · {vehicleColor}</dd></div>
-              <div className="grid gap-2 py-4 sm:grid-cols-[140px_1fr]"><dt className="text-sm text-white/45">العنوان</dt><dd className="font-medium">{selectedArea.compound}، {street}، {buildingNumber}</dd></div>
-              <div className="grid gap-2 py-4 sm:grid-cols-[140px_1fr]"><dt className="text-sm text-white/45">الموعد</dt><dd className="font-medium">{dateFormatter.format(new Date(selectedSlot.startAt))}</dd></div>
-              <div className="grid gap-2 py-4 sm:grid-cols-[140px_1fr]"><dt className="text-sm text-white/45">التواصل</dt><dd className="font-medium">{fullName} · <span dir="ltr">{phone}</span></dd></div>
-              <div className="grid gap-2 py-4 sm:grid-cols-[140px_1fr]"><dt className="text-sm text-white/45">الاشتراك</dt><dd className="font-medium">{selectedSubscriptionId ? selectedSubscription?.plan.nameAr : 'بدون اشتراك'}</dd></div>
-            </dl>
-
-            <div className="mt-6 rounded-2xl border border-[#d4af37]/25 bg-[#d4af37]/[0.06] p-5">
-              <div className="flex items-center justify-between gap-4"><span className="text-white/65">الإجمالي التقديري</span><strong className="text-xl text-[#d4af37]">{formatCurrency(estimatedTotal)}</strong></div>
-              {estimatedCreditApplied > 0 ? <div className="mt-3 flex items-center justify-between gap-4 text-sm text-emerald-300"><span>رصيد مستخدم</span><span>-{formatCurrency(estimatedCreditApplied)}</span></div> : null}
-              <div className="mt-3 flex items-center justify-between gap-4 text-sm"><span className="text-white/55">المطلوب مبدئيًا للتحويل</span><span>{formatCurrency(estimatedTransferAmount)}</span></div>
-              <p className="mt-3 text-xs text-white/40">يحسب الخادم المبلغ النهائي بعد إعادة التحقق من الموعد والاشتراك.</p>
-            </div>
-
-            {creditBalance > 0 ? <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.05] p-4"><input id="use-credit" type="checkbox" checked={useCredit} onChange={(event) => setUseCredit(event.target.checked)} className="mt-1 size-4 accent-emerald-400" /><span className="text-sm leading-7 text-white/70"><strong className="block text-emerald-300">استخدم رصيد التعويضات</strong>المتاح: {formatCurrency(creditBalance)}. سيُخصم فقط ما يغطي هذا الحجز، ويُسجل في كشف الرصيد.</span></label> : null}
-
-            <details className="mt-6 rounded-2xl border border-white/10 bg-white/[0.025] p-4 text-sm text-white/65">
-              <summary className="cursor-pointer font-semibold text-white/85">
-                {service.cancellationPolicy.nameAr} · الإصدار {service.cancellationPolicy.version}
-              </summary>
-              <div className="mt-3 space-y-2 leading-7">
-                <p>
-                  {service.cancellationPolicy.allowsCancellation
-                    ? service.cancellationPolicy.noticeHours === 0
-                      ? 'يمكن تقديم طلب الإلغاء حتى قبل بدء موعد الخدمة.'
-                      : `مهلة الإلغاء المبكر: ${service.cancellationPolicy.noticeHours} ساعة قبل الموعد.`
-                    : 'هذه الخدمة لا تتيح طلب الإلغاء من الحساب.'}
-                  {service.cancellationPolicy.allowsCancellation && service.cancellationPolicy.allowsLateRequests
-                    ? ' الطلب المتأخر يُرسل للمراجعة ولا يعني استردادًا تلقائيًا.'
-                    : ''}
-                </p>
-                <p>
-                  {service.cancellationPolicy.allowsRescheduling
-                    ? 'تسري المهلة نفسها على طلب تعديل الموعد.'
-                    : 'هذه الخدمة لا تتيح طلب تعديل الموعد من الحساب.'}
-                </p>
-                <p className="whitespace-pre-line text-white/50">{service.cancellationPolicy.policyTextAr}</p>
+        {/* Step 5: Review & Confirmation */}
+        {step === 5 && selectedArea && selectedSlot && (
+          <div className="space-y-8">
+            <div className="flex items-start gap-4">
+              <div className="rounded-2xl gold-gradient p-3 text-white"><ClipboardCheck aria-hidden="true" className="w-6 h-6" /></div>
+              <div>
+                <h2 className="text-xl font-bold text-white">مراجعة تفاصيل الحجز</h2>
+                <p className="mt-1 text-xs text-white">راجع بيانات الحجز والخدمة بدقة قبل التأكيد النهائي.</p>
               </div>
-            </details>
+            </div>
 
-            <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-2xl border border-white/10 p-4"><input id="policy-accepted" type="checkbox" checked={policyAccepted} onChange={(event) => setPolicyAccepted(event.target.checked)} aria-invalid={invalidField('policy-accepted')} className="mt-1 size-4 accent-[#d4af37]" /><span className="text-sm leading-7 text-white/70">أوافق على <Link href="/policies/booking" className="font-semibold text-[#d4af37] underline underline-offset-4">سياسة الحجز</Link> وعلى سياسة الإلغاء الموضحة أعلاه. <Link href="/policies/cancellation" className="font-semibold text-[#d4af37] underline underline-offset-4">التفاصيل العامة</Link>.</span></label>
+            <div className="divide-y divide-neutral-800 rounded-2xl border border-neutral-800 bg-[#0c0c0c] px-6 text-sm">
+              <div className="grid gap-2 py-4 sm:grid-cols-[140px_1fr]">
+                <span className="font-bold text-white">الخدمة</span>
+                <span className="font-bold text-white">{service.nameAr}</span>
+              </div>
+              <div className="grid gap-2 py-4 sm:grid-cols-[140px_1fr]">
+                <span className="font-bold text-white">السيارة</span>
+                <span className="font-bold text-white">{vehicleMake} {vehicleModel} · {vehicleYear} · {vehicleColor}</span>
+              </div>
+              <div className="grid gap-2 py-4 sm:grid-cols-[140px_1fr]">
+                <span className="font-bold text-white">الموقع</span>
+                <span className="font-bold text-white">{selectedArea.compound}، {street}، {buildingNumber}</span>
+              </div>
+              <div className="grid gap-2 py-4 sm:grid-cols-[140px_1fr]">
+                <span className="font-bold text-white">الموعد المحدد</span>
+                <span className="font-bold text-white">{dateFormatter.format(new Date(selectedSlot.startAt))}</span>
+              </div>
+              <div className="grid gap-2 py-4 sm:grid-cols-[140px_1fr]">
+                <span className="font-bold text-white">بيانات التواصل</span>
+                <span className="font-bold text-white">{fullName} · <span dir="ltr">{phone}</span></span>
+              </div>
+            </div>
 
-            <div className="mt-8 flex items-center justify-between gap-3"><button type="button" disabled={bookingSubmitting} onClick={() => goToStep(5)} className="inline-flex items-center gap-2 rounded-xl border border-white/15 px-5 py-3 font-semibold hover:border-white/35 disabled:opacity-50"><ArrowRight aria-hidden="true" className="size-4" /> السابق</button><button data-testid="booking-submit" type="button" onClick={createBooking} disabled={bookingSubmitting} aria-busy={bookingSubmitting} className="inline-flex min-w-40 items-center justify-center gap-2 rounded-xl bg-[#d4af37] px-6 py-3 font-bold text-black hover:bg-[#e2c55d] disabled:cursor-not-allowed disabled:opacity-50">{bookingSubmitting ? <><LoaderCircle aria-hidden="true" className="size-4 animate-spin" /> جاري تأكيد الحجز…</> : <><ShieldCheck aria-hidden="true" className="size-4" /> تأكيد الحجز</>}</button></div>
+            <div className="rounded-2xl border border-[#cea355]/40 bg-[#cea355]/10 p-6 space-y-3">
+              {subscriptionApplies ? (
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-sm font-bold text-white">طريقة المحاسبة</span>
+                    <span className="rounded-full bg-emerald-500/20 border border-emerald-500/30 px-3 py-1 text-xs font-black text-emerald-300">
+                      مشمول بالاشتراك النشط ✨
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4 text-xs font-bold text-white/80">
+                    <span>قيمة الخدمة الأساسية:</span>
+                    <span className="text-emerald-400 font-bold">0 ج.م (مغطاة بالكامل ضمن باقتك)</span>
+                  </div>
+                  {addonsPrice > 0 && (
+                    <div className="flex items-center justify-between gap-4 text-xs font-bold text-white/80">
+                      <span>إضافات اختيارية:</span>
+                      <span className="text-[#edce8b] font-bold">{formatCurrency(addonsPrice)} (تحصيل عند إكمال الخدمة)</span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between gap-4 text-xs font-bold text-emerald-300 pt-2 border-t border-[#cea355]/20">
+                    <span>المطلوب دفعه الآن:</span>
+                    <span className="text-lg font-black text-emerald-400">0 ج.م (تأكيد فوري دون دفع مسبق)</span>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-sm font-bold text-white">إجمالي قيمة الخدمة</span>
+                    <strong className="text-2xl font-black text-[#edce8b]">{formatCurrency(estimatedTotal)}</strong>
+                  </div>
+                  {estimatedCreditApplied > 0 && (
+                    <div className="flex items-center justify-between gap-4 text-xs font-bold text-emerald-300">
+                      <span>رصيد التعويضات المستخدم:</span>
+                      <span>-{formatCurrency(estimatedCreditApplied)}</span>
+                    </div>
+                  )}
+                  {estimatedTransferAmount > 0 && (
+                    <div className="pt-2 border-t border-[#cea355]/25 flex items-center justify-between gap-4 text-xs font-bold text-white">
+                      <span>المبلغ المطلوب للدفعة المسبقة (عربون الحجز):</span>
+                      <span className="font-black text-[#edce8b] text-base">{formatCurrency(estimatedTransferAmount)}</span>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Payment & Transfer Proof Section (Directly embedded in Step 5 when deposit is required) */}
+            {estimatedTransferAmount > 0 && (
+              <div className="space-y-6 rounded-2xl border border-neutral-800 bg-[#0e0e0e] p-6">
+                <fieldset id="payment-methods" aria-invalid={invalidField('payment-methods')}>
+                  <legend className="mb-3 flex items-center gap-2 text-sm font-bold text-white">
+                    <CreditCard aria-hidden="true" className="size-4 text-[#edce8b]" />
+                    <span>اختر وسيلة التحويل المعتمدة لسداد العربون</span>
+                  </legend>
+                  {availablePaymentMethods.length > 0 ? (
+                    <div className="space-y-3">
+                      {availablePaymentMethods.map((method) => (
+                        <label key={method.id} className={`flex cursor-pointer gap-3 rounded-2xl border p-4 transition-all ${selectedPaymentMethodId === method.id ? 'border-[#cea355] bg-[#cea355]/15 shadow-lg shadow-[#cea355]/10' : 'border-neutral-800 hover:border-neutral-700'}`}>
+                          <input type="radio" name="payment-method" value={method.id} checked={selectedPaymentMethodId === method.id} onChange={() => setSelectedPaymentMethodId(method.id)} className="mt-1 size-4 accent-[#cea355]" />
+                          <div className="flex-1">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="block font-bold text-white text-sm">{method.name}</span>
+                              <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-[#1c1c1c] text-[#edce8b] border border-[#cea355]/30">
+                                {paymentTypeLabels[method.type] ?? method.type}
+                              </span>
+                            </div>
+                            <span className="mt-1 block text-xs text-neutral-300">اسم صاحب الحساب: <strong className="text-white">{method.accountName}</strong></span>
+                            <div className="mt-2.5 flex items-center gap-2 bg-[#090909] p-3 rounded-xl border border-neutral-800">
+                              <span className="text-xs text-neutral-400 font-semibold">رقم التحويل / المحفظة:</span>
+                              <span dir="ltr" className="font-mono text-base font-black text-[#edce8b] flex-1 tracking-wider">{method.accountNumber}</span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  copyToClipboard(method.accountNumber, method.id);
+                                }}
+                                className="inline-flex items-center gap-1 text-xs font-bold bg-[#1a1a1a] hover:bg-[#282828] text-white px-3 py-1.5 rounded-lg border border-neutral-700 transition-colors"
+                              >
+                                {copiedMethodId === method.id ? (
+                                  <>
+                                    <Check className="size-3.5 text-emerald-400" />
+                                    <span className="text-emerald-400">تم النسخ</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Copy className="size-3.5" />
+                                    <span>نسخ الرقم</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                            {method.instructions && (
+                              <div className="mt-2 text-xs text-neutral-400 bg-amber-500/5 border border-amber-500/15 p-2 rounded-lg">
+                                <span className="font-bold text-amber-200">تعليمات: </span>
+                                <span>{method.instructions}</span>
+                              </div>
+                            )}
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-amber-400/30 bg-amber-400/10 p-5 text-xs font-bold text-amber-200">
+                      لا توجد وسيلة تحويل نشطة حاليًا. تواصل مع الدعم الفني لتأكيد التحويل.
+                    </div>
+                  )}
+                </fieldset>
+
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <div>
+                    <label htmlFor="sender-name" className={labelClass}>اسم صاحب الحساب المحول منه</label>
+                    <input id="sender-name" required value={senderName} onChange={(e) => setSenderName(e.target.value)} className={inputClass} placeholder="اسم المحوّل" />
+                  </div>
+                  <div>
+                    <label htmlFor="sender-account" className={labelClass}>رقم الهاتف أو الحساب المحول منه</label>
+                    <input id="sender-account" required dir="ltr" value={senderPhoneOrAccount} onChange={(e) => setSenderPhoneOrAccount(e.target.value)} className={inputClass} placeholder="01XXXXXXXXX" />
+                  </div>
+                  <div>
+                    <label htmlFor="reference-number" className={labelClass}>رقم العملية / المرجع <span className="text-neutral-400 font-normal">(اختياري)</span></label>
+                    <input id="reference-number" dir="ltr" value={referenceNumber} onChange={(e) => setReferenceNumber(e.target.value)} className={inputClass} placeholder="Ref number" />
+                  </div>
+                  <div>
+                    <label htmlFor="amount-submitted" className={labelClass}>المبلغ المحول بالفعل</label>
+                    <input id="amount-submitted" type="number" required min={1} value={amountSubmitted} onChange={(e) => setAmountSubmitted(e.target.value)} className={inputClass} />
+                  </div>
+                </div>
+
+                <div id="payment-proof-file" aria-invalid={invalidField('payment-proof-file')}>
+                  <span className="block text-xs font-bold text-white mb-2">صورة إيصال أو لقطة شاشة التحويل (إلزامية)</span>
+                  <label htmlFor="payment-proof-file-input" className="flex cursor-pointer flex-col items-center rounded-2xl border border-dashed border-neutral-700 bg-[#0a0a0a] px-5 py-8 text-center transition-colors hover:border-[#cea355]">
+                    {proofPreviewUrl ? (
+                      <div className="space-y-3 flex flex-col items-center">
+                        <img src={proofPreviewUrl} alt="معاينة إثبات التحويل" className="max-h-48 rounded-xl object-contain border border-neutral-700 shadow-md" />
+                        <span className="text-xs text-emerald-400 font-bold flex items-center gap-1">
+                          <CheckCircle2 className="size-4" />
+                          <span>تم اختيار الصورة بنجاح من جهازك · اضغط لتغييرها</span>
+                        </span>
+                      </div>
+                    ) : (
+                      <>
+                        <UploadCloud aria-hidden="true" className="mb-3 size-8 text-[#edce8b]" />
+                        <span className="font-bold text-sm text-white">اضغط هنا لرفع صورة إيصال أو لقطة شاشة التحويل من جهازك</span>
+                        <span className="mt-1.5 text-xs text-neutral-400">JPG أو PNG أو WEBP أو PDF (الحد الأقصى 10 ميجابايت)</span>
+                      </>
+                    )}
+                    {proofFile && <span className="mt-3 rounded-lg bg-[#1a1a1a] px-3 py-1.5 text-xs font-bold text-[#edce8b]">{proofFile.name} · {formatBytes(proofFile.size)}</span>}
+                  </label>
+                  <input id="payment-proof-file-input" type="file" accept="image/jpeg,image/png,image/webp,application/pdf,.jpg,.jpeg,.png,.webp,.pdf" onChange={onProofFileChange} className="sr-only" />
+                </div>
+              </div>
+            )}
+
+            <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-neutral-800 p-4 hover:border-neutral-700 transition-all">
+              <input id="policy-accepted" type="checkbox" checked={policyAccepted} onChange={(e) => setPolicyAccepted(e.target.checked)} className="mt-1 size-4 accent-[#cea355]" />
+              <span className="text-xs leading-6 text-white font-medium">
+                أوافق على <Link href="/policies/booking" className="font-bold text-white underline underline-offset-4">سياسة الحجز</Link> وسياسة الخصوصية والإلغاء المعتمدة في منصة بريق.
+              </span>
+            </label>
+
+            <div className="flex items-center justify-between gap-3 pt-4">
+              <button type="button" disabled={bookingSubmitting} onClick={() => goToStep(4)} className="inline-flex items-center gap-2 rounded-xl border border-neutral-700 px-5 py-3 font-semibold text-white hover:border-white disabled:opacity-50">
+                <ArrowRight aria-hidden="true" className="size-4" />
+                <span>السابق</span>
+              </button>
+              <button data-testid="booking-submit" type="button" onClick={createBooking} disabled={bookingSubmitting || (estimatedTransferAmount > 0 && !proofFile && !uploadedProofFileId)} className="inline-flex min-w-56 items-center justify-center gap-2 rounded-xl gold-gradient px-7 py-3.5 font-black text-white hover:brightness-110 disabled:opacity-50 shadow-xl shadow-[#cea355]/20">
+                {bookingSubmitting ? (
+                  <>
+                    <LoaderCircle aria-hidden="true" className="size-4 animate-spin text-white" />
+                    <span>جاري تأكيد الحجز…</span>
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck aria-hidden="true" className="size-4" />
+                    <span>تأكيد الحجز</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         )}
 
-        {step === 7 && createdBooking && (
-          <form onSubmit={submitPaymentProof}>
-            <div className="mb-7 flex items-start gap-4"><div className="rounded-2xl bg-emerald-400/10 p-3 text-emerald-300"><CheckCircle2 aria-hidden="true" /></div><div><h2 className="text-xl font-bold">تم إنشاء طلب الحجز</h2><p className="mt-1 text-sm text-white/50">رقم الحجز: <span dir="ltr" className="font-semibold text-white">{createdBooking.number}</span></p></div></div>
-
-            <div className="mb-7 rounded-2xl border border-[#d4af37]/25 bg-[#d4af37]/[0.06] p-5"><p className="text-sm text-white/55">المبلغ المطلوب وفق تأكيد النظام</p><p className="mt-2 text-3xl font-bold text-[#d4af37]">{formatCurrency(createdBooking.depositAmount)}</p></div>
-
-            <fieldset id="payment-methods" className="mb-7" aria-invalid={invalidField('payment-methods')}>
-              <legend className="mb-3 flex items-center gap-2 text-sm font-semibold text-white/80"><CreditCard aria-hidden="true" className="size-4 text-[#d4af37]" /> وسيلة التحويل *</legend>
-              {availablePaymentMethods.length > 0 ? <div className="space-y-3">{availablePaymentMethods.map((method) => <label key={method.id} className={`flex cursor-pointer gap-3 rounded-2xl border p-4 ${selectedPaymentMethodId === method.id ? 'border-[#d4af37] bg-[#d4af37]/10' : 'border-white/10'}`}><input type="radio" name="payment-method" value={method.id} checked={selectedPaymentMethodId === method.id} onChange={() => setSelectedPaymentMethodId(method.id)} className="mt-1 size-4 accent-[#d4af37]" /><span><span className="block font-semibold">{method.name}</span><span className="mt-1 block text-sm text-white/55">{paymentTypeLabels[method.type] ?? method.type} · {method.accountName}</span><span dir="ltr" className="mt-1 block text-sm font-semibold text-[#d4af37]">{method.accountNumber}</span>{method.instructions && <span className="mt-2 block text-xs leading-6 text-white/45">{method.instructions}</span>}</span></label>)}</div> : <div role="alert" className="rounded-2xl border border-amber-400/25 bg-amber-400/[0.06] p-5 text-sm text-amber-100">لا توجد وسيلة تحويل نشطة لهذا الفرع. <Link href="/contact" className="font-semibold underline underline-offset-4">تواصل معنا</Link> مع ذكر رقم الحجز.</div>}
-            </fieldset>
-
-            <div className="grid gap-5 sm:grid-cols-2">
-              <div><label htmlFor="sender-name" className={labelClass}>اسم صاحب التحويل *</label><input id="sender-name" required minLength={2} maxLength={200} value={senderName} onChange={(event) => setSenderName(event.target.value)} autoComplete="name" className={inputClass} /></div>
-              <div><label htmlFor="sender-account" className={labelClass}>رقم الهاتف أو الحساب *</label><input id="sender-account" required minLength={3} maxLength={100} dir="ltr" value={senderPhoneOrAccount} onChange={(event) => setSenderPhoneOrAccount(event.target.value)} autoComplete="off" className={inputClass} /></div>
-              <div><label htmlFor="reference-number" className={labelClass}>رقم العملية <span className="text-white/40">(اختياري)</span></label><input id="reference-number" maxLength={100} dir="ltr" value={referenceNumber} onChange={(event) => setReferenceNumber(event.target.value)} autoComplete="off" className={inputClass} /></div>
-              <div><label htmlFor="amount-submitted" className={labelClass}>المبلغ الذي تم تحويله *</label><input id="amount-submitted" type="number" required min={1} step={1} inputMode="numeric" value={amountSubmitted} onChange={(event) => setAmountSubmitted(event.target.value)} aria-invalid={invalidField('amount-submitted')} className={inputClass} /></div>
-              <div className="sm:col-span-2"><label htmlFor="transfer-time" className={labelClass}>وقت التحويل *</label><input id="transfer-time" type="datetime-local" required max={dateTimeInputValue(new Date())} value={transferTimestamp} onChange={(event) => setTransferTimestamp(event.target.value)} className={inputClass} /></div>
-            </div>
-
-            <div className="mt-6">
-              <label htmlFor="payment-proof-file" className="flex cursor-pointer flex-col items-center rounded-2xl border border-dashed border-white/20 bg-white/[0.025] px-5 py-8 text-center transition-colors hover:border-[#d4af37]">
-                <UploadCloud aria-hidden="true" className="mb-3 size-8 text-[#d4af37]" />
-                <span className="font-semibold">اختر إثبات التحويل *</span>
-                <span id="proof-file-help" className="mt-2 text-xs text-white/45">JPG أو PNG أو WEBP أو PDF، بحد أقصى 10 ميجابايت.</span>
-                {proofFile && <span className="mt-3 rounded-lg bg-white/[0.06] px-3 py-2 text-sm text-white/75">{proofFile.name} · {formatBytes(proofFile.size)}</span>}
-              </label>
-              <input id="payment-proof-file" type="file" accept="image/jpeg,image/png,image/webp,application/pdf,.jpg,.jpeg,.png,.webp,.pdf" onChange={onProofFileChange} aria-describedby="proof-file-help" aria-invalid={invalidField('payment-proof-file')} className="sr-only" />
-              {uploadedProofFileId && <p role="status" className="mt-3 text-sm text-emerald-300">تم رفع الملف. إذا فشل إرسال البيانات سنعيد استخدامه تلقائيًا.</p>}
-            </div>
-
-            <button type="submit" disabled={proofStage !== 'idle' || availablePaymentMethods.length === 0 || (!proofFile && !uploadedProofFileId)} aria-busy={proofStage !== 'idle'} className="mt-8 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#d4af37] px-6 py-3.5 font-bold text-black hover:bg-[#e2c55d] disabled:cursor-not-allowed disabled:opacity-50">{proofStage === 'uploading-file' ? <><LoaderCircle aria-hidden="true" className="size-4 animate-spin" /> جاري رفع الملف…</> : proofStage === 'submitting-proof' ? <><LoaderCircle aria-hidden="true" className="size-4 animate-spin" /> جاري إرسال بيانات التحويل…</> : <><ShieldCheck aria-hidden="true" className="size-4" /> إرسال الإثبات للمراجعة</>}</button>
-          </form>
-        )}
       </div>
     </section>
   );

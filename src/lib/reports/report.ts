@@ -258,8 +258,14 @@ function comparisonRangeFor(filters: ReportFilters): { gte: Date; lt: Date } {
 function groupBookings(
   bookings: BookingReportRecord[],
   identityFor: (booking: BookingReportRecord) => GroupIdentity,
+  initialIdentities?: GroupIdentity[],
 ): CountValueRow[] {
   const groups = new Map<string, CountValueRow>();
+  if (initialIdentities) {
+    for (const item of initialIdentities) {
+      groups.set(item.id, { ...item, count: 0, bookingValue: 0, collected: 0 });
+    }
+  }
   for (const booking of bookings) {
     const identity = identityFor(booking);
     const current = groups.get(identity.id) ?? {
@@ -273,15 +279,23 @@ function groupBookings(
     current.collected += booking.amountPaid;
     groups.set(identity.id, current);
   }
-  return [...groups.values()].sort((left, right) => right.count - left.count);
+  return [...groups.values()].sort((left, right) => (
+    right.count - left.count || right.bookingValue - left.bookingValue || left.label.localeCompare(right.label, 'ar')
+  ));
 }
 
 function groupRevenue<T>(
   rows: T[],
   amountFor: (row: T) => number,
   identityFor: (row: T) => GroupIdentity,
+  initialIdentities?: GroupIdentity[],
 ): RevenueRow[] {
   const groups = new Map<string, RevenueRow>();
+  if (initialIdentities) {
+    for (const item of initialIdentities) {
+      groups.set(item.id, { ...item, count: 0, amount: 0 });
+    }
+  }
   for (const row of rows) {
     const identity = identityFor(row);
     const current = groups.get(identity.id) ?? { ...identity, count: 0, amount: 0 };
@@ -289,7 +303,9 @@ function groupRevenue<T>(
     current.amount += amountFor(row);
     groups.set(identity.id, current);
   }
-  return [...groups.values()].sort((left, right) => right.amount - left.amount);
+  return [...groups.values()].sort((left, right) => (
+    right.amount - left.amount || right.count - left.count || left.label.localeCompare(right.label, 'ar')
+  ));
 }
 
 function groupCounts<T>(
@@ -385,6 +401,7 @@ export async function buildReports(
     capacityTeams,
     activationAudits,
     customerRatings,
+    branches,
   ] = await Promise.all([
     db.booking.findMany({
       where: bookingWhere,
@@ -541,7 +558,14 @@ export async function buildReports(
         },
       },
     }),
+    db.branch.findMany({
+      where: allowedBranchIds === null ? {} : { id: { in: [...allowedBranchIds] } },
+      select: { id: true, nameAr: true },
+      orderBy: { nameAr: 'asc' },
+    }),
   ]);
+
+  const branchIdentities = branches.map((b) => ({ id: b.id, label: b.nameAr }));
 
   const activatedIds = [...new Set(activationAudits.map((audit) => audit.entityId))];
   const activatedSubscriptions = activatedIds.length > 0
@@ -570,7 +594,7 @@ export async function buildReports(
   const byBranch = groupBookings(bookings, (booking) => ({
     id: booking.branch.id,
     label: booking.branch.nameAr,
-  }));
+  }), branchIdentities);
   const byZone = groupBookings(bookings, (booking) => ({
     id: booking.coverageArea.zone.id,
     label: booking.coverageArea.zone.name,
@@ -826,6 +850,13 @@ export async function buildReports(
       byTeam,
     },
     financial: {
+      totalGrossSales: bookings
+        .filter((b) => effectiveBookingStatus(b) !== BookingStatus.CANCELLED && effectiveBookingStatus(b) !== BookingStatus.REJECTED)
+        .reduce((total, booking) => total + booking.totalPrice, 0) + recordedSubscriptionRevenue,
+      bookingGrossSales: bookings
+        .filter((b) => effectiveBookingStatus(b) !== BookingStatus.CANCELLED && effectiveBookingStatus(b) !== BookingStatus.REJECTED)
+        .reduce((total, booking) => total + booking.totalPrice, 0),
+      subscriptionGrossSales: recordedSubscriptionRevenue,
       verifiedPaymentCount: payments.length,
       verifiedPaymentAmount: paymentTotal,
       partialBookingCount: partialBookings.length,
@@ -853,6 +884,7 @@ export async function buildReports(
           id: payment.booking.branch.id,
           label: payment.booking.branch.nameAr,
         }),
+        branchIdentities,
       ),
       byTeam: groupRevenue(
         payments,

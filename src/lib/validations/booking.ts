@@ -29,22 +29,62 @@ export const createBookingSchema = z.object({
   vehicleSize: z.nativeEnum(VehicleSize).default(VehicleSize.SEDAN),
   startAt: z.coerce.date().refine((date) => Number.isFinite(date.getTime()), 'موعد الحجز غير صالح.'),
   addonIds: addonIdsSchema,
-  vehicleMake: z.string().trim().min(1, 'ماركة السيارة مطلوبة.').max(100),
-  vehicleModel: z.string().trim().min(1, 'موديل السيارة مطلوب.').max(100),
-  vehicleYear: z.coerce.number().int().min(1990).max(new Date().getFullYear() + 1),
-  vehicleColor: z.string().trim().min(1, 'لون السيارة مطلوب.').max(50),
-  plateNumber: z.string().trim().max(20).optional().default(''),
-  street: z.string().trim().min(1, 'اسم الشارع مطلوب.').max(200),
-  buildingNumber: z.string().trim().min(1, 'رقم المبنى أو الفيلا مطلوب.').max(100),
-  unitNumber: z.string().trim().max(50).optional().default(''),
-  landmark: z.string().trim().max(200).optional().default(''),
-  gateInstructions: z.string().trim().max(500).optional().default(''),
-  locationUrl: z.string().trim().refine(
-    isValidLocationUrl,
-    'رابط الموقع يجب أن يبدأ بـ http:// أو https://',
-  ).default(''),
-  customerNotes: z.string().trim().max(1000).optional().default(''),
-  contactName: z.string().trim().min(2).max(200),
+  vehicleMake: z.preprocess(
+    (v) => (v === null || v === undefined ? '' : String(v).trim()),
+    z.string().max(100).default(''),
+  ),
+  vehicleModel: z.preprocess(
+    (v) => (v === null || v === undefined ? '' : String(v).trim()),
+    z.string().max(100).default(''),
+  ),
+  vehicleYear: z.preprocess(
+    (val) => {
+      if (val === '' || val === null || val === undefined) return 2024;
+      const num = Number(val);
+      return Number.isFinite(num) && num >= 1990 ? num : 2024;
+    },
+    z.coerce.number().int().min(1990).max(new Date().getFullYear() + 1).default(2024),
+  ),
+  vehicleColor: z.preprocess(
+    (v) => (v === null || v === undefined ? '' : String(v).trim()),
+    z.string().max(50).default(''),
+  ),
+  plateNumber: z.preprocess(
+    (v) => (v === null || v === undefined ? '' : String(v).trim()),
+    z.string().max(20).default(''),
+  ),
+  street: z.preprocess(
+    (v) => (v === null || v === undefined ? '' : String(v).trim()),
+    z.string().max(200).default(''),
+  ),
+  buildingNumber: z.preprocess(
+    (v) => (v === null || v === undefined ? '' : String(v).trim()),
+    z.string().max(100).default(''),
+  ),
+  unitNumber: z.preprocess(
+    (v) => (v === null || v === undefined ? '' : String(v).trim()),
+    z.string().max(50).default(''),
+  ),
+  landmark: z.preprocess(
+    (v) => (v === null || v === undefined ? '' : String(v).trim()),
+    z.string().max(200).default(''),
+  ),
+  gateInstructions: z.preprocess(
+    (v) => (v === null || v === undefined ? '' : String(v).trim()),
+    z.string().max(500).default(''),
+  ),
+  locationUrl: z.preprocess(
+    (v) => (v === null || v === undefined ? '' : String(v).trim()),
+    z.string().refine(
+      isValidLocationUrl,
+      'رابط الموقع يجب أن يبدأ بـ http:// أو https://',
+    ).default(''),
+  ),
+  customerNotes: z.preprocess(
+    (v) => (v === null || v === undefined ? '' : String(v).trim()),
+    z.string().max(1000).default(''),
+  ),
+  contactName: z.string().trim().min(2, 'الاسم الكامل مطلوب.').max(200),
   contactPhone: phoneSchema,
   contactWhatsapp: phoneSchema,
   policyAccepted: z.literal('true', { errorMap: () => ({ message: 'يجب الموافقة على سياسة الحجز والإلغاء.' }) }),

@@ -55,7 +55,7 @@ export const homepageContentSchema = z.object({
 export type HomepageContent = z.infer<typeof homepageContentSchema>;
 
 export const DEFAULT_HOMEPAGE_CONTENT: HomepageContent = {
-  heroEyebrow: 'العناية المتنقلة الفاخرة الأولى بالشيخ زايد وسوديك',
+  heroEyebrow: 'العناية المتنقلة الفاخرة الأولى لسيارتك أينما كنت',
   heroTitle: 'عناية متنقلة فاخرة بسيارتك في',
   heroAccent: 'المكان والموعد المناسبين لك',
   heroDescription: 'بريق تقدم خدمة عناية احترافية متنقلة باستخدام مواد مخصصة لكل جزء من السيارة، مع حجز منظم وفريق تشغيل محترف وصور قبل وبعد الخدمة.',

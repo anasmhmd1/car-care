@@ -16,7 +16,7 @@ function isAcceptableTemporaryPassword(password: string): boolean {
 }
 
 export async function reviewBranchRequestAction(formData: FormData) {
-  const admin = await requireRole([UserRole.SYSTEM_SUPER_ADMIN]);
+  const admin = await requireRole([UserRole.OWNER, UserRole.SYSTEM_SUPER_ADMIN]);
 
   const requestId = (formData.get('requestId') as string || '').trim();
   const decision = (formData.get('decision') as string || '').trim();
@@ -88,6 +88,7 @@ export async function reviewBranchRequestAction(formData: FormData) {
           slotUnitMinutes: 60,
           arrivalWindowMinutes: 30,
           travelBufferMinutes: 30,
+          restBufferMinutes: 0,
           dailyBookingLimit: 20,
           assignmentMode: 'MANUAL',
         },
@@ -172,7 +173,7 @@ export async function reviewBranchRequestAction(formData: FormData) {
 }
 
 export async function resetOwnerPasswordAction(formData: FormData) {
-  const admin = await requireRole([UserRole.SYSTEM_SUPER_ADMIN]);
+  const admin = await requireRole([UserRole.OWNER, UserRole.SYSTEM_SUPER_ADMIN]);
   const ownerId = (formData.get('ownerId') as string || '').trim();
   const password = (formData.get('password') as string || '').trim();
   const reason = (formData.get('reason') as string || '').trim();
@@ -266,7 +267,7 @@ export async function updateBranchStatusAction(formData: FormData) {
 }
 
 export async function upsertAppSettingAction(formData: FormData) {
-  const admin = await requireRole([UserRole.SYSTEM_SUPER_ADMIN]);
+  const admin = await requireRole([UserRole.OWNER, UserRole.SYSTEM_SUPER_ADMIN]);
   const key = (formData.get('key') as string || '').trim().toUpperCase();
   const rawValue = (formData.get('value') as string || '').trim();
   const description = (formData.get('description') as string || '').trim();
@@ -316,7 +317,7 @@ export async function upsertAppSettingAction(formData: FormData) {
 }
 
 export async function createOwnerAccountAction(formData: FormData) {
-  const admin = await requireRole([UserRole.SYSTEM_SUPER_ADMIN]);
+  const admin = await requireRole([UserRole.OWNER, UserRole.SYSTEM_SUPER_ADMIN]);
 
   const fullName = (formData.get('fullName') as string || '').trim();
   const phone = (formData.get('phone') as string || '').trim();
@@ -410,7 +411,7 @@ export async function updateBrandMaxBranchesAction(formData: FormData) {
 }
 
 export async function toggleUserActiveStatusAction(formData: FormData) {
-  const admin = await requireRole([UserRole.SYSTEM_SUPER_ADMIN]);
+  const admin = await requireRole([UserRole.OWNER, UserRole.SYSTEM_SUPER_ADMIN]);
 
   const userId = (formData.get('userId') as string || '').trim();
   if (!userId) return { error: 'معرف المستخدم غير محدد' };

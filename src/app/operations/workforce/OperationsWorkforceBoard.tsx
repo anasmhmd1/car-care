@@ -240,7 +240,7 @@ function ConfirmationDialog({
         </div>
         <p className="mt-4 text-sm leading-7 text-white/55">{request.description}</p>
         <label className="mt-5 block text-xs font-bold text-white/70">
-          سبب الإجراء *
+          سبب الإجراء
           <textarea value={reason} onChange={(event) => setReason(event.target.value)} minLength={5} maxLength={500} autoFocus className={textareaClass} placeholder="سبب واضح يظهر في سجل التدقيق" />
         </label>
         <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
@@ -349,11 +349,11 @@ function EmployeeForm({
         <input type="hidden" name="branchId" value={branch.id} />
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="text-xs font-bold text-white/65">
-            الاسم الكامل *
+            الاسم الكامل
             <input name="fullName" required minLength={2} maxLength={100} defaultValue={employee?.fullName ?? ''} className={inputClass} />
           </label>
           <label className="text-xs font-bold text-white/65">
-            الدور *
+            الدور
             {canManageManagers ? (
               <select name="role" defaultValue={employee?.role ?? 'EMPLOYEE'} className={inputClass}>
                 <option value="EMPLOYEE">موظف تنفيذ</option>
@@ -367,7 +367,7 @@ function EmployeeForm({
             )}
           </label>
           <label className="text-xs font-bold text-white/65">
-            الهاتف *
+            الهاتف
             <input name="phone" dir="ltr" required minLength={8} maxLength={20} defaultValue={employee?.phone ?? ''} className={inputClass} />
           </label>
           <label className="text-xs font-bold text-white/65">
@@ -379,7 +379,7 @@ function EmployeeForm({
             <input name="email" type="email" dir="ltr" defaultValue={employee?.email ?? ''} className={inputClass} />
           </label>
           <label className="text-xs font-bold text-white/65">
-            {employee ? 'كلمة مرور مؤقتة جديدة' : 'كلمة المرور المؤقتة *'}
+            {employee ? 'كلمة مرور مؤقتة جديدة' : 'كلمة المرور المؤقتة'}
             <input name="temporaryPassword" type="password" required={!employee} minLength={employee ? undefined : 12} maxLength={128} autoComplete="new-password" className={inputClass} />
           </label>
         </div>
@@ -510,15 +510,15 @@ function TeamForm({
         <input type="hidden" name="branchId" value={branch.id} />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <label className="text-xs font-bold text-white/65 xl:col-span-2">
-            اسم الفريق *
+            اسم الفريق
             <input name="name" required minLength={2} maxLength={100} defaultValue={team?.name ?? ''} className={inputClass} />
           </label>
           <label className="text-xs font-bold text-white/65">
-            السعة اليومية *
+            السعة اليومية
             <input name="dailyCapacity" type="number" min={1} max={100} required defaultValue={team?.dailyCapacity ?? 5} className={inputClass} />
           </label>
           <label className="text-xs font-bold text-white/65">
-            أولوية الإسناد *
+            أولوية الإسناد
             <input name="assignmentPriority" type="number" min={1} max={100} required defaultValue={team?.assignmentPriority ?? 1} className={inputClass} />
           </label>
         </div>
@@ -842,13 +842,13 @@ function TimeOffForm({
         ) : null}
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
-        <label className="text-[11px] font-bold text-white/50">تاريخ البداية *<input name="startDate" type="date" required defaultValue={start?.date ?? ''} className={inputClass} /></label>
-        <label className="text-[11px] font-bold text-white/50">وقت البداية *<input name="startTime" type="time" required defaultValue={start?.time ?? ''} className={inputClass} /></label>
-        <label className="text-[11px] font-bold text-white/50">تاريخ النهاية *<input name="endDate" type="date" required defaultValue={end?.date ?? ''} className={inputClass} /></label>
-        <label className="text-[11px] font-bold text-white/50">وقت النهاية *<input name="endTime" type="time" required defaultValue={end?.time ?? ''} className={inputClass} /></label>
+        <label className="text-[11px] font-bold text-white/50">تاريخ البداية<input name="startDate" type="date" required defaultValue={start?.date ?? ''} className={inputClass} /></label>
+        <label className="text-[11px] font-bold text-white/50">وقت البداية<input name="startTime" type="time" required defaultValue={start?.time ?? ''} className={inputClass} /></label>
+        <label className="text-[11px] font-bold text-white/50">تاريخ النهاية<input name="endDate" type="date" required defaultValue={end?.date ?? ''} className={inputClass} /></label>
+        <label className="text-[11px] font-bold text-white/50">وقت النهاية<input name="endTime" type="time" required defaultValue={end?.time ?? ''} className={inputClass} /></label>
       </div>
-      <label className="mt-3 block text-[11px] font-bold text-white/50">سبب عدم التوفر *<input name="reason" required minLength={2} maxLength={500} defaultValue={timeOff?.reason ?? ''} placeholder="إجازة، صيانة معدات…" className={inputClass} /></label>
-      {timeOff ? <label className="mt-3 block text-[11px] font-bold text-white/50">سبب هذا التعديل *<input name="changeReason" required minLength={5} maxLength={500} placeholder="يسجل مع التعديل" className={inputClass} /></label> : null}
+      <label className="mt-3 block text-[11px] font-bold text-white/50">سبب عدم التوفر<input name="reason" required minLength={2} maxLength={500} defaultValue={timeOff?.reason ?? ''} placeholder="إجازة، صيانة معدات…" className={inputClass} /></label>
+      {timeOff ? <label className="mt-3 block text-[11px] font-bold text-white/50">سبب هذا التعديل<input name="changeReason" required minLength={5} maxLength={500} placeholder="يسجل مع التعديل" className={inputClass} /></label> : null}
       <button type="submit" disabled={tools.pending} className={secondaryButtonClass + ' mt-4 w-full'}><Save className="size-4" aria-hidden="true" />{timeOff ? 'حفظ التعديل' : 'إضافة الفترة'}</button>
     </form>
   );

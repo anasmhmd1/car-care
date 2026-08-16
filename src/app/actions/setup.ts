@@ -174,6 +174,7 @@ const branchConfigSchema = z.object({
   slotUnitMinutes: z.coerce.number().int().min(15).max(240),
   arrivalWindowMinutes: z.coerce.number().int().min(0).max(180),
   travelBufferMinutes: z.coerce.number().int().min(0).max(180),
+  restBufferMinutes: z.coerce.number().int().min(0).max(180).default(0),
   dailyBookingLimit: z.coerce.number().int().min(1).max(500),
   assignmentMode: z.nativeEnum(AssignmentMode),
 });
@@ -399,8 +400,12 @@ async function writeAudit(
 function revalidateSetup() {
   revalidatePath('/admin/setup');
   revalidatePath('/admin');
+  revalidatePath('/admin/site');
   revalidatePath('/operations');
   revalidatePath('/areas');
+  revalidatePath('/contact');
+  revalidatePath('/');
+  revalidatePath('/api/public/contact');
 }
 
 const transactionOptions = {
@@ -475,22 +480,44 @@ export async function saveSetupEmployeeAction(formData: FormData): Promise<Setup
             },
           });
 
-      await tx.branchMembership.deleteMany({
-        where: { userId: user.id, branchId: { not: parsed.data.branchId } },
-      });
-      await tx.branchMembership.upsert({
-        where: {
-          branchId_userId: {
-            branchId: parsed.data.branchId,
-            userId: user.id,
+      if (parsed.data.role === UserRole.OPERATIONS_MANAGER) {
+        const rawBranchIds = formData.getAll('branchIds').map((val) => String(val).trim()).filter(Boolean);
+        const targetBranchIds = rawBranchIds.length > 0 ? rawBranchIds : [parsed.data.branchId];
+
+        await tx.branchMembership.deleteMany({
+          where: { userId: user.id, branchId: { notIn: targetBranchIds } },
+        });
+        for (const bId of targetBranchIds) {
+          await tx.branchMembership.upsert({
+            where: {
+              branchId_userId: {
+                branchId: bId,
+                userId: user.id,
+              },
+            },
+            update: {},
+            create: { branchId: bId, userId: user.id },
+          });
+        }
+      } else {
+        await tx.branchMembership.deleteMany({
+          where: { userId: user.id, branchId: { not: parsed.data.branchId } },
+        });
+        await tx.branchMembership.upsert({
+          where: {
+            branchId_userId: {
+              branchId: parsed.data.branchId,
+              userId: user.id,
+            },
           },
-        },
-        update: {},
-        create: { branchId: parsed.data.branchId, userId: user.id },
-      });
-      await tx.teamMember.deleteMany({
-        where: { userId: user.id, team: { branchId: { not: parsed.data.branchId } } },
-      });
+          update: {},
+          create: { branchId: parsed.data.branchId, userId: user.id },
+        });
+        await tx.teamMember.deleteMany({
+          where: { userId: user.id, team: { branchId: { not: parsed.data.branchId } } },
+        });
+      }
+
       if (!parsed.data.active) {
         await tx.teamMember.deleteMany({ where: { userId: user.id } });
       }
@@ -1324,6 +1351,7 @@ export async function saveBranchOperationsConfigAction(formData: FormData): Prom
     slotUnitMinutes: formData.get('slotUnitMinutes'),
     arrivalWindowMinutes: formData.get('arrivalWindowMinutes'),
     travelBufferMinutes: formData.get('travelBufferMinutes'),
+    restBufferMinutes: formData.get('restBufferMinutes') || 0,
     dailyBookingLimit: formData.get('dailyBookingLimit'),
     assignmentMode: formData.get('assignmentMode'),
   });
@@ -1341,6 +1369,7 @@ export async function saveBranchOperationsConfigAction(formData: FormData): Prom
           slotUnitMinutes: parsed.data.slotUnitMinutes,
           arrivalWindowMinutes: parsed.data.arrivalWindowMinutes,
           travelBufferMinutes: parsed.data.travelBufferMinutes,
+          restBufferMinutes: parsed.data.restBufferMinutes,
           dailyBookingLimit: parsed.data.dailyBookingLimit,
           assignmentMode: parsed.data.assignmentMode,
         },
@@ -1355,6 +1384,7 @@ export async function saveBranchOperationsConfigAction(formData: FormData): Prom
           slotUnitMinutes: before.slotUnitMinutes,
           arrivalWindowMinutes: before.arrivalWindowMinutes,
           travelBufferMinutes: before.travelBufferMinutes,
+          restBufferMinutes: before.restBufferMinutes,
           dailyBookingLimit: before.dailyBookingLimit,
           assignmentMode: before.assignmentMode,
         },
@@ -1362,6 +1392,7 @@ export async function saveBranchOperationsConfigAction(formData: FormData): Prom
           slotUnitMinutes: after.slotUnitMinutes,
           arrivalWindowMinutes: after.arrivalWindowMinutes,
           travelBufferMinutes: after.travelBufferMinutes,
+          restBufferMinutes: after.restBufferMinutes,
           dailyBookingLimit: after.dailyBookingLimit,
           assignmentMode: after.assignmentMode,
         },

@@ -4,10 +4,12 @@ import {
   BookingStatus,
   ComplaintStatus,
   FileType,
+  PaymentStatus,
   Prisma,
   UserRole,
 } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
+import { syncInvoiceForBooking } from '@/lib/engine/invoice';
 import { requireRole } from '@/lib/auth/session';
 import { canAccessBranch } from '@/lib/auth/authorization';
 import { canEmployeeAccessTaskAssignment } from '@/lib/auth/task-assignment';
@@ -238,12 +240,41 @@ export async function advancePostServiceAction(formData: FormData) {
       if (actor.role === UserRole.OPERATIONS_MANAGER && !booking.branch.memberships.length) {
         throw new QualityInputError('غير مصرح لك بإدارة هذا الفرع.');
       }
+      if (booking.amountDue > 0) {
+        const paymentAmount = booking.amountDue;
+        const idempotencyKey = `auto-deliver-settle:${booking.id}:${Date.now()}`;
+        await tx.payment.create({
+          data: {
+            bookingId: booking.id,
+            idempotencyKey,
+            amount: paymentAmount,
+            paymentMethod: 'CASH',
+            recordedByUserId: actor.id,
+            notes: 'تحصيل كامل قيمة الخدمة عند اكتمال وتسليم الخدمة',
+          },
+        });
+        const newAmountPaid = booking.totalPrice;
+        await tx.booking.update({
+          where: { id: booking.id },
+          data: {
+            amountPaid: newAmountPaid,
+            amountDue: 0,
+            paymentStatus: PaymentStatus.FULLY_PAID,
+          },
+        });
+        await syncInvoiceForBooking(tx, {
+          ...booking,
+          amountPaid: newAmountPaid,
+          amountDue: 0,
+        }, actor.id);
+      }
+
       await transitionBookingStatus(tx, {
         bookingId,
         toStatus: targetStatus,
         actorUserId: actor.id,
         actorRole: actor.role,
-        reason: reason || (targetStatus === BookingStatus.DELIVERED ? 'تأكيد تسليم الخدمة' : 'إغلاق الحجز بعد التسوية'),
+        reason: reason || (targetStatus === BookingStatus.DELIVERED ? 'تأكيد تسليم الخدمة وتحصيل كامل القيمة' : 'إغلاق الحجز بعد التسوية الكاملة'),
       });
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     revalidateQuality(bookingId);

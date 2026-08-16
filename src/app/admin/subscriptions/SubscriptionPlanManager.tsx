@@ -391,15 +391,15 @@ export default function SubscriptionPlanManager({
 
               <div className="grid gap-5 lg:grid-cols-2">
                 <label className="text-xs font-bold text-white/70">
-                  اسم الخطة بالعربية *
+                  اسم الخطة بالعربية
                   <input name="nameAr" required minLength={2} maxLength={120} defaultValue={editor.plan?.nameAr ?? ''} autoComplete="off" autoFocus className={inputClass} />
                 </label>
                 <label className="text-xs font-bold text-white/70">
-                  السعر بالجنيه *
+                  السعر بالجنيه
                   <input name="price" type="number" required min={1} max={10_000_000} step={1} inputMode="numeric" readOnly={termsLocked} aria-readonly={termsLocked || undefined} defaultValue={editor.plan?.price ?? 1} className={inputClass} />
                 </label>
                 <label className="text-xs font-bold text-white/70 lg:col-span-2">
-                  الوصف الظاهر للعميل *
+                  الوصف الظاهر للعميل
                   <textarea name="descriptionAr" required minLength={3} maxLength={2000} rows={3} defaultValue={editor.plan?.descriptionAr ?? ''} className={`${inputClass} py-3 leading-6`} />
                 </label>
               </div>
@@ -407,10 +407,10 @@ export default function SubscriptionPlanManager({
               <fieldset>
                 <legend className="text-sm font-black text-white">رصيد الخطة وحدودها</legend>
                 <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                  <label className="text-xs font-bold text-white/65">مدة الصلاحية بالأيام *<input name="validityDays" type="number" min={1} max={3650} required readOnly={termsLocked} aria-readonly={termsLocked || undefined} defaultValue={editor.plan?.validityDays ?? 30} className={inputClass} /></label>
-                  <label className="text-xs font-bold text-white/65">عدد الزيارات *<input name="visitCount" type="number" min={1} max={10_000} required readOnly={termsLocked} aria-readonly={termsLocked || undefined} defaultValue={editor.plan?.visitCount ?? 4} className={inputClass} /></label>
-                  <label className="text-xs font-bold text-white/65">السيارات المسموحة *<input name="allowedVehicleCount" type="number" min={1} max={50} required readOnly={termsLocked} aria-readonly={termsLocked || undefined} defaultValue={editor.plan?.allowedVehicleCount ?? 1} className={inputClass} /></label>
-                  <label className="text-xs font-bold text-white/65">أقصى أيام تجميد *<input key={`${editor.plan?.id ?? 'new'}:${freezeAllowed}`} name="maxFreezeDays" type="number" min={freezeAllowed ? 1 : 0} max={3650} required defaultValue={freezeAllowed ? (editor.plan?.maxFreezeDays || 7) : 0} disabled={termsLocked || !freezeAllowed} className={inputClass} /></label>
+                  <label className="text-xs font-bold text-white/65">مدة الصلاحية بالأيام<input name="validityDays" type="number" min={1} max={3650} required readOnly={termsLocked} aria-readonly={termsLocked || undefined} defaultValue={editor.plan?.validityDays ?? 30} className={inputClass} /></label>
+                  <label className="text-xs font-bold text-white/65">عدد الزيارات<input name="visitCount" type="number" min={1} max={10_000} required readOnly={termsLocked} aria-readonly={termsLocked || undefined} defaultValue={editor.plan?.visitCount ?? 4} className={inputClass} /></label>
+                  <label className="text-xs font-bold text-white/65">السيارات المسموحة<input name="allowedVehicleCount" type="number" min={1} max={50} required readOnly={termsLocked} aria-readonly={termsLocked || undefined} defaultValue={editor.plan?.allowedVehicleCount ?? 1} className={inputClass} /></label>
+                  <label className="text-xs font-bold text-white/65">أقصى أيام تجميد<input key={`${editor.plan?.id ?? 'new'}:${freezeAllowed}`} name="maxFreezeDays" type="number" min={freezeAllowed ? 1 : 0} max={3650} required defaultValue={freezeAllowed ? (editor.plan?.maxFreezeDays || 7) : 0} disabled={termsLocked || !freezeAllowed} className={inputClass} /></label>
                 </div>
                 <div className="mt-4 flex flex-wrap gap-3">
                   <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-white/10 bg-white/[0.025] px-4 text-xs font-bold text-white/70">
@@ -426,7 +426,7 @@ export default function SubscriptionPlanManager({
 
               <div className="grid gap-5 lg:grid-cols-2">
                 <fieldset className="rounded-2xl border border-white/10 bg-black/15 p-4">
-                  <legend className="px-2 text-sm font-black text-white">الخدمات المشمولة *</legend>
+                  <legend className="px-2 text-sm font-black text-white">الخدمات المشمولة</legend>
                   <p className="mb-3 text-[11px] leading-5 text-white/35">اختر خدمة واحدة على الأقل. الخدمة المتوقفة لا يمكن نشرها داخل خطة نشطة.</p>
                   <label className="mb-3 flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-[#d4af37]/20 bg-[#d4af37]/[0.05] px-3 text-xs font-bold text-[#efe2a7]">
                     <input type="checkbox" checked={useServiceQuotas} disabled={termsLocked} onChange={(event) => setUseServiceQuotas(event.target.checked)} className="size-4 accent-[#d4af37] disabled:opacity-45" />
@@ -467,7 +467,7 @@ export default function SubscriptionPlanManager({
                 </fieldset>
 
                 <fieldset className="rounded-2xl border border-white/10 bg-black/15 p-4">
-                  <legend className="px-2 text-sm font-black text-white">الفروع المتاحة *</legend>
+                  <legend className="px-2 text-sm font-black text-white">الفروع المتاحة</legend>
                   <p className="mb-3 text-[11px] leading-5 text-white/35">حدد الفروع التي يمكن شراء الخطة واستخدامها فيها.</p>
                   <div className="grid max-h-56 gap-2 overflow-y-auto pe-1 sm:grid-cols-2">
                     {branches.map((branch) => (
@@ -481,27 +481,7 @@ export default function SubscriptionPlanManager({
                 </fieldset>
               </div>
 
-              <div className="grid gap-5 lg:grid-cols-2">
-                <label className="text-xs font-bold text-white/70">
-                  قواعد إضافية بصيغة JSON
-                  <textarea
-                    name="rules"
-                    maxLength={20_000}
-                    rows={7}
-                    dir="ltr"
-                    spellCheck={false}
-                    defaultValue={editor.plan?.rules ?? '{}'}
-                    readOnly={termsLocked}
-                    aria-readonly={termsLocked || undefined}
-                    className={`${inputClass} py-3 font-mono text-xs leading-6`}
-                  />
-                  <span className="mt-2 block font-normal leading-5 text-white/30">مثال: {`{ "advanceBookingHours": 24, "weekendsAllowed": true }`}</span>
-                </label>
-                <label className="text-xs font-bold text-white/70">
-                  سبب الإنشاء أو التعديل *
-                  <textarea name="reason" required minLength={3} maxLength={500} rows={7} placeholder="وثّق لماذا أُنشئت الخطة أو ما الذي تغير فيها." className={`${inputClass} py-3 leading-6`} />
-                </label>
-              </div>
+              <input type="hidden" name="rules" value={editor.plan?.rules ?? '{}'} />
 
               <div className="flex flex-col-reverse gap-3 border-t border-white/10 pt-5 sm:flex-row sm:justify-end">
                 <button type="button" onClick={() => setEditor(null)} disabled={isPending} className={secondaryButtonClass}>إلغاء</button>
@@ -550,7 +530,7 @@ export default function SubscriptionPlanManager({
                 </label>
               ) : null}
               <label className="block text-xs font-bold text-white/70">
-                سبب الإجراء *
+                سبب الإجراء
                 <textarea name="reason" required minLength={3} maxLength={500} rows={4} autoFocus={safetyAction.mode === 'DEACTIVATE'} className={`${inputClass} py-3 leading-6`} />
               </label>
               <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">

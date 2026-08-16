@@ -144,7 +144,7 @@ function countForStatus<Key extends string>(
 
 export default async function OwnerDashboardPage({ searchParams }: OwnerDashboardPageProps) {
   const [owner, query] = await Promise.all([
-    requireRole([UserRole.OWNER, UserRole.SYSTEM_SUPER_ADMIN]),
+    requireRole([UserRole.OWNER, UserRole.SYSTEM_SUPER_ADMIN, UserRole.OPERATIONS_MANAGER]),
     searchParams,
   ]);
   await expireActiveSubscriptions();
@@ -205,54 +205,8 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
     },
   };
 
-  const [
-    brandRaw,
-    branchesRaw,
-    todayStatusGroups,
-    allStatusGroups,
-    paymentStatusGroups,
-    proofStatusGroups,
-    cancellationStatusGroups,
-    refundStatusGroups,
-    subscriptionStatusGroups,
-    complaintStatusGroups,
-    upcomingBookings,
-    unassignedBookingCount,
-    paymentToday,
-    paymentMonth,
-    pendingDue,
-    newCustomersMonth,
-    repeatCustomerGroups,
-    activeVisitTotals,
-    pendingProofsRaw,
-    operationsReviewRaw,
-    unassignedRaw,
-    cancellationsRaw,
-    refundsRaw,
-    qualityRaw,
-    complaintsRaw,
-    bookingsRaw,
-    teamsRaw,
-    servicesRaw,
-    plansRaw,
-    activeSubscriptionsByPlan,
-    subscriptionsRaw,
-    customersRaw,
-    auditLogsRaw,
-    branchRequestsRaw,
-    reportStatusGroups,
-    reportBookingAggregate,
-    reportDueAggregate,
-    reportPaymentAggregate,
-    reportRefundAggregate,
-    reportByServiceRaw,
-    reportByBranchRaw,
-    reportByTeamRaw,
-    reportCancellationReasonsRaw,
-    reportNewSubscriptions,
-    reportVisits,
-    reportComplaintCount,
-  ] = await Promise.all([
+  // Staged Core Fetching (Batches of max 4-6 queries to prevent connection pool starvation)
+  const [brandRaw, branchesRaw, teamsRaw] = await Promise.all([
     db.brandSettings.findFirst({
       select: { brandNameAr: true, brandNameEn: true, maxBranches: true },
     }),
@@ -283,220 +237,6 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
           },
         },
       },
-    }),
-    db.booking.groupBy({
-      by: ['bookingStatus'],
-      where: {
-        deletedAt: null,
-        startAt: { gte: todayBounds.start, lt: todayBounds.end },
-      },
-      _count: { _all: true },
-    }),
-    db.booking.groupBy({
-      by: ['bookingStatus'],
-      where: { deletedAt: null },
-      _count: { _all: true },
-    }),
-    db.booking.groupBy({
-      by: ['paymentStatus'],
-      where: { deletedAt: null },
-      _count: { _all: true },
-    }),
-    db.paymentProof.groupBy({
-      by: ['status'],
-      _count: { _all: true },
-    }),
-    db.cancellationRequest.groupBy({
-      by: ['status'],
-      _count: { _all: true },
-    }),
-    db.refund.groupBy({
-      by: ['status'],
-      _count: { _all: true },
-    }),
-    db.customerSubscription.groupBy({
-      by: ['status'],
-      _count: { _all: true },
-    }),
-    db.complaint.groupBy({
-      by: ['status'],
-      _count: { _all: true },
-    }),
-    db.booking.count({
-      where: {
-        deletedAt: null,
-        startAt: { gte: now },
-        bookingStatus: { notIn: TERMINAL_BOOKING_STATUSES },
-        terminalReopenSourceStatus: null,
-      },
-    }),
-    db.booking.count({
-      where: {
-        deletedAt: null,
-        assignedTeamId: null,
-        bookingStatus: {
-          in: [
-            BookingStatus.ACCEPTED,
-            BookingStatus.AWAITING_ASSIGNMENT,
-            BookingStatus.ADMIN_REVIEW_REQUIRED,
-          ],
-        },
-        terminalReopenSourceStatus: null,
-      },
-    }),
-    db.payment.aggregate({
-      where: { createdAt: { gte: todayBounds.start, lt: todayBounds.end } },
-      _sum: { amount: true },
-    }),
-    db.payment.aggregate({
-      where: { createdAt: { gte: monthBounds.start, lte: now } },
-      _sum: { amount: true },
-    }),
-    db.booking.aggregate({
-      where: {
-        deletedAt: null,
-        amountDue: { gt: 0 },
-        bookingStatus: { notIn: TERMINAL_BOOKING_STATUSES },
-        terminalReopenSourceStatus: null,
-      },
-      _sum: { amountDue: true },
-    }),
-    db.customerProfile.count({
-      where: { createdAt: { gte: monthBounds.start, lte: now } },
-    }),
-    db.booking.groupBy({
-      by: ['customerId'],
-      where: { deletedAt: null },
-      _count: { _all: true },
-    }),
-    db.customerSubscription.aggregate({
-      where: { status: SubscriptionStatus.ACTIVE },
-      _sum: { remainingVisits: true },
-    }),
-    db.paymentProof.findMany({
-      where: { status: ProofStatus.UNDER_REVIEW },
-      take: 30,
-      orderBy: { createdAt: 'asc' },
-      select: {
-        id: true,
-        senderName: true,
-        senderPhoneOrAccount: true,
-        referenceNumber: true,
-        amountSubmitted: true,
-        transferTimestamp: true,
-        createdAt: true,
-        proofFileUrl: true,
-        paymentMethod: { select: { name: true, accountNumber: true } },
-        booking: { select: bookingSummarySelect },
-      },
-    }),
-    db.booking.findMany({
-      where: {
-        deletedAt: null,
-        bookingStatus: BookingStatus.AWAITING_OPERATIONS_REVIEW,
-      },
-      take: 30,
-      orderBy: { createdAt: 'asc' },
-      select: bookingSummarySelect,
-    }),
-    db.booking.findMany({
-      where: {
-        deletedAt: null,
-        assignedTeamId: null,
-        bookingStatus: {
-          in: [
-            BookingStatus.ACCEPTED,
-            BookingStatus.AWAITING_ASSIGNMENT,
-            BookingStatus.ADMIN_REVIEW_REQUIRED,
-          ],
-        },
-        terminalReopenSourceStatus: null,
-      },
-      take: 30,
-      orderBy: { startAt: 'asc' },
-      select: bookingSummarySelect,
-    }),
-    db.cancellationRequest.findMany({
-      where: {
-        status: { in: ['PENDING', 'ESCALATED'] },
-        booking: { terminalReopenSourceStatus: null },
-      },
-      take: 30,
-      orderBy: { createdAt: 'asc' },
-      select: {
-        id: true,
-        reason: true,
-        preferredAction: true,
-        customerNotes: true,
-        status: true,
-        createdAt: true,
-        booking: { select: bookingSummarySelect },
-      },
-    }),
-    db.refund.findMany({
-      where: {
-        status: { in: [RefundStatus.REFUND_PENDING, RefundStatus.REFUND_PROCESSING] },
-        booking: { terminalReopenSourceStatus: null },
-      },
-      take: 30,
-      orderBy: { createdAt: 'asc' },
-      select: {
-        id: true,
-        amount: true,
-        refundMethod: true,
-        referenceNumber: true,
-        status: true,
-        createdAt: true,
-        booking: { select: bookingSummarySelect },
-      },
-    }),
-    db.booking.findMany({
-      where: { deletedAt: null, bookingStatus: BookingStatus.QUALITY_REVIEW },
-      take: 30,
-      orderBy: { startAt: 'asc' },
-      select: {
-        ...bookingSummarySelect,
-        service: {
-          select: {
-            nameAr: true,
-            minimumBeforePhotos: true,
-            minimumAfterPhotos: true,
-          },
-        },
-        files: {
-          where: { fileType: { in: [FileType.BEFORE_SERVICE, FileType.AFTER_SERVICE] } },
-          select: { fileType: true },
-        },
-      },
-    }),
-    db.complaint.findMany({
-      where: {
-        status: {
-          in: [
-            ComplaintStatus.OPEN,
-            ComplaintStatus.UNDER_REVIEW,
-            ComplaintStatus.ACTION_REQUIRED,
-          ],
-        },
-      },
-      take: 30,
-      orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }],
-      select: {
-        id: true,
-        type: true,
-        description: true,
-        priority: true,
-        status: true,
-        createdAt: true,
-        booking: { select: { bookingNumber: true } },
-        customer: { select: { user: { select: { fullName: true } } } },
-      },
-    }),
-    db.booking.findMany({
-      where: filteredBookingWhere,
-      take: 100,
-      orderBy: { createdAt: 'desc' },
-      select: bookingSummarySelect,
     }),
     db.team.findMany({
       orderBy: [{ active: 'desc' }, { name: 'asc' }],
@@ -529,170 +269,544 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
         },
       },
     }),
-    db.service.findMany({
-      orderBy: [{ active: 'desc' }, { createdAt: 'desc' }],
-      select: {
-        id: true,
-        nameAr: true,
-        slug: true,
-        basePrice: true,
-        durationMinutes: true,
-        active: true,
-        bookableOnline: true,
-        subscriptionEligible: true,
-        _count: { select: { variants: true, addonLinks: true, bookings: true } },
+  ]);
+
+  // Core Financial & Operational Status Groups
+  const [
+    todayStatusGroups,
+    allStatusGroups,
+    paymentStatusGroups,
+    paymentToday,
+    paymentMonth,
+    pendingDue,
+  ] = await Promise.all([
+    db.booking.groupBy({
+      by: ['bookingStatus'],
+      where: {
+        deletedAt: null,
+        startAt: { gte: todayBounds.start, lt: todayBounds.end },
       },
-    }),
-    db.subscriptionPlan.findMany({
-      orderBy: [{ active: 'desc' }, { createdAt: 'desc' }],
-      select: {
-        id: true,
-        nameAr: true,
-        descriptionAr: true,
-        price: true,
-        validityDays: true,
-        visitCount: true,
-        allowedVehicleCount: true,
-        active: true,
-        _count: { select: { subscriptions: true } },
-      },
-    }),
-    db.customerSubscription.groupBy({
-      by: ['planId'],
-      where: { status: SubscriptionStatus.ACTIVE },
       _count: { _all: true },
-    }),
-    db.customerSubscription.findMany({
-      take: 50,
-      orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        status: true,
-        startDate: true,
-        endDate: true,
-        totalVisits: true,
-        usedVisits: true,
-        remainingVisits: true,
-        customer: { select: { user: { select: { fullName: true, phone: true } } } },
-        plan: { select: { nameAr: true } },
-        branch: { select: { nameAr: true } },
-        _count: { select: { vehicles: true } },
-      },
-    }),
-    db.customerProfile.findMany({
-      where: customerListWhere,
-      take: 50,
-      orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        createdAt: true,
-        user: {
-          select: {
-            fullName: true,
-            phone: true,
-            whatsapp: true,
-            email: true,
-            active: true,
-            mustChangePwd: true,
-          },
-        },
-        _count: { select: { bookings: true, vehicles: true, subscriptions: true } },
-        bookings: {
-          where: { deletedAt: null },
-          take: 1,
-          orderBy: { startAt: 'desc' },
-          select: { startAt: true },
-        },
-      },
-    }),
-    db.auditLog.findMany({
-      take: 50,
-      orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        action: true,
-        entityType: true,
-        entityId: true,
-        actorRole: true,
-        reason: true,
-        createdAt: true,
-        actor: { select: { fullName: true } },
-      },
-    }),
-    db.branchRequest.findMany({
-      where: { ownerId: owner.id },
-      take: 20,
-      orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        branchName: true,
-        reason: true,
-        status: true,
-        rejectionReason: true,
-        createdAt: true,
-        reviewedAt: true,
-      },
     }),
     db.booking.groupBy({
       by: ['bookingStatus'],
-      where: { deletedAt: null, createdAt: reportRange },
+      where: { deletedAt: null },
       _count: { _all: true },
     }),
-    db.booking.aggregate({
-      where: { deletedAt: null, createdAt: reportRange },
-      _avg: { totalPrice: true },
+    db.booking.groupBy({
+      by: ['paymentStatus'],
+      where: { deletedAt: null },
+      _count: { _all: true },
+    }),
+    db.payment.aggregate({
+      where: { createdAt: { gte: todayBounds.start, lt: todayBounds.end } },
+      _sum: { amount: true },
+    }),
+    db.payment.aggregate({
+      where: { createdAt: { gte: monthBounds.start, lte: now } },
+      _sum: { amount: true },
     }),
     db.booking.aggregate({
       where: {
         deletedAt: null,
-        createdAt: reportRange,
+        amountDue: { gt: 0 },
         bookingStatus: { notIn: TERMINAL_BOOKING_STATUSES },
         terminalReopenSourceStatus: null,
       },
       _sum: { amountDue: true },
     }),
-    db.payment.aggregate({
-      where: { createdAt: reportRange },
-      _sum: { amount: true },
+  ]);
+
+  // Secondary KPI Indicators
+  const [
+    proofStatusGroups,
+    cancellationStatusGroups,
+    refundStatusGroups,
+    subscriptionStatusGroups,
+    complaintStatusGroups,
+    activeVisitTotals,
+  ] = await Promise.all([
+    db.paymentProof.groupBy({
+      by: ['status'],
       _count: { _all: true },
-    }),
-    db.refund.aggregate({
-      where: {
-        createdAt: reportRange,
-        status: { in: [RefundStatus.PARTIALLY_REFUNDED, RefundStatus.REFUNDED] },
-      },
-      _sum: { amount: true },
-    }),
-    db.booking.groupBy({
-      by: ['serviceId'],
-      where: { deletedAt: null, createdAt: reportRange },
-      _count: { _all: true },
-      _sum: { totalPrice: true, amountPaid: true },
-    }),
-    db.booking.groupBy({
-      by: ['branchId'],
-      where: { deletedAt: null, createdAt: reportRange },
-      _count: { _all: true },
-      _sum: { totalPrice: true, amountPaid: true },
-    }),
-    db.booking.groupBy({
-      by: ['assignedTeamId'],
-      where: { deletedAt: null, createdAt: reportRange, assignedTeamId: { not: null } },
-      _count: { _all: true },
-      _sum: { totalPrice: true, amountPaid: true },
     }),
     db.cancellationRequest.groupBy({
-      by: ['reason'],
-      where: { createdAt: reportRange },
+      by: ['status'],
       _count: { _all: true },
     }),
-    db.customerSubscription.count({ where: { createdAt: reportRange } }),
-    db.subscriptionVisitLedger.aggregate({
-      where: { action: 'BOOKING_COMPLETED', createdAt: reportRange },
-      _sum: { visitChange: true },
+    db.refund.groupBy({
+      by: ['status'],
+      _count: { _all: true },
     }),
-    db.complaint.count({ where: { createdAt: reportRange } }),
+    db.customerSubscription.groupBy({
+      by: ['status'],
+      _count: { _all: true },
+    }),
+    db.complaint.groupBy({
+      by: ['status'],
+      _count: { _all: true },
+    }),
+    db.customerSubscription.aggregate({
+      where: { status: SubscriptionStatus.ACTIVE },
+      _sum: { remainingVisits: true },
+    }),
   ]);
+
+  // Customer & Upcoming Counters
+  const [
+    upcomingBookings,
+    unassignedBookingCount,
+    newCustomersMonth,
+    repeatCustomerGroups,
+  ] = await Promise.all([
+    db.booking.count({
+      where: {
+        deletedAt: null,
+        startAt: { gte: now },
+        bookingStatus: { notIn: TERMINAL_BOOKING_STATUSES },
+        terminalReopenSourceStatus: null,
+      },
+    }),
+    db.booking.count({
+      where: {
+        deletedAt: null,
+        assignedTeamId: null,
+        bookingStatus: {
+          in: [
+            BookingStatus.ACCEPTED,
+            BookingStatus.AWAITING_ASSIGNMENT,
+            BookingStatus.ADMIN_REVIEW_REQUIRED,
+          ],
+        },
+        terminalReopenSourceStatus: null,
+      },
+    }),
+    db.customerProfile.count({
+      where: { createdAt: { gte: monthBounds.start, lte: now } },
+    }),
+    db.booking.groupBy({
+      by: ['customerId'],
+      where: { deletedAt: null },
+      _count: { _all: true },
+    }),
+  ]);
+
+  // Section-Aware Data Fetching: Only fetch heavy arrays when the active section requires them!
+  const isOverview = currentSection === 'overview';
+  const isBookings = currentSection === 'bookings';
+  const isPayments = currentSection === 'payments';
+  const isCancellations = currentSection === 'cancellations';
+  const isQuality = currentSection === 'quality';
+  const isServices = currentSection === 'services';
+  const isSubscriptions = currentSection === 'subscriptions';
+  const isCustomers = currentSection === 'customers';
+  const isAudit = currentSection === 'audit';
+  const isBranches = currentSection === 'branches';
+  const isReports = currentSection === 'reports';
+
+  // Overview quick cards & Bookings list
+  const [pendingProofsRaw, operationsReviewRaw, unassignedRaw, bookingsRaw] = await Promise.all([
+    isPayments || isOverview
+      ? db.paymentProof.findMany({
+          where: { status: ProofStatus.UNDER_REVIEW },
+          take: isOverview ? 5 : 30,
+          orderBy: { createdAt: 'asc' },
+          select: {
+            id: true,
+            senderName: true,
+            senderPhoneOrAccount: true,
+            referenceNumber: true,
+            amountSubmitted: true,
+            transferTimestamp: true,
+            createdAt: true,
+            proofFileUrl: true,
+            paymentMethod: { select: { name: true, accountNumber: true } },
+            booking: { select: bookingSummarySelect },
+          },
+        })
+      : Promise.resolve([]),
+    isBookings || isOverview
+      ? db.booking.findMany({
+          where: {
+            deletedAt: null,
+            bookingStatus: BookingStatus.AWAITING_OPERATIONS_REVIEW,
+          },
+          take: isOverview ? 2 : 30,
+          orderBy: { createdAt: 'asc' },
+          select: bookingSummarySelect,
+        })
+      : Promise.resolve([]),
+    isBookings || isOverview
+      ? db.booking.findMany({
+          where: {
+            deletedAt: null,
+            assignedTeamId: null,
+            bookingStatus: {
+              in: [
+                BookingStatus.ACCEPTED,
+                BookingStatus.AWAITING_ASSIGNMENT,
+                BookingStatus.ADMIN_REVIEW_REQUIRED,
+              ],
+            },
+            terminalReopenSourceStatus: null,
+          },
+          take: isOverview ? 2 : 30,
+          orderBy: { startAt: 'asc' },
+          select: bookingSummarySelect,
+        })
+      : Promise.resolve([]),
+    isBookings
+      ? db.booking.findMany({
+          where: filteredBookingWhere,
+          take: 100,
+          orderBy: { createdAt: 'desc' },
+          select: bookingSummarySelect,
+        })
+      : Promise.resolve([]),
+  ]);
+
+  // Cancellations, Quality & Complaints
+  const [cancellationsRaw, refundsRaw, qualityRaw, complaintsRaw] = await Promise.all([
+    isCancellations
+      ? db.cancellationRequest.findMany({
+          where: {
+            status: { in: ['PENDING', 'ESCALATED'] },
+            booking: { terminalReopenSourceStatus: null },
+          },
+          take: 30,
+          orderBy: { createdAt: 'asc' },
+          select: {
+            id: true,
+            reason: true,
+            preferredAction: true,
+            customerNotes: true,
+            status: true,
+            createdAt: true,
+            booking: { select: bookingSummarySelect },
+          },
+        })
+      : Promise.resolve([]),
+    isCancellations
+      ? db.refund.findMany({
+          where: {
+            status: { in: [RefundStatus.REFUND_PENDING, RefundStatus.REFUND_PROCESSING] },
+            booking: { terminalReopenSourceStatus: null },
+          },
+          take: 30,
+          orderBy: { createdAt: 'asc' },
+          select: {
+            id: true,
+            amount: true,
+            refundMethod: true,
+            referenceNumber: true,
+            status: true,
+            createdAt: true,
+            booking: { select: bookingSummarySelect },
+          },
+        })
+      : Promise.resolve([]),
+    isQuality
+      ? db.booking.findMany({
+          where: { deletedAt: null, bookingStatus: BookingStatus.QUALITY_REVIEW },
+          take: 30,
+          orderBy: { startAt: 'asc' },
+          select: {
+            ...bookingSummarySelect,
+            service: {
+              select: {
+                nameAr: true,
+                minimumBeforePhotos: true,
+                minimumAfterPhotos: true,
+              },
+            },
+            files: {
+              where: { fileType: { in: [FileType.BEFORE_SERVICE, FileType.AFTER_SERVICE] } },
+              select: { fileType: true },
+            },
+          },
+        })
+      : Promise.resolve([]),
+    isQuality
+      ? db.complaint.findMany({
+          where: {
+            status: {
+              in: [
+                ComplaintStatus.OPEN,
+                ComplaintStatus.UNDER_REVIEW,
+                ComplaintStatus.ACTION_REQUIRED,
+              ],
+            },
+          },
+          take: 30,
+          orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }],
+          select: {
+            id: true,
+            type: true,
+            description: true,
+            priority: true,
+            status: true,
+            createdAt: true,
+            booking: { select: { bookingNumber: true } },
+            customer: { select: { user: { select: { fullName: true } } } },
+          },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  // Catalog, Subscriptions, Customers, Audit, and Branches
+  const [
+    servicesRaw,
+    plansRaw,
+    activeSubscriptionsByPlan,
+    subscriptionsRaw,
+    customersRaw,
+    auditLogsRaw,
+    branchRequestsRaw,
+  ] = await Promise.all([
+    isServices || isReports
+      ? db.service.findMany({
+          orderBy: [{ active: 'desc' }, { createdAt: 'desc' }],
+          select: {
+            id: true,
+            nameAr: true,
+            slug: true,
+            basePrice: true,
+            durationMinutes: true,
+            active: true,
+            bookableOnline: true,
+            subscriptionEligible: true,
+            _count: { select: { variants: true, addonLinks: true, bookings: true } },
+          },
+        })
+      : Promise.resolve([]),
+    isSubscriptions
+      ? db.subscriptionPlan.findMany({
+          orderBy: [{ active: 'desc' }, { createdAt: 'desc' }],
+          select: {
+            id: true,
+            nameAr: true,
+            descriptionAr: true,
+            price: true,
+            validityDays: true,
+            visitCount: true,
+            allowedVehicleCount: true,
+            active: true,
+            _count: { select: { subscriptions: true } },
+          },
+        })
+      : Promise.resolve([]),
+    isSubscriptions
+      ? db.customerSubscription.groupBy({
+          by: ['planId'],
+          where: { status: SubscriptionStatus.ACTIVE },
+          _count: { _all: true },
+        })
+      : Promise.resolve([]),
+    isSubscriptions
+      ? db.customerSubscription.findMany({
+          take: 50,
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            status: true,
+            startDate: true,
+            endDate: true,
+            totalVisits: true,
+            usedVisits: true,
+            remainingVisits: true,
+            customer: { select: { user: { select: { fullName: true, phone: true } } } },
+            plan: { select: { nameAr: true } },
+            branch: { select: { nameAr: true } },
+            _count: { select: { vehicles: true } },
+          },
+        })
+      : Promise.resolve([]),
+    isCustomers
+      ? db.customerProfile.findMany({
+          where: customerListWhere,
+          take: 50,
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            notes: true,
+            creditBalance: true,
+            createdAt: true,
+            user: {
+              select: {
+                fullName: true,
+                phone: true,
+                whatsapp: true,
+                email: true,
+                active: true,
+                mustChangePwd: true,
+              },
+            },
+            _count: { select: { bookings: true, vehicles: true, subscriptions: true } },
+            vehicles: {
+              orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
+              select: {
+                id: true,
+                make: true,
+                model: true,
+                year: true,
+                color: true,
+                plateNumber: true,
+                vehicleSize: true,
+                isDefault: true,
+              },
+            },
+            addresses: {
+              orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
+              select: {
+                id: true,
+                compound: true,
+                district: true,
+                street: true,
+                buildingNumber: true,
+                isDefault: true,
+              },
+            },
+            bookings: {
+              where: { deletedAt: null },
+              take: 5,
+              orderBy: { startAt: 'desc' },
+              select: {
+                id: true,
+                bookingNumber: true,
+                startAt: true,
+                bookingStatus: true,
+                totalPrice: true,
+                amountPaid: true,
+                service: { select: { nameAr: true } },
+              },
+            },
+          },
+        })
+      : Promise.resolve([]),
+    isAudit
+      ? db.auditLog.findMany({
+          take: 50,
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            action: true,
+            entityType: true,
+            entityId: true,
+            actorRole: true,
+            reason: true,
+            createdAt: true,
+            actor: { select: { fullName: true } },
+          },
+        })
+      : Promise.resolve([]),
+    isBranches
+      ? db.branchRequest.findMany({
+          where: { ownerId: owner.id },
+          take: 20,
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            branchName: true,
+            reason: true,
+            status: true,
+            rejectionReason: true,
+            createdAt: true,
+            reviewedAt: true,
+          },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  // Reporting Analytics (Only executed if user is viewing Reports!)
+  const [
+    reportStatusGroups,
+    reportBookingAggregate,
+    reportDueAggregate,
+    reportPaymentAggregate,
+    reportRefundAggregate,
+    reportByServiceRaw,
+    reportByBranchRaw,
+    reportByTeamRaw,
+    reportCancellationReasonsRaw,
+    reportNewSubscriptions,
+    reportVisits,
+    reportComplaintCount,
+  ] = isReports
+    ? await Promise.all([
+        db.booking.groupBy({
+          by: ['bookingStatus'],
+          where: { deletedAt: null, createdAt: reportRange },
+          _count: { _all: true },
+        }),
+        db.booking.aggregate({
+          where: { deletedAt: null, createdAt: reportRange },
+          _avg: { totalPrice: true },
+        }),
+        db.booking.aggregate({
+          where: {
+            deletedAt: null,
+            createdAt: reportRange,
+            bookingStatus: { notIn: TERMINAL_BOOKING_STATUSES },
+            terminalReopenSourceStatus: null,
+          },
+          _sum: { amountDue: true },
+        }),
+        db.payment.aggregate({
+          where: { createdAt: reportRange },
+          _sum: { amount: true },
+          _count: { _all: true },
+        }),
+        db.refund.aggregate({
+          where: {
+            createdAt: reportRange,
+            status: { in: [RefundStatus.PARTIALLY_REFUNDED, RefundStatus.REFUNDED] },
+          },
+          _sum: { amount: true },
+        }),
+        db.booking.groupBy({
+          by: ['serviceId'],
+          where: { deletedAt: null, createdAt: reportRange },
+          _count: { _all: true },
+          _sum: { totalPrice: true, amountPaid: true },
+        }),
+        db.booking.groupBy({
+          by: ['branchId'],
+          where: { deletedAt: null, createdAt: reportRange },
+          _count: { _all: true },
+          _sum: { totalPrice: true, amountPaid: true },
+        }),
+        db.booking.groupBy({
+          by: ['assignedTeamId'],
+          where: { deletedAt: null, createdAt: reportRange, assignedTeamId: { not: null } },
+          _count: { _all: true },
+          _sum: { totalPrice: true, amountPaid: true },
+        }),
+        db.cancellationRequest.groupBy({
+          by: ['reason'],
+          where: { createdAt: reportRange },
+          _count: { _all: true },
+        }),
+        db.customerSubscription.count({ where: { createdAt: reportRange } }),
+        db.subscriptionVisitLedger.aggregate({
+          where: { action: 'BOOKING_COMPLETED', createdAt: reportRange },
+          _sum: { visitChange: true },
+        }),
+        db.complaint.count({ where: { createdAt: reportRange } }),
+      ])
+    : [
+        [],
+        { _avg: { totalPrice: null } },
+        { _sum: { amountDue: null } },
+        { _sum: { amount: null }, _count: { _all: 0 } },
+        { _sum: { amount: null } },
+        [],
+        [],
+        [],
+        [],
+        0,
+        { _sum: { visitChange: null } },
+        0,
+      ];
 
   const branches = branchesRaw.map((branch) => ({
     id: branch.id,
@@ -919,11 +1033,41 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
         email: customer.user.email,
         active: customer.user.active,
         mustChangePwd: customer.user.mustChangePwd,
+        notes: customer.notes,
+        creditBalance: customer.creditBalance,
+        totalSpent: customer.bookings.reduce((sum, b) => sum + b.amountPaid, 0),
         createdAt: customer.createdAt.toISOString(),
         bookingCount: customer._count.bookings,
         vehicleCount: customer._count.vehicles,
         subscriptionCount: customer._count.subscriptions,
         lastBookingAt: customer.bookings[0]?.startAt.toISOString() ?? null,
+        vehicles: customer.vehicles.map((v) => ({
+          id: v.id,
+          make: v.make,
+          model: v.model,
+          year: v.year,
+          color: v.color,
+          plateNumber: v.plateNumber,
+          vehicleSize: v.vehicleSize,
+          isDefault: v.isDefault,
+        })),
+        addresses: customer.addresses.map((a) => ({
+          id: a.id,
+          compound: a.compound,
+          district: a.district,
+          street: a.street,
+          buildingNumber: a.buildingNumber,
+          isDefault: a.isDefault,
+        })),
+        recentBookings: customer.bookings.map((b) => ({
+          id: b.id,
+          bookingNumber: b.bookingNumber,
+          startAt: b.startAt.toISOString(),
+          status: b.bookingStatus,
+          totalPrice: b.totalPrice,
+          amountPaid: b.amountPaid,
+          serviceName: b.service.nameAr,
+        })),
       }))}
       auditLogs={auditLogsRaw.map((log) => ({
         id: log.id,
@@ -956,10 +1100,10 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
         collectedAmount,
         refundedAmount,
         netCollected: collectedAmount - refundedAmount,
-        amountDue: reportDueAggregate._sum.amountDue ?? 0,
-        averageBookingValue: Math.round(reportBookingAggregate._avg.totalPrice ?? 0),
+        amountDue: reportDueAggregate._sum?.amountDue ?? 0,
+        averageBookingValue: Math.round(reportBookingAggregate._avg?.totalPrice ?? 0),
         newSubscriptions: reportNewSubscriptions,
-        visitsConsumed: Math.abs(Math.min(0, reportVisits._sum.visitChange ?? 0)),
+        visitsConsumed: Math.abs(Math.min(0, reportVisits._sum?.visitChange ?? 0)),
         complaintCount: reportComplaintCount,
         byStatus: reportStatusGroups
           .map((group) => ({ status: group.bookingStatus, count: group._count._all }))

@@ -111,7 +111,7 @@ const planFields = {
   serviceQuotas: z.array(serviceQuotaSchema).max(100).default([]),
   branchIds: idListSchema,
   active: checkboxSchema,
-  reason: reasonSchema,
+  reason: z.string().trim().max(500, 'سبب العملية طويل جدًا.').optional().default('إدارة خطط الاشتراكات'),
 };
 
 function validateFreezePolicy(
@@ -254,12 +254,12 @@ export function subscriptionPlanFormValues(formData: FormData) {
     allowedVehicleCount: formData.get('allowedVehicleCount'),
     freezeAllowed: formData.get('freezeAllowed'),
     maxFreezeDays: formData.get('maxFreezeDays'),
-    rules: formData.get('rules'),
+    rules: formData.get('rules') || '{}',
     serviceIds,
     serviceQuotas,
     branchIds: formData.getAll('branchIds'),
     active: formData.get('active'),
-    reason: formData.get('reason'),
+    reason: (formData.get('reason') as string)?.trim() || (formData.get('planId') ? 'تحديث خطة الاشتراك' : 'إنشاء خطة اشتراك جديدة'),
   };
 }
 

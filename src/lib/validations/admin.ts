@@ -85,6 +85,7 @@ export const branchSettingsSchema = z.object({
   slotUnitMinutes: z.coerce.number().min(15).max(240).default(60),
   arrivalWindowMinutes: z.coerce.number().min(0).max(120).default(30),
   travelBufferMinutes: z.coerce.number().min(0).max(120).default(30),
+  restBufferMinutes: z.coerce.number().min(0).max(180).default(0),
   dailyBookingLimit: z.coerce.number().min(1).max(100).default(20),
   assignmentMode: z.enum(['MANUAL', 'AUTOMATIC']).default('MANUAL'),
 });
@@ -221,6 +222,7 @@ export const ownerCustomerAccountSchema = z.object({
   whatsapp: optionalPhoneSchema,
   email: z.string().email().optional().or(z.literal('')).default(''),
   active: z.enum(['true', 'false']).transform((value) => value === 'true'),
+  notes: z.string().max(1000).optional().default(''),
   temporaryPassword: z
     .string()
     .max(128)

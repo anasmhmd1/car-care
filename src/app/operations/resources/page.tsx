@@ -51,7 +51,7 @@ export default async function OperationsResourcesPage() {
   if (permittedBranchIds.length === 0) redirect('/operations');
 
   const canManageCatalog = actor.role === UserRole.OWNER || actor.role === UserRole.SYSTEM_SUPER_ADMIN;
-  const [branchesRaw, materialsRaw, servicesRaw, stocksRaw, vehiclesRaw, bookingsRaw] = await Promise.all([
+  const [branchesRaw, materialsRaw, servicesRaw, stocksRaw, vehiclesRaw, bookingsRaw, employeeStocksRaw, employeesRaw] = await Promise.all([
     db.branch.findMany({
       where: { id: { in: permittedBranchIds } },
       orderBy: { nameAr: 'asc' },
@@ -183,6 +183,64 @@ export default async function OperationsResourcesPage() {
         operationalVehicle: { select: { code: true, make: true, model: true } },
       },
     }),
+    db.employeeMaterialStock.findMany({
+      where: {
+        employee: {
+          teamMemberships: {
+            some: { team: { branchId: { in: permittedBranchIds } } },
+          },
+        },
+      },
+      orderBy: [{ employee: { fullName: 'asc' } }, { material: { nameAr: 'asc' } }],
+      select: {
+        id: true,
+        employeeId: true,
+        materialId: true,
+        quantityOnHand: true,
+        minAlertLevel: true,
+        active: true,
+        updatedAt: true,
+        employee: { select: { id: true, fullName: true, phone: true } },
+        material: { select: { nameAr: true, sku: true, unit: true } },
+        movements: {
+          take: 10,
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            type: true,
+            quantityChange: true,
+            balanceAfter: true,
+            reason: true,
+            createdAt: true,
+            booking: { select: { bookingNumber: true } },
+            createdBy: { select: { fullName: true } },
+          },
+        },
+      },
+    }),
+    db.user.findMany({
+      where: {
+        role: { in: [UserRole.EMPLOYEE, UserRole.OPERATIONS_MANAGER] },
+        active: true,
+        deletedAt: null,
+        OR: [
+          { teamMemberships: { some: { team: { branchId: { in: permittedBranchIds } } } } },
+          { branchMemberships: { some: { branchId: { in: permittedBranchIds } } } },
+        ],
+      },
+      orderBy: { fullName: 'asc' },
+      select: {
+        id: true,
+        fullName: true,
+        phone: true,
+        role: true,
+        teamMemberships: {
+          select: {
+            team: { select: { id: true, name: true, branch: { select: { id: true, nameAr: true } } } },
+          },
+        },
+      },
+    }),
   ]);
 
   const branches: ResourceBranchDto[] = branchesRaw.map((branch) => ({
@@ -229,6 +287,38 @@ export default async function OperationsResourcesPage() {
       createdByName: movement.createdBy.fullName,
     })),
   }));
+  const employeeStocks = employeeStocksRaw.map((stock) => ({
+    id: stock.id,
+    employeeId: stock.employeeId,
+    materialId: stock.materialId,
+    quantityOnHand: stock.quantityOnHand,
+    minAlertLevel: stock.minAlertLevel,
+    active: stock.active,
+    updatedAt: stock.updatedAt.toISOString(),
+    employeeName: stock.employee.fullName,
+    employeePhone: stock.employee.phone,
+    materialName: stock.material.nameAr,
+    materialSku: stock.material.sku,
+    materialUnit: stock.material.unit,
+    movements: stock.movements.map((movement) => ({
+      id: movement.id,
+      type: movement.type,
+      quantityChange: movement.quantityChange,
+      balanceAfter: movement.balanceAfter,
+      reason: movement.reason,
+      createdAt: movement.createdAt.toISOString(),
+      bookingNumber: movement.booking?.bookingNumber ?? null,
+      createdByName: movement.createdBy.fullName,
+    })),
+  }));
+  const employees = employeesRaw.map((employee) => ({
+    id: employee.id,
+    fullName: employee.fullName,
+    phone: employee.phone,
+    role: employee.role,
+    teamName: employee.teamMemberships[0]?.team.name,
+    branchName: employee.teamMemberships[0]?.team.branch.nameAr,
+  }));
   const vehicles: ResourceVehicleDto[] = vehiclesRaw.map((vehicle) => ({
     id: vehicle.id,
     branchId: vehicle.branchId,
@@ -271,6 +361,8 @@ export default async function OperationsResourcesPage() {
       materials={materials}
       services={services}
       stocks={stocks}
+      employeeStocks={employeeStocks}
+      employees={employees}
       vehicles={vehicles}
       bookings={bookings}
     />

@@ -740,7 +740,7 @@ export default async function OperationsDashboardPage({ searchParams }: Operatio
   const complaintBranchIds = [...new Set(
     readableComplaints.map((complaint) => complaint.booking.branchId),
   )];
-  const assignableBranchIds = [...new Set(assignableBookings.map((booking) => booking.branchId))];
+  const accessibleBranchIdList = accessibleBranches.map((branch) => branch.id);
   const [complaintAssignees, assignableTeams] = await Promise.all([
     complaintBranchIds.length
       ? db.user.findMany({
@@ -757,9 +757,9 @@ export default async function OperationsDashboardPage({ searchParams }: Operatio
         orderBy: { fullName: 'asc' },
       })
       : Promise.resolve([]),
-    assignableBranchIds.length
+    accessibleBranchIdList.length
       ? db.team.findMany({
-        where: { active: true, branchId: { in: assignableBranchIds } },
+        where: { active: true, branchId: { in: accessibleBranchIdList } },
         select: {
           id: true,
           branchId: true,
@@ -922,10 +922,11 @@ export default async function OperationsDashboardPage({ searchParams }: Operatio
 
         <nav aria-label="أدوات مدير التشغيل" className="flex gap-2 overflow-x-auto rounded-2xl border border-neutral-800 bg-[#111] p-2">
           {[
+            ['/admin/revenue', 'الإيرادات والأرباح'],
+            ['/admin?section=customers', 'إدارة العملاء (CRM)'],
             ['/admin/calendar', 'التقويم'],
             ['/admin/subscriptions', 'الاشتراكات'],
             ['/admin/reports', 'تقرير الفرع'],
-            ['/operations/support', 'دعم العملاء'],
             ['/operations/audit', 'سجل التدقيق'],
             ['/operations/password-resets', 'استعادة كلمات المرور'],
           ].map(([href, label]) => (
@@ -937,6 +938,7 @@ export default async function OperationsDashboardPage({ searchParams }: Operatio
 
         <OperationsDashboardClient
           manager={clientManager}
+          branches={accessibleBranches.map((b) => ({ id: b.id, nameAr: b.nameAr, status: b.status }))}
           pendingProofs={sanitizeClientData(clientPendingProofs)}
           reviewBookings={sanitizeClientData(clientReviewBookings)}
           unassignedBookings={sanitizeClientData(clientUnassignedBookings)}

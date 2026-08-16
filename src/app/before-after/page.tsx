@@ -42,7 +42,7 @@ export default async function BeforeAfterPage() {
           </div>
           <h1 className="text-3xl sm:text-5xl font-black gold-gradient-text">معرض الصور قبل وبعد الخدمة</h1>
           <p className="text-neutral-400 text-sm max-w-2xl mx-auto leading-relaxed">
-            استعرض نتائج خدمة العناية المتنقلة الفاخرة لعملائنا في الشيخ زايد (يتم النشر بموافقة العميل).
+            استعرض نتائج خدمة العناية المتنقلة الفاخرة لعملائنا (يتم النشر بموافقة العميل).
           </p>
         </div>
 

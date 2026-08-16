@@ -290,12 +290,12 @@ export default function SubscriptionManagementPanel({
                         </select>
                       ) : null}
                       <select name="adjustment" aria-label="نوع تعديل الزيارات" className="min-w-0 flex-1 rounded-xl border border-white/10 bg-[#080808] px-3 text-xs text-white">
-                        <option value="ADD">إضافة زيارة</option>
-                        <option value="DEDUCT">خصم زيارة</option>
-                        <option value="RESTORE">إعادة زيارة مستهلكة</option>
+                        <option value="ADD">إضافة زيارة هدية / تعويضية (+)</option>
+                        <option value="DEDUCT">تنفيذ / خصم زيارة من الباقة (-)</option>
+                        <option value="RESTORE">إلغاء إتمام زيارة واستعادة الرصيد (↩)</option>
                       </select>
                       <input type="number" name="amount" min="1" max="10000" defaultValue="1" aria-label="عدد الزيارات" className="w-20 rounded-xl border border-white/10 bg-[#080808] px-3 text-xs text-white" />
-                      <button type="button" disabled={isPending} onClick={(event) => runCommand(event, 'ADJUST', adjustSubscriptionVisitsAction)} className="min-h-11 rounded-xl border border-white/15 bg-white/5 px-3 text-xs font-bold text-white disabled:opacity-50">حفظ الرصيد</button>
+                      <button type="button" disabled={isPending} onClick={(event) => runCommand(event, 'ADJUST', adjustSubscriptionVisitsAction)} className="min-h-11 rounded-xl border border-[#cea355]/40 bg-[#cea355]/15 px-4 text-xs font-bold text-[#edce8b] hover:bg-[#cea355]/25 disabled:opacity-50">تطبيق التعديل</button>
                     </div>
                   ) : null}
 

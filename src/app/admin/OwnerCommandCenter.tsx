@@ -15,24 +15,36 @@ import {
   Building2,
   CalendarDays,
   CheckCircle2,
+  ChevronDown,
   ClipboardCheck,
+  Clock,
+  Crown,
+  DollarSign,
+  ExternalLink,
   FileSearch,
   Gauge,
+  Globe,
   History,
   LayoutDashboard,
   LoaderCircle,
   LogOut,
+  Menu,
   MessageCircle,
   PackageCheck,
   Search,
   Settings2,
   ShieldAlert,
+  ShieldCheck,
   Sparkles,
+  TrendingUp,
+  User,
   Users,
   UserRound,
   WalletCards,
+  Wrench,
   X,
 } from 'lucide-react';
+import BareeqLogo from '@/components/BareeqLogo';
 import {
   assignTeamManuallyAction,
   reviewBookingAction,
@@ -247,6 +259,36 @@ export interface SubscriptionDto {
   vehicleCount: number;
 }
 
+export interface CustomerVehicleDto {
+  id: string;
+  make: string;
+  model: string;
+  year: number;
+  color: string;
+  plateNumber: string | null;
+  vehicleSize: string;
+  isDefault: boolean;
+}
+
+export interface CustomerAddressDto {
+  id: string;
+  compound: string;
+  district: string;
+  street: string;
+  buildingNumber: string;
+  isDefault: boolean;
+}
+
+export interface CustomerBookingSummaryDto {
+  id: string;
+  bookingNumber: string;
+  startAt: string;
+  status: string;
+  totalPrice: number;
+  amountPaid: number;
+  serviceName: string;
+}
+
 export interface CustomerDto {
   id: string;
   fullName: string;
@@ -255,11 +297,17 @@ export interface CustomerDto {
   email: string | null;
   active: boolean;
   mustChangePwd: boolean;
+  notes: string | null;
+  creditBalance: number;
+  totalSpent: number;
   createdAt: string;
   bookingCount: number;
   vehicleCount: number;
   subscriptionCount: number;
   lastBookingAt: string | null;
+  vehicles: CustomerVehicleDto[];
+  addresses: CustomerAddressDto[];
+  recentBookings: CustomerBookingSummaryDto[];
 }
 
 export interface AuditLogDto {
@@ -385,6 +433,16 @@ const sectionNav: Array<{
   { id: 'audit', label: 'سجل التعديلات', icon: History },
 ];
 
+const adminToolsNav = [
+  { href: '/admin/reports', label: 'التقارير والإيرادات', icon: BarChart3 },
+  { href: '/admin/calendar', label: 'تقويم التشغيل', icon: CalendarDays },
+  { href: '/admin/setup', label: 'إعداد التشغيل والمواعيد', icon: Settings2 },
+  { href: '/admin/site', label: 'محتوى الموقع والمعرض', icon: FileSearch },
+  { href: '/admin/reviews', label: 'تقييمات العملاء', icon: ClipboardCheck },
+  { href: '/operations/resources', label: 'الموارد التشغيلية', icon: Boxes },
+  { href: '/operations/password-resets', label: 'استعادة كلمات المرور', icon: ShieldAlert },
+];
+
 const bookingStatusLabels: Record<string, string> = {
   DRAFT: 'مسودة',
   REQUEST_SUBMITTED: 'طلب جديد',
@@ -470,11 +528,11 @@ const dateFormatter = new Intl.DateTimeFormat('ar-EG', {
 });
 
 const inputClass =
-  'w-full rounded-xl border border-white/15 bg-[#111] px-4 py-3 text-white placeholder:text-white/35 hover:border-white/25 focus-visible:border-[#d4af37] focus-visible:ring-2 focus-visible:ring-[#d4af37]/25 disabled:cursor-not-allowed disabled:opacity-60';
+  'w-full rounded-xl border border-neutral-800 bg-[#121215] px-4 py-2.5 text-sm text-white placeholder:text-neutral-500 hover:border-neutral-700 focus-visible:border-[#d4af37] focus-visible:ring-2 focus-visible:ring-[#d4af37]/30 disabled:cursor-not-allowed disabled:opacity-60 transition-all';
 const primaryButtonClass =
-  'inline-flex items-center justify-center gap-2 rounded-xl bg-[#d4af37] px-4 py-2.5 font-bold text-black hover:bg-[#e2c55d] focus-visible:ring-2 focus-visible:ring-[#f0d879] disabled:cursor-not-allowed disabled:opacity-55';
+  'inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#d4af37] via-[#e5c45a] to-[#d4af37] px-4 py-2.5 text-xs sm:text-sm font-bold text-neutral-950 hover:brightness-110 active:scale-98 shadow-md shadow-[#d4af37]/20 focus-visible:ring-2 focus-visible:ring-[#f0d879] disabled:cursor-not-allowed disabled:opacity-55 transition-all';
 const secondaryButtonClass =
-  'inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 px-4 py-2.5 font-semibold text-white hover:border-white/35 hover:bg-white/[0.05] focus-visible:ring-2 focus-visible:ring-white/30 disabled:cursor-not-allowed disabled:opacity-55';
+  'inline-flex items-center justify-center gap-2 rounded-xl border border-neutral-800 bg-neutral-900/80 px-4 py-2.5 text-xs sm:text-sm font-semibold text-neutral-200 hover:border-neutral-700 hover:bg-neutral-800 hover:text-white active:scale-98 focus-visible:ring-2 focus-visible:ring-neutral-600 disabled:cursor-not-allowed disabled:opacity-55 transition-all';
 
 function formatCurrency(value: number) {
   return currencyFormatter.format(value);
@@ -507,8 +565,8 @@ function isInternalFilePath(value: string) {
 function StatusBadge({ status, label }: { status: string; label?: string }) {
   return (
     <span
-      className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${
-        badgeTone[status] ?? 'border-white/15 bg-white/[0.05] text-white/70'
+      className={`inline-flex rounded-full border px-2.5 py-0.5 text-[11px] font-bold tracking-wide ${
+        badgeTone[status] ?? 'border-neutral-800 bg-neutral-900/80 text-neutral-300'
       }`}
     >
       {label ?? status}
@@ -518,10 +576,10 @@ function StatusBadge({ status, label }: { status: string; label?: string }) {
 
 function EmptyState({ title, description }: { title: string; description: string }) {
   return (
-    <div className="rounded-2xl border border-dashed border-white/15 px-5 py-10 text-center">
-      <FileSearch aria-hidden="true" className="mx-auto size-8 text-white/35" />
+    <div className="rounded-2xl border border-dashed border-neutral-800/80 bg-neutral-950/40 px-5 py-10 text-center">
+      <FileSearch aria-hidden="true" className="mx-auto size-8 text-neutral-500" />
       <h3 className="mt-4 text-base font-bold text-white">{title}</h3>
-      <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-white/50">{description}</p>
+      <p className="mx-auto mt-2 max-w-xl text-xs sm:text-sm leading-6 text-neutral-400">{description}</p>
     </div>
   );
 }
@@ -538,13 +596,16 @@ function SectionHeader({
   action?: ReactNode;
 }) {
   return (
-    <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between border-b border-neutral-800/80 pb-5">
       <div className="min-w-0">
-        <p className="text-sm font-semibold text-[#d4af37]">{eyebrow}</p>
+        <div className="flex items-center gap-2">
+          <span className="size-2 rounded-full bg-[#d4af37] shadow-sm shadow-[#d4af37]" />
+          <p className="text-xs font-bold uppercase tracking-widest text-[#d4af37]">{eyebrow}</p>
+        </div>
         <h2 className="mt-1 text-balance text-2xl font-black tracking-tight text-white sm:text-3xl">
           {title}
         </h2>
-        <p className="mt-2 max-w-3xl text-pretty text-sm leading-6 text-white/55">{description}</p>
+        <p className="mt-1.5 max-w-3xl text-pretty text-xs sm:text-sm leading-6 text-neutral-400">{description}</p>
       </div>
       {action}
     </div>
@@ -565,19 +626,29 @@ function MetricCard({
   tone?: 'gold' | 'green' | 'red' | 'blue';
 }) {
   const toneClass = {
-    gold: 'bg-[#d4af37]/10 text-[#d4af37]',
-    green: 'bg-emerald-400/10 text-emerald-300',
-    red: 'bg-red-400/10 text-red-200',
-    blue: 'bg-sky-400/10 text-sky-200',
+    gold: 'bg-amber-500/10 text-[#d4af37] border-amber-500/25 shadow-amber-500/10',
+    green: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25 shadow-emerald-500/10',
+    red: 'bg-rose-500/10 text-rose-300 border-rose-500/25 shadow-rose-500/10',
+    blue: 'bg-sky-500/10 text-sky-300 border-sky-500/25 shadow-sky-500/10',
   }[tone];
+
   return (
-    <article className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
-      <div className={`mb-4 flex size-10 items-center justify-center rounded-xl ${toneClass}`}>
-        {icon}
+    <article className="group relative overflow-hidden rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 transition-all duration-300 hover:border-[#d4af37]/50 hover:shadow-xl hover:shadow-[#d4af37]/5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-semibold uppercase tracking-wider text-neutral-400 truncate">{label}</p>
+          <p className="mt-2 text-2xl lg:text-3xl font-black tracking-tight tabular-nums text-white group-hover:text-[#f3e4a8] transition-colors">{value}</p>
+        </div>
+        <div className={`flex size-11 shrink-0 items-center justify-center rounded-2xl border shadow-md transition-transform duration-300 group-hover:scale-105 ${toneClass}`}>
+          {icon}
+        </div>
       </div>
-      <p className="text-sm text-white/50">{label}</p>
-      <p className="mt-1 text-2xl font-black tabular-nums text-white">{value}</p>
-      {hint ? <p className="mt-2 text-xs leading-5 text-white/40">{hint}</p> : null}
+      {hint ? (
+        <p className="mt-3 text-xs leading-5 text-neutral-400 border-t border-neutral-800/60 pt-2.5 flex items-center gap-1.5 truncate">
+          <span className="size-1.5 rounded-full bg-neutral-600 shrink-0" />
+          <span className="truncate">{hint}</span>
+        </p>
+      ) : null}
     </article>
   );
 }
@@ -593,15 +664,22 @@ function QueueLink({
   count: number;
   urgent?: boolean;
 }) {
+  const isUrgent = urgent && count > 0;
   return (
     <Link
       href={href}
-      className="flex min-h-14 items-center justify-between gap-4 rounded-xl border border-white/10 bg-white/[0.025] px-4 py-3 hover:border-[#d4af37]/50 hover:bg-[#d4af37]/[0.05] focus-visible:ring-2 focus-visible:ring-[#d4af37]/40"
+      className={`group flex min-h-14 items-center justify-between gap-4 rounded-xl border px-4 py-3 transition-all duration-200 ${
+        isUrgent
+          ? 'border-rose-500/30 bg-rose-500/[0.04] hover:bg-rose-500/[0.08] hover:border-rose-500/60'
+          : 'border-neutral-800/80 bg-neutral-900/50 hover:border-[#d4af37]/40 hover:bg-neutral-800/60'
+      }`}
     >
-      <span className="font-medium text-white/80">{label}</span>
+      <span className="font-semibold text-sm text-neutral-200 group-hover:text-white transition-colors">{label}</span>
       <span
-        className={`rounded-full px-2.5 py-1 text-sm font-bold tabular-nums ${
-          urgent && count > 0 ? 'bg-red-400/15 text-red-100' : 'bg-white/[0.07] text-white'
+        className={`rounded-full px-3 py-1 text-xs font-black tabular-nums transition-all ${
+          isUrgent
+            ? 'bg-rose-500/20 text-rose-200 border border-rose-500/40 shadow-sm shadow-rose-500/20'
+            : 'bg-neutral-800 text-neutral-300 border border-neutral-700'
         }`}
       >
         {formatNumber(count)}
@@ -620,32 +698,38 @@ function BookingCard({
   onAssign?: (booking: BookingSummaryDto) => void;
 }) {
   return (
-    <article className="rounded-2xl border border-white/10 bg-white/[0.025] p-5">
+    <article className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 transition-all duration-200 hover:border-neutral-700 shadow-md">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <p dir="ltr" translate="no" className="font-bold text-white">
-            {booking.bookingNumber}
-          </p>
-          <p className="mt-1 truncate text-sm text-white/50">
-            {booking.customerName} · {booking.serviceName}
+          <div className="flex items-center gap-2.5">
+            <span className="size-2 rounded-full bg-[#d4af37]" />
+            <p dir="ltr" translate="no" className="font-mono font-bold text-white text-base tracking-wide">
+              {booking.bookingNumber}
+            </p>
+          </div>
+          <p className="mt-1.5 truncate text-xs sm:text-sm text-neutral-400">
+            <span className="font-semibold text-neutral-200">{booking.customerName}</span> · {booking.serviceName}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-1.5">
           <StatusBadge status={booking.bookingStatus} label={bookingStatusLabel(booking.bookingStatus)} />
           <StatusBadge status={booking.paymentStatus} label={paymentStatusLabel(booking.paymentStatus)} />
         </div>
       </div>
-      <dl className="mt-5 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
-        <div><dt className="text-white/40">الموعد</dt><dd className="mt-1 text-white/80">{formatDateTime(booking.startAt)}</dd></div>
-        <div><dt className="text-white/40">الفرع والمنطقة</dt><dd className="mt-1 text-white/80">{booking.branchName} · {booking.areaName}</dd></div>
-        <div><dt className="text-white/40">السيارة</dt><dd className="mt-1 truncate text-white/80">{booking.vehicleLabel}</dd></div>
-        <div><dt className="text-white/40">المستحق</dt><dd className="mt-1 font-semibold tabular-nums text-white">{formatCurrency(booking.amountDue)}</dd></div>
+      <dl className="mt-4 grid gap-3 text-xs sm:text-sm sm:grid-cols-2 lg:grid-cols-4 rounded-xl bg-neutral-950/40 border border-neutral-800/60 p-3.5">
+        <div><dt className="text-neutral-500 text-[11px] font-medium">الموعد المحدد</dt><dd className="mt-1 font-semibold text-neutral-200">{formatDateTime(booking.startAt)}</dd></div>
+        <div><dt className="text-neutral-500 text-[11px] font-medium">الفرع والمنطقة</dt><dd className="mt-1 font-medium text-neutral-300">{booking.branchName} · {booking.areaName}</dd></div>
+        <div><dt className="text-neutral-500 text-[11px] font-medium">السيارة</dt><dd className="mt-1 font-medium text-neutral-300 truncate">{booking.vehicleLabel}</dd></div>
+        <div><dt className="text-neutral-500 text-[11px] font-medium">المبلغ المستحق</dt><dd className="mt-1 font-black tabular-nums text-[#f3e4a8]">{formatCurrency(booking.amountDue)}</dd></div>
       </dl>
-      <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-white/10 pt-4">
-        <a href={`tel:${booking.customerPhone}`} className="text-sm font-semibold text-[#d4af37] hover:underline">
-          اتصال بالعميل
+      <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-neutral-800/60 pt-3.5">
+        <a href={`tel:${booking.customerPhone}`} className="text-xs sm:text-sm font-bold text-[#d4af37] hover:text-[#f3e4a8] transition-colors flex items-center gap-1.5">
+          <span>اتصال بالعميل</span>
+          <span dir="ltr" className="text-neutral-400 font-mono text-xs">({booking.customerPhone})</span>
         </a>
-        <span className="text-xs text-white/35">الفريق: {booking.assignedTeamName ?? 'لم يُسند'}</span>
+        <span className="text-xs text-neutral-500 bg-neutral-900 px-2.5 py-1 rounded-lg border border-neutral-800">
+          الفريق: <span className="text-neutral-300 font-medium">{booking.assignedTeamName ?? 'لم يُسند بعد'}</span>
+        </span>
         <span className="flex-1" />
         {onReview ? (
           <button type="button" onClick={() => onReview(booking)} className={secondaryButtonClass}>
@@ -664,8 +748,8 @@ function BookingCard({
 
 function CapabilityNotice({ children }: { children: ReactNode }) {
   return (
-    <div className="mb-6 flex items-start gap-3 rounded-2xl border border-amber-300/25 bg-amber-300/[0.06] p-4 text-sm leading-6 text-amber-50">
-      <AlertTriangle aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-amber-300" />
+    <div className="mb-6 flex items-start gap-3 rounded-2xl border border-amber-500/25 bg-amber-500/[0.05] p-4 text-xs sm:text-sm leading-6 text-amber-100">
+      <AlertTriangle aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-[#d4af37]" />
       <p>{children}</p>
     </div>
   );
@@ -687,13 +771,13 @@ function OverviewSection({
   onAssign: (booking: BookingSummaryDto) => void;
 }) {
   return (
-    <div>
+    <div className="space-y-8">
       <SectionHeader
         eyebrow="نظرة تشغيلية مباشرة"
         title="مركز قيادة بريق"
-        description="المؤشرات التالية محسوبة من الحجوزات والمدفوعات والاشتراكات المسجلة فعليًا، وليست أرقامًا تجريبية."
+        description="المؤشرات والبيانات التشغيلية محسوبة آلياً من سجلات الحجوزات والمدفوعات والاشتراكات الفعلية المسجلة."
       />
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard label="إيراد اليوم المحصل" value={formatCurrency(metrics.revenueToday)} hint={`هذا الشهر: ${formatCurrency(metrics.revenueMonth)}`} icon={<Banknote aria-hidden="true" className="size-5" />} tone="green" />
         <MetricCard label="المبالغ المستحقة" value={formatCurrency(metrics.pendingAmounts)} hint="أرصدة حجوزات غير منتهية" icon={<WalletCards aria-hidden="true" className="size-5" />} tone="red" />
         <MetricCard label="حجوزات اليوم" value={formatNumber(metrics.todayBookings)} hint={`قيد التنفيذ: ${formatNumber(metrics.inProgress)}`} icon={<CalendarDays aria-hidden="true" className="size-5" />} />
@@ -704,37 +788,53 @@ function OverviewSection({
         <MetricCard label="مشكلات الجودة المفتوحة" value={formatNumber(metrics.qualityOpen)} hint="حجوزات جودة وشكاوى مفتوحة" icon={<ShieldAlert aria-hidden="true" className="size-5" />} tone="red" />
       </div>
 
-      <div className="mt-8 grid gap-6 xl:grid-cols-2">
-        <section aria-labelledby="priority-queues-title" className="rounded-2xl border border-white/10 bg-white/[0.025] p-5">
-          <h3 id="priority-queues-title" className="text-lg font-bold">قوائم الأولوية</h3>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <QueueLink href="/admin?section=payments" label="إثباتات الدفع" count={metrics.pendingProofs} urgent />
-            <QueueLink href="/admin?section=bookings" label="مراجعة التشغيل" count={metrics.operationsReview} urgent />
-            <QueueLink href="/admin?section=bookings" label="حجوزات غير مسندة" count={metrics.unassignedBookings} urgent />
+      <div className="grid gap-6 xl:grid-cols-2">
+        <section aria-labelledby="priority-queues-title" className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-lg">
+          <div className="flex items-center justify-between border-b border-neutral-800/60 pb-3.5 mb-4">
+            <h3 id="priority-queues-title" className="text-base font-bold text-white flex items-center gap-2">
+              <Activity className="size-4 text-[#d4af37]" />
+              قوائم التدخل السريع والأولوية
+            </h3>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <QueueLink href="/admin?section=payments" label="إثباتات الدفع المعلقة" count={metrics.pendingProofs} urgent />
+            <QueueLink href="/admin?section=bookings" label="بانتظار مراجعة التشغيل" count={metrics.operationsReview} urgent />
+            <QueueLink href="/admin?section=bookings" label="حجوزات بانتظار الإسناد" count={metrics.unassignedBookings} urgent />
             <QueueLink href="/admin?section=cancellations" label="طلبات الإلغاء" count={metrics.pendingCancellations} urgent />
             <QueueLink href="/admin?section=cancellations" label="استردادات معلقة" count={metrics.pendingRefunds} />
-            <QueueLink href="/admin?section=quality" label="مراجعات الجودة" count={metrics.qualityOpen} />
+            <QueueLink href="/admin?section=quality" label="مراجعات الجودة والشكاوى" count={metrics.qualityOpen} />
           </div>
         </section>
 
-        <section aria-labelledby="branch-capacity-title" className="rounded-2xl border border-white/10 bg-white/[0.025] p-5">
-          <h3 id="branch-capacity-title" className="text-lg font-bold">سعة الفروع اليوم</h3>
+        <section aria-labelledby="branch-capacity-title" className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-lg">
+          <div className="flex items-center justify-between border-b border-neutral-800/60 pb-3.5 mb-4">
+            <h3 id="branch-capacity-title" className="text-base font-bold text-white flex items-center gap-2">
+              <Building2 className="size-4 text-[#d4af37]" />
+              سعة الفروع التشغيلية اليوم
+            </h3>
+          </div>
           {branches.length === 0 ? (
             <div className="mt-4"><EmptyState title="لا توجد فروع" description="أنشئ الفرع من مدير النظام بعد اعتماد طلب الإضافة." /></div>
           ) : (
-            <div className="mt-4 space-y-4">
+            <div className="space-y-4">
               {branches.map((branch) => {
                 const capacity = branch.dailyBookingLimit > 0
                   ? Math.min(100, Math.round((branch.todayBookings / branch.dailyBookingLimit) * 100))
                   : 0;
                 return (
-                  <div key={branch.id}>
-                    <div className="mb-2 flex items-center justify-between gap-4 text-sm">
-                      <span className="truncate font-medium">{branch.nameAr}</span>
-                      <span className="tabular-nums text-white/55">{formatNumber(branch.todayBookings)} / {formatNumber(branch.dailyBookingLimit)}</span>
+                  <div key={branch.id} className="rounded-xl bg-neutral-950/40 border border-neutral-800/60 p-3.5">
+                    <div className="mb-2 flex items-center justify-between gap-4 text-xs sm:text-sm">
+                      <span className="font-bold text-neutral-200">{branch.nameAr}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] text-neutral-400 font-medium">الحمل:</span>
+                        <span className="tabular-nums font-bold text-white bg-neutral-900 px-2 py-0.5 rounded border border-neutral-800">
+                          {formatNumber(branch.todayBookings)} / {formatNumber(branch.dailyBookingLimit)}
+                        </span>
+                        <span className="text-xs font-black text-[#d4af37]">{capacity}٪</span>
+                      </div>
                     </div>
-                    <div className="h-2 overflow-hidden rounded-full bg-white/10" aria-label={`استخدام سعة ${branch.nameAr}: ${capacity}٪`}>
-                      <div className="h-full rounded-full bg-[#d4af37]" style={{ width: `${capacity}%` }} />
+                    <div className="h-2 overflow-hidden rounded-full bg-neutral-800" aria-label={`استخدام سعة ${branch.nameAr}: ${capacity}٪`}>
+                      <div className="h-full rounded-full bg-gradient-to-r from-[#d4af37] to-[#f0d879] transition-all duration-500" style={{ width: `${capacity}%` }} />
                     </div>
                   </div>
                 );
@@ -745,14 +845,19 @@ function OverviewSection({
       </div>
 
       <section aria-labelledby="oldest-bookings-title" className="mt-8">
-        <div className="mb-4 flex items-center justify-between gap-4">
-          <h3 id="oldest-bookings-title" className="text-lg font-bold">أقدم حجوزات تحتاج تدخلًا</h3>
-          <Link href="/admin?section=bookings" className="text-sm font-semibold text-[#d4af37] hover:underline">كل الحجوزات</Link>
+        <div className="mb-4 flex items-center justify-between gap-4 border-b border-neutral-800/60 pb-3.5">
+          <h3 id="oldest-bookings-title" className="text-base font-bold text-white flex items-center gap-2">
+            <Clock className="size-4 text-[#d4af37]" />
+            أقدم حجوزات تحتاج تدخلاً إدارياً
+          </h3>
+          <Link href="/admin?section=bookings" className="text-xs sm:text-sm font-bold text-[#d4af37] hover:text-[#f3e4a8] hover:underline">
+            عرض كل الحجوزات ←
+          </Link>
         </div>
         {operationsReviewBookings.length === 0 && unassignedBookings.length === 0 ? (
           <EmptyState title="لا توجد حجوزات متوقفة" description="لا توجد حجوزات تنتظر مراجعة التشغيل أو إسناد فريق." />
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {operationsReviewBookings.slice(0, 2).map((booking) => (
               <BookingCard key={booking.id} booking={booking} onReview={onReview} />
             ))}
@@ -778,19 +883,19 @@ function BookingsSection({
   onAssign: (booking: BookingSummaryDto) => void;
 }) {
   return (
-    <div>
+    <div className="space-y-6">
       <SectionHeader eyebrow="الحجوزات" title="متابعة دورة الحجز" description="آخر 100 حجز مطابق للفلاتر، مع الإجراءات المسموح بها فقط في الحالة الحالية." />
-      <form action="/admin" method="get" className="mb-6 grid gap-3 rounded-2xl border border-white/10 bg-white/[0.025] p-4 sm:grid-cols-[1fr_220px_auto_auto]">
+      <form action="/admin" method="get" className="grid gap-3 rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-4 sm:grid-cols-[1fr_220px_auto_auto] shadow-md">
         <input type="hidden" name="section" value="bookings" />
-        <div><label htmlFor="booking-query" className="mb-2 block text-sm font-medium text-white/70">بحث</label><div className="relative"><Search aria-hidden="true" className="pointer-events-none absolute right-3 top-3.5 size-4 text-white/35" /><input id="booking-query" name="q" defaultValue={filters.bookingQuery} autoComplete="off" placeholder="رقم الحجز أو العميل…" className={`${inputClass} pr-10`} /></div></div>
-        <div><label htmlFor="booking-status-filter" className="mb-2 block text-sm font-medium text-white/70">الحالة</label><select id="booking-status-filter" name="status" defaultValue={filters.bookingStatus} className={inputClass}><option value="" className="bg-[#111]">كل الحالات</option>{Object.entries(bookingStatusLabels).map(([value, label]) => <option key={value} value={value} className="bg-[#111]">{label}</option>)}</select></div>
+        <div><label htmlFor="booking-query" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">بحث الحجز أو العميل</label><div className="relative"><Search aria-hidden="true" className="pointer-events-none absolute right-3 top-3 size-4 text-neutral-500" /><input id="booking-query" name="q" defaultValue={filters.bookingQuery} autoComplete="off" placeholder="رقم الحجز أو اسم/هاتف العميل…" className={`${inputClass} pr-10`} /></div></div>
+        <div><label htmlFor="booking-status-filter" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">حالة الحجز</label><select id="booking-status-filter" name="status" defaultValue={filters.bookingStatus} className={inputClass}><option value="" className="bg-[#111]">كل الحالات</option>{Object.entries(bookingStatusLabels).map(([value, label]) => <option key={value} value={value} className="bg-[#111]">{label}</option>)}</select></div>
         <button type="submit" className={`${primaryButtonClass} self-end`}>تطبيق الفلاتر</button>
-        <Link href="/admin?section=bookings" className={`${secondaryButtonClass} self-end`}>مسح</Link>
+        <Link href="/admin?section=bookings" className={`${secondaryButtonClass} self-end`}>إعادة ضبط</Link>
       </form>
       {bookings.length === 0 ? (
         <EmptyState title="لا توجد حجوزات مطابقة" description="غيّر حالة الحجز أو عبارة البحث ثم أعد المحاولة." />
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {bookings.map((booking) => {
             const canReview = booking.bookingStatus === 'AWAITING_OPERATIONS_REVIEW';
             const canAssign =
@@ -812,31 +917,37 @@ function PaymentsSection({
   onReview: (proof: PaymentProofDto) => void;
 }) {
   return (
-    <div>
-      <SectionHeader eyebrow="المدفوعات اليدوية" title="إثباتات قيد المراجعة" description="مرتبة من الأقدم للأحدث. الاعتماد يسجل Payment وسجل مراجعة وAudit داخل معاملة واحدة." />
+    <div className="space-y-6">
+      <SectionHeader eyebrow="المدفوعات اليدوية" title="إثباتات قيد المراجعة" description="مرتبة من الأقدم للأحدث. الاعتماد يسجل Payment وسجل مراجعة وAudit داخل معاملة واحدة آمنة." />
       {proofs.length === 0 ? (
         <EmptyState title="لا توجد إثباتات معلقة" description="كل إثباتات الدفع المرفوعة تمت مراجعتها أو لا توجد إثباتات جديدة." />
       ) : (
         <div className="space-y-4">
           {proofs.map((proof) => (
-            <article key={proof.id} className="rounded-2xl border border-white/10 bg-white/[0.025] p-5">
+            <article key={proof.id} className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-lg hover:border-neutral-700 transition">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2"><p dir="ltr" translate="no" className="font-bold">{proof.booking.bookingNumber}</p><StatusBadge status="UNDER_REVIEW" label="قيد المراجعة" /></div>
-                  <p className="mt-2 text-sm text-white/55">{proof.booking.customerName} · {proof.paymentMethodName}</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="size-2 rounded-full bg-amber-400" />
+                    <p dir="ltr" translate="no" className="font-mono font-bold text-white text-base">{proof.booking.bookingNumber}</p>
+                    <StatusBadge status="UNDER_REVIEW" label="قيد المراجعة" />
+                  </div>
+                  <p className="mt-1.5 text-xs sm:text-sm text-neutral-400">
+                    <span className="font-semibold text-neutral-200">{proof.booking.customerName}</span> · {proof.paymentMethodName}
+                  </p>
                 </div>
-                <button type="button" onClick={() => onReview(proof)} className={primaryButtonClass}>اتخاذ قرار</button>
+                <button type="button" onClick={() => onReview(proof)} className={primaryButtonClass}>اتخاذ قرار المراجعة</button>
               </div>
-              <dl className="mt-5 grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
-                <div><dt className="text-white/40">المبلغ المرسل</dt><dd className="mt-1 font-bold tabular-nums text-white">{formatCurrency(proof.amountSubmitted)}</dd></div>
-                <div><dt className="text-white/40">المطلوب</dt><dd className="mt-1 tabular-nums text-white/80">{formatCurrency(proof.expectedAmount)}</dd></div>
-                <div><dt className="text-white/40">صاحب التحويل</dt><dd className="mt-1 break-words text-white/80">{proof.senderName} · <span dir="ltr">{proof.senderPhoneOrAccount}</span></dd></div>
-                <div><dt className="text-white/40">وقت التحويل</dt><dd className="mt-1 text-white/80">{formatDateTime(proof.transferTimestamp)}</dd></div>
+              <dl className="mt-4 grid gap-3 text-xs sm:text-sm sm:grid-cols-2 lg:grid-cols-4 rounded-xl bg-neutral-950/40 border border-neutral-800/60 p-3.5">
+                <div><dt className="text-neutral-500 text-[11px] font-medium">المبلغ المرسل</dt><dd className="mt-1 font-black tabular-nums text-emerald-300 text-base">{formatCurrency(proof.amountSubmitted)}</dd></div>
+                <div><dt className="text-neutral-500 text-[11px] font-medium">المطلوب سداده</dt><dd className="mt-1 font-semibold tabular-nums text-neutral-300">{formatCurrency(proof.expectedAmount)}</dd></div>
+                <div><dt className="text-neutral-500 text-[11px] font-medium">صاحب التحويل</dt><dd className="mt-1 font-medium text-neutral-200 break-words">{proof.senderName} · <span dir="ltr">{proof.senderPhoneOrAccount}</span></dd></div>
+                <div><dt className="text-neutral-500 text-[11px] font-medium">وقت وتاريخ التحويل</dt><dd className="mt-1 text-neutral-400">{formatDateTime(proof.transferTimestamp)}</dd></div>
               </dl>
-              <div className="mt-4 flex flex-wrap items-center gap-4 border-t border-white/10 pt-4 text-sm">
-                <span className="text-white/45">حساب التحويل: <span dir="ltr" className="text-white/75">{proof.paymentAccount}</span></span>
-                {proof.referenceNumber ? <span className="text-white/45">المرجع: <span dir="ltr" className="text-white/75">{proof.referenceNumber}</span></span> : null}
-                {isInternalFilePath(proof.proofFileUrl) ? <a href={proof.proofFileUrl} target="_blank" rel="noreferrer" className="font-semibold text-[#d4af37] hover:underline">فتح ملف الإثبات</a> : <span className="text-amber-200">مسار الملف غير محلي؛ لم يُعرض لأسباب أمان.</span>}
+              <div className="mt-4 flex flex-wrap items-center gap-4 border-t border-neutral-800/60 pt-3.5 text-xs sm:text-sm">
+                <span className="text-neutral-400">حساب التحويل: <span dir="ltr" className="text-neutral-200 font-mono">{proof.paymentAccount}</span></span>
+                {proof.referenceNumber ? <span className="text-neutral-400">المرجع: <span dir="ltr" className="text-neutral-200 font-mono">{proof.referenceNumber}</span></span> : null}
+                {isInternalFilePath(proof.proofFileUrl) ? <a href={proof.proofFileUrl} target="_blank" rel="noreferrer" className="font-bold text-[#d4af37] hover:text-[#f3e4a8] underline underline-offset-4">فتح صورة الإثبات ↗</a> : <span className="text-amber-300 text-xs">مسار الملف غير محلي؛ لم يُعرض لأسباب أمان.</span>}
               </div>
             </article>
           ))}
@@ -858,17 +969,17 @@ function CancellationsSection({
   onApproveRefund: (refund: RefundDto) => void;
 }) {
   return (
-    <div>
+    <div className="space-y-6">
       <SectionHeader eyebrow="الإلغاء والاسترداد" title="الطلبات المالية الحساسة" description="بيانات فعلية للطلبات المفتوحة والاستردادات المعلقة على مستوى البراند." />
       <CapabilityNotice>طلبات الإلغاء المفتوحة قابلة للمراجعة عبر العقد المحمي الحالي. اعتماد الاسترداد يظهر فقط لسجل REFUND_PROCESSING تم تسجيل إثباته مسبقًا؛ لا تنشئ اللوحة عملية استرداد أو إثباتًا ماليًا من تلقاء نفسها.</CapabilityNotice>
       <div className="grid gap-6 xl:grid-cols-2">
-        <section aria-labelledby="cancellation-requests-title" className="rounded-2xl border border-white/10 bg-white/[0.025] p-5">
-          <div className="mb-4 flex items-center justify-between gap-4"><h3 id="cancellation-requests-title" className="text-lg font-bold">طلبات الإلغاء</h3><span className="rounded-full bg-white/[0.07] px-3 py-1 text-sm tabular-nums">{formatNumber(requests.length)}</span></div>
-          {requests.length === 0 ? <EmptyState title="لا توجد طلبات إلغاء" description="لا توجد طلبات بحالة PENDING حاليًا." /> : <div className="space-y-3">{requests.map((request) => <article key={request.id} className="rounded-xl border border-white/10 p-4"><div className="flex items-center justify-between gap-3"><p dir="ltr" translate="no" className="font-bold">{request.booking.bookingNumber}</p><StatusBadge status={request.status} /></div><p className="mt-3 break-words text-sm leading-6 text-white/75">{request.reason}</p><dl className="mt-3 grid gap-2 text-xs text-white/45"><div><dt className="inline">العميل: </dt><dd className="inline text-white/70">{request.booking.customerName}</dd></div><div><dt className="inline">التفضيل: </dt><dd className="inline text-white/70">{request.preferredAction}</dd></div><div><dt className="inline">المدفوع: </dt><dd className="inline tabular-nums text-white/70">{formatCurrency(request.booking.amountPaid)}</dd></div><div><dt className="inline">تاريخ الطلب: </dt><dd className="inline text-white/70">{formatDateTime(request.createdAt)}</dd></div></dl><button type="button" onClick={() => onReviewRequest(request)} className={`${primaryButtonClass} mt-4 w-full`}>مراجعة طلب الإلغاء</button></article>)}</div>}
+        <section aria-labelledby="cancellation-requests-title" className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-lg">
+          <div className="mb-4 flex items-center justify-between gap-4 border-b border-neutral-800/60 pb-3"><h3 id="cancellation-requests-title" className="text-base font-bold text-white">طلبات الإلغاء المعلقة</h3><span className="rounded-full bg-neutral-800 px-3 py-1 text-xs font-bold text-neutral-300 tabular-nums">{formatNumber(requests.length)}</span></div>
+          {requests.length === 0 ? <EmptyState title="لا توجد طلبات إلغاء" description="لا توجد طلبات بحالة PENDING حاليًا." /> : <div className="space-y-3">{requests.map((request) => <article key={request.id} className="rounded-xl border border-neutral-800/80 bg-neutral-950/40 p-4"><div className="flex items-center justify-between gap-3"><p dir="ltr" translate="no" className="font-mono font-bold text-white">{request.booking.bookingNumber}</p><StatusBadge status={request.status} /></div><p className="mt-2.5 break-words text-xs sm:text-sm leading-6 text-neutral-300">{request.reason}</p><dl className="mt-3 grid gap-1.5 text-xs text-neutral-400 border-t border-neutral-800/60 pt-2.5"><div><dt className="inline">العميل: </dt><dd className="inline text-neutral-200 font-medium">{request.booking.customerName}</dd></div><div><dt className="inline">الإجراء المفضل: </dt><dd className="inline text-neutral-200 font-medium">{request.preferredAction}</dd></div><div><dt className="inline">المدفوع: </dt><dd className="inline tabular-nums text-[#f3e4a8] font-bold">{formatCurrency(request.booking.amountPaid)}</dd></div><div><dt className="inline">تاريخ الطلب: </dt><dd className="inline text-neutral-400">{formatDateTime(request.createdAt)}</dd></div></dl><button type="button" onClick={() => onReviewRequest(request)} className={`${primaryButtonClass} mt-4 w-full`}>مراجعة طلب الإلغاء</button></article>)}</div>}
         </section>
-        <section aria-labelledby="refunds-title" className="rounded-2xl border border-white/10 bg-white/[0.025] p-5">
-          <div className="mb-4 flex items-center justify-between gap-4"><h3 id="refunds-title" className="text-lg font-bold">الاستردادات المعلقة</h3><span className="rounded-full bg-white/[0.07] px-3 py-1 text-sm tabular-nums">{formatNumber(refunds.length)}</span></div>
-          {refunds.length === 0 ? <EmptyState title="لا توجد استردادات معلقة" description="لا توجد سجلات REFUND_PENDING أو REFUND_PROCESSING حاليًا." /> : <div className="space-y-3">{refunds.map((refund) => <article key={refund.id} className="rounded-xl border border-white/10 p-4"><div className="flex items-center justify-between gap-3"><p dir="ltr" translate="no" className="font-bold">{refund.booking.bookingNumber}</p><StatusBadge status={refund.status} /></div><p className="mt-3 text-xl font-black tabular-nums text-[#d4af37]">{formatCurrency(refund.amount)}</p><p className="mt-2 text-sm text-white/50">{refund.refundMethod}{refund.referenceNumber ? ` · ${refund.referenceNumber}` : ''}</p><p className="mt-2 text-xs text-white/40">سُجل {formatDateTime(refund.createdAt)}</p>{refund.status === 'REFUND_PROCESSING' ? <button type="button" onClick={() => onApproveRefund(refund)} className={`${primaryButtonClass} mt-4 w-full`}>اعتماد الاسترداد المسجل</button> : <p className="mt-4 rounded-lg bg-white/[0.04] p-3 text-xs leading-5 text-white/50">بانتظار تسجيل تنفيذ الاسترداد وإثباته قبل الاعتماد.</p>}</article>)}</div>}
+        <section aria-labelledby="refunds-title" className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-lg">
+          <div className="mb-4 flex items-center justify-between gap-4 border-b border-neutral-800/60 pb-3"><h3 id="refunds-title" className="text-base font-bold text-white">الاستردادات المالية المعلقة</h3><span className="rounded-full bg-neutral-800 px-3 py-1 text-xs font-bold text-neutral-300 tabular-nums">{formatNumber(refunds.length)}</span></div>
+          {refunds.length === 0 ? <EmptyState title="لا توجد استردادات معلقة" description="لا توجد سجلات REFUND_PENDING أو REFUND_PROCESSING حاليًا." /> : <div className="space-y-3">{refunds.map((refund) => <article key={refund.id} className="rounded-xl border border-neutral-800/80 bg-neutral-950/40 p-4"><div className="flex items-center justify-between gap-3"><p dir="ltr" translate="no" className="font-mono font-bold text-white">{refund.booking.bookingNumber}</p><StatusBadge status={refund.status} /></div><p className="mt-2.5 text-xl font-black tabular-nums text-[#f3e4a8]">{formatCurrency(refund.amount)}</p><p className="mt-1 text-xs text-neutral-400">{refund.refundMethod}{refund.referenceNumber ? ` · المرجع: ${refund.referenceNumber}` : ''}</p><p className="mt-1 text-[11px] text-neutral-500">سُجل {formatDateTime(refund.createdAt)}</p>{refund.status === 'REFUND_PROCESSING' ? <button type="button" onClick={() => onApproveRefund(refund)} className={`${primaryButtonClass} mt-4 w-full`}>اعتماد الاسترداد المسجل</button> : <p className="mt-4 rounded-lg bg-neutral-900 border border-neutral-800 p-3 text-xs leading-5 text-neutral-400">بانتظار تسجيل تنفيذ الاسترداد وإثباته قبل الاعتماد.</p>}</article>)}</div>}
         </section>
       </div>
     </div>
@@ -883,12 +994,12 @@ function QualitySection({
   complaints: ComplaintDto[];
 }) {
   return (
-    <div>
+    <div className="space-y-6">
       <SectionHeader eyebrow="الجودة والشكاوى" title="مراجعة جودة التنفيذ" description="الحجوزات المنتظرة والشكاوى المفتوحة كما هي مسجلة في قاعدة البيانات." />
-      <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.05] p-4 sm:flex-row sm:items-center sm:justify-between"><p className="text-sm leading-6 text-white/65">قرارات الجودة والشكاوى تعمل من مركز التشغيل، بينما نشر صور قبل/بعد وتجارب العملاء يتطلب موافقة العميل ثم اعتماد المالك.</p><div className="flex flex-wrap gap-2"><Link href="/operations" className={`${secondaryButtonClass} shrink-0`}><ClipboardCheck aria-hidden="true" className="size-4" /> مركز الجودة</Link><Link href="/admin/gallery" className={`${secondaryButtonClass} shrink-0`}><Sparkles aria-hidden="true" className="size-4" /> مراجعة المعرض</Link><Link href="/admin/reviews" className={`${secondaryButtonClass} shrink-0`}><ClipboardCheck aria-hidden="true" className="size-4" /> تقييمات العملاء</Link></div></div>
+      <div className="flex flex-col gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.05] p-4 sm:flex-row sm:items-center sm:justify-between"><p className="text-xs sm:text-sm leading-6 text-neutral-300">قرارات الجودة والشكاوى تعمل من مركز التشغيل، بينما نشر صور قبل/بعد وتجارب العملاء يتطلب موافقة العميل ثم اعتماد المالك.</p><div className="flex flex-wrap gap-2"><Link href="/operations" className={`${secondaryButtonClass} shrink-0`}><ClipboardCheck aria-hidden="true" className="size-4" /> مركز الجودة</Link><Link href="/admin/gallery" className={`${secondaryButtonClass} shrink-0`}><Sparkles aria-hidden="true" className="size-4" /> مراجعة المعرض</Link><Link href="/admin/reviews" className={`${secondaryButtonClass} shrink-0`}><ClipboardCheck aria-hidden="true" className="size-4" /> تقييمات العملاء</Link></div></div>
       <div className="grid gap-6 xl:grid-cols-2">
-        <section aria-labelledby="quality-waiting-title" className="rounded-2xl border border-white/10 bg-white/[0.025] p-5"><h3 id="quality-waiting-title" className="mb-4 text-lg font-bold">بانتظار مراجعة الجودة</h3>{bookings.length === 0 ? <EmptyState title="لا توجد مراجعات منتظرة" description="لا توجد حجوزات في حالة QUALITY_REVIEW حاليًا." /> : <div className="space-y-3">{bookings.map((item) => <article key={item.booking.id} className="rounded-xl border border-white/10 p-4"><div className="flex items-center justify-between gap-3"><p dir="ltr" translate="no" className="font-bold">{item.booking.bookingNumber}</p><StatusBadge status="QUALITY_REVIEW" label="مراجعة جودة" /></div><p className="mt-2 text-sm text-white/55">{item.booking.serviceName} · {item.booking.assignedTeamName ?? 'بلا فريق'}</p><div className="mt-3 grid grid-cols-2 gap-3 text-sm"><div className="rounded-lg bg-white/[0.04] p-3"><p className="text-white/40">صور قبل</p><p className="mt-1 font-bold tabular-nums">{formatNumber(item.beforePhotos)} / {formatNumber(item.minimumBeforePhotos)}</p></div><div className="rounded-lg bg-white/[0.04] p-3"><p className="text-white/40">صور بعد</p><p className="mt-1 font-bold tabular-nums">{formatNumber(item.afterPhotos)} / {formatNumber(item.minimumAfterPhotos)}</p></div></div></article>)}</div>}</section>
-        <section aria-labelledby="open-complaints-title" className="rounded-2xl border border-white/10 bg-white/[0.025] p-5"><h3 id="open-complaints-title" className="mb-4 text-lg font-bold">الشكاوى المفتوحة</h3>{complaints.length === 0 ? <EmptyState title="لا توجد شكاوى مفتوحة" description="لا توجد شكاوى OPEN أو UNDER_REVIEW أو ACTION_REQUIRED." /> : <div className="space-y-3">{complaints.map((complaint) => <article key={complaint.id} className="rounded-xl border border-white/10 p-4"><div className="flex flex-wrap items-center gap-2"><StatusBadge status={complaint.status} /><StatusBadge status={complaint.priority} label={`أولوية ${complaint.priority}`} /></div><p className="mt-3 font-semibold">{complaint.type}</p><p className="mt-2 line-clamp-3 break-words text-sm leading-6 text-white/60">{complaint.description}</p><p className="mt-3 text-xs text-white/40">{complaint.customerName} · <span dir="ltr" translate="no">{complaint.bookingNumber}</span> · {formatDateTime(complaint.createdAt)}</p></article>)}</div>}</section>
+        <section aria-labelledby="quality-waiting-title" className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-lg"><h3 id="quality-waiting-title" className="mb-4 text-base font-bold text-white border-b border-neutral-800/60 pb-3">بانتظار مراجعة الجودة</h3>{bookings.length === 0 ? <EmptyState title="لا توجد مراجعات منتظرة" description="لا توجد حجوزات في حالة QUALITY_REVIEW حاليًا." /> : <div className="space-y-3">{bookings.map((item) => <article key={item.booking.id} className="rounded-xl border border-neutral-800/80 bg-neutral-950/40 p-4"><div className="flex items-center justify-between gap-3"><p dir="ltr" translate="no" className="font-mono font-bold text-white">{item.booking.bookingNumber}</p><StatusBadge status="QUALITY_REVIEW" label="مراجعة جودة" /></div><p className="mt-2 text-xs sm:text-sm text-neutral-400">{item.booking.serviceName} · {item.booking.assignedTeamName ?? 'بلا فريق'}</p><div className="mt-3 grid grid-cols-2 gap-3 text-xs sm:text-sm"><div className="rounded-lg bg-neutral-900 border border-neutral-800 p-3"><p className="text-neutral-500 text-xs">صور قبل الخدمة</p><p className="mt-1 font-bold tabular-nums text-white">{formatNumber(item.beforePhotos)} / {formatNumber(item.minimumBeforePhotos)}</p></div><div className="rounded-lg bg-neutral-900 border border-neutral-800 p-3"><p className="text-neutral-500 text-xs">صور بعد الخدمة</p><p className="mt-1 font-bold tabular-nums text-white">{formatNumber(item.afterPhotos)} / {formatNumber(item.minimumAfterPhotos)}</p></div></div></article>)}</div>}</section>
+        <section aria-labelledby="open-complaints-title" className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-lg"><h3 id="open-complaints-title" className="mb-4 text-base font-bold text-white border-b border-neutral-800/60 pb-3">الشكاوى المفتوحة</h3>{complaints.length === 0 ? <EmptyState title="لا توجد شكاوى مفتوحة" description="لا توجد شكاوى OPEN أو UNDER_REVIEW أو ACTION_REQUIRED." /> : <div className="space-y-3">{complaints.map((complaint) => <article key={complaint.id} className="rounded-xl border border-neutral-800/80 bg-neutral-950/40 p-4"><div className="flex flex-wrap items-center gap-2"><StatusBadge status={complaint.status} /><StatusBadge status={complaint.priority} label={`أولوية ${complaint.priority}`} /></div><p className="mt-2.5 font-bold text-sm text-white">{complaint.type}</p><p className="mt-1.5 line-clamp-3 break-words text-xs sm:text-sm leading-6 text-neutral-300">{complaint.description}</p><p className="mt-2.5 text-xs text-neutral-500">{complaint.customerName} · <span dir="ltr" translate="no" className="font-mono">{complaint.bookingNumber}</span> · {formatDateTime(complaint.createdAt)}</p></article>)}</div>}</section>
       </div>
     </div>
   );
@@ -896,11 +1007,11 @@ function QualitySection({
 
 function TeamsSection({ teams }: { teams: TeamDto[] }) {
   return (
-    <div>
+    <div className="space-y-6">
       <SectionHeader eyebrow="التشغيل" title="الفرق والسعة اليومية" description="الأعضاء والزونات والقدرات والحمل الفعلي لكل فريق اليوم." />
       {teams.length === 0 ? <EmptyState title="لا توجد فرق تشغيل" description="لا توجد فرق مسجلة. يلزم إنشاء فريق وربطه بفرع وزونات وموظفين نشطين." /> : <div className="grid gap-4 xl:grid-cols-2">{teams.map((team) => {
         const utilization = team.dailyCapacity > 0 ? Math.min(100, Math.round((team.todayBookingCount / team.dailyCapacity) * 100)) : 0;
-        return <article key={team.id} className="rounded-2xl border border-white/10 bg-white/[0.025] p-5"><div className="flex items-start justify-between gap-4"><div className="min-w-0"><h3 className="truncate text-lg font-bold">{team.name}</h3><p className="mt-1 text-sm text-white/45">{team.branchName}</p></div><StatusBadge status={team.active ? 'ACTIVE' : 'DISABLED'} label={team.active ? 'نشط' : 'متوقف'} /></div><div className="mt-5"><div className="mb-2 flex items-center justify-between text-sm"><span className="text-white/55">حمل اليوم</span><span className="tabular-nums">{formatNumber(team.todayBookingCount)} / {formatNumber(team.dailyCapacity)}</span></div><div className="h-2 overflow-hidden rounded-full bg-white/10" aria-label={`إشغال الفريق ${utilization}٪`}><div className="h-full rounded-full bg-[#d4af37]" style={{ width: `${utilization}%` }} /></div></div><dl className="mt-5 grid gap-4 text-sm sm:grid-cols-2"><div><dt className="text-white/40">الأعضاء</dt><dd className="mt-2 space-y-1 text-white/75">{team.members.length ? team.members.map((member) => <span key={member.id} className="block truncate">{member.fullName}{member.isLeader ? ' · قائد' : ''}</span>) : 'لا يوجد أعضاء'}</dd></div><div><dt className="text-white/40">الزونات</dt><dd className="mt-2 flex flex-wrap gap-2">{team.zones.length ? team.zones.map((zone) => <span key={zone.id} className="rounded-full bg-white/[0.06] px-2 py-1 text-xs text-white/65">{zone.name}</span>) : <span className="text-white/55">غير محددة</span>}</dd></div><div className="sm:col-span-2"><dt className="text-white/40">الخدمات المؤهل لها</dt><dd className="mt-2 flex flex-wrap gap-2">{team.capabilities.length ? team.capabilities.map((service) => <span key={service.id} className="rounded-full border border-[#d4af37]/20 bg-[#d4af37]/[0.06] px-2 py-1 text-xs text-[#ead478]">{service.name}</span>) : <span className="text-white/55">لا توجد قدرات مسجلة</span>}</dd></div></dl></article>;
+        return <article key={team.id} className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-lg"><div className="flex items-start justify-between gap-4"><div className="min-w-0"><h3 className="truncate text-base font-bold text-white">{team.name}</h3><p className="mt-0.5 text-xs text-neutral-400">{team.branchName}</p></div><StatusBadge status={team.active ? 'ACTIVE' : 'DISABLED'} label={team.active ? 'نشط' : 'متوقف'} /></div><div className="mt-4"><div className="mb-1.5 flex items-center justify-between text-xs text-neutral-400"><span>حمل اليوم</span><span className="tabular-nums font-bold text-white">{formatNumber(team.todayBookingCount)} / {formatNumber(team.dailyCapacity)}</span></div><div className="h-2 overflow-hidden rounded-full bg-neutral-800" aria-label={`إشغال الفريق ${utilization}٪`}><div className="h-full rounded-full bg-gradient-to-r from-[#d4af37] to-[#f0d879]" style={{ width: `${utilization}%` }} /></div></div><dl className="mt-4 grid gap-3 text-xs sm:text-sm sm:grid-cols-2 rounded-xl bg-neutral-950/40 border border-neutral-800/60 p-3.5"><div><dt className="text-neutral-500 text-[11px]">الأعضاء</dt><dd className="mt-1.5 space-y-1 text-neutral-300">{team.members.length ? team.members.map((member) => <span key={member.id} className="block truncate">{member.fullName}{member.isLeader ? ' · قائد' : ''}</span>) : 'لا يوجد أعضاء'}</dd></div><div><dt className="text-neutral-500 text-[11px]">الزونات المغطاة</dt><dd className="mt-1.5 flex flex-wrap gap-1.5">{team.zones.length ? team.zones.map((zone) => <span key={zone.id} className="rounded-md bg-neutral-900 border border-neutral-800 px-2 py-0.5 text-xs text-neutral-300">{zone.name}</span>) : <span className="text-neutral-500">غير محددة</span>}</dd></div><div className="sm:col-span-2"><dt className="text-neutral-500 text-[11px]">الخدمات المؤهل لها</dt><dd className="mt-1.5 flex flex-wrap gap-1.5">{team.capabilities.length ? team.capabilities.map((service) => <span key={service.id} className="rounded-md border border-[#d4af37]/30 bg-[#d4af37]/10 px-2 py-0.5 text-xs font-medium text-[#f3e4a8]">{service.name}</span>) : <span className="text-neutral-500">لا توجد قدرات مسجلة</span>}</dd></div></dl></article>;
       })}</div>}
     </div>
   );
@@ -918,83 +1029,102 @@ function BranchesSection({
   onRequest: () => void;
 }) {
   return (
-    <div>
-      <SectionHeader eyebrow="الفروع والتغطية" title="هيكل التشغيل" description={`الحد الحالي للبراند: ${formatNumber(maxBranches)} فرع. يمكنك إضافة فرع مباشرة ضمن الحد، ثم استكمال الفرق والتغطية من مركز الإعداد.`} action={<div className="flex flex-wrap gap-2"><Link href="/admin/branches" className={primaryButtonClass}>إضافة فرع مباشرة</Link><button type="button" onClick={onRequest} className={secondaryButtonClass}>طلب مراجعة</button></div>} />
-      {branches.length === 0 ? <EmptyState title="لا توجد فروع" description="أضف فرعًا مباشرة ضمن الحد المسموح، ثم جهّز مناطق التغطية وفريق التشغيل." /> : <div className="grid gap-4 xl:grid-cols-2">{branches.map((branch) => <article key={branch.id} className="rounded-2xl border border-white/10 bg-white/[0.025] p-5"><div className="flex items-start justify-between gap-4"><div><h3 className="text-lg font-bold">{branch.nameAr}</h3><p dir="ltr" translate="no" className="mt-1 text-sm text-white/40">{branch.code}</p></div><StatusBadge status={branch.status} /></div><p className="mt-4 break-words text-sm leading-6 text-white/60">{branch.address}</p><dl className="mt-5 grid grid-cols-2 gap-4 text-sm"><div><dt className="text-white/40">فرق التشغيل</dt><dd className="mt-1 font-bold tabular-nums">{formatNumber(branch.teamCount)}</dd></div><div><dt className="text-white/40">زونات التغطية</dt><dd className="mt-1 font-bold tabular-nums">{formatNumber(branch.zoneCount)}</dd></div><div><dt className="text-white/40">حجوزات اليوم</dt><dd className="mt-1 font-bold tabular-nums">{formatNumber(branch.todayBookings)} / {formatNumber(branch.dailyBookingLimit)}</dd></div><div><dt className="text-white/40">وسائل دفع نشطة</dt><dd className="mt-1 font-bold tabular-nums">{formatNumber(branch.activePaymentMethodCount)}</dd></div><div><dt className="text-white/40">التوزيع</dt><dd className="mt-1 text-white/75">{branch.assignmentMode === 'AUTOMATIC' ? 'تلقائي' : 'يدوي'}</dd></div><div><dt className="text-white/40">التوقيت</dt><dd dir="ltr" className="mt-1 text-white/75">{branch.timezone}</dd></div></dl><a href={`tel:${branch.phone}`} className="mt-5 inline-block text-sm font-semibold text-[#d4af37] hover:underline">{branch.phone}</a></article>)}</div>}
+    <div className="space-y-6">
+      <SectionHeader eyebrow="الفروع والتغطية" title="هيكل التشغيل" description={`الحد الحالي للبراند: ${formatNumber(maxBranches)} فرع. يمكنك إضافة فرع مباشرة ضمن الحد، ثم استكمال الفرق والتغطية من مركز الإعداد.`} action={<div className="flex flex-wrap gap-2"><Link href="/admin/branches" className={primaryButtonClass}>إضافة فرع مباشرة</Link><button type="button" onClick={onRequest} className={secondaryButtonClass}>طلب مراجعة زيادة الحد</button></div>} />
+      {branches.length === 0 ? <EmptyState title="لا توجد فروع" description="أضف فرعًا مباشرة ضمن الحد المسموح، ثم جهّز مناطق التغطية وفريق التشغيل." /> : <div className="grid gap-4 xl:grid-cols-2">{branches.map((branch) => <article key={branch.id} className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-lg"><div className="flex items-start justify-between gap-4"><div><h3 className="text-base font-bold text-white">{branch.nameAr}</h3><p dir="ltr" translate="no" className="mt-0.5 font-mono text-xs text-neutral-500">{branch.code}</p></div><StatusBadge status={branch.status} /></div><p className="mt-3 break-words text-xs sm:text-sm leading-6 text-neutral-400">{branch.address}</p><dl className="mt-4 grid grid-cols-2 gap-3 text-xs sm:text-sm rounded-xl bg-neutral-950/40 border border-neutral-800/60 p-3.5"><div><dt className="text-neutral-500 text-[11px]">فرق التشغيل</dt><dd className="mt-1 font-bold tabular-nums text-white">{formatNumber(branch.teamCount)}</dd></div><div><dt className="text-neutral-500 text-[11px]">زونات التغطية</dt><dd className="mt-1 font-bold tabular-nums text-white">{formatNumber(branch.zoneCount)}</dd></div><div><dt className="text-neutral-500 text-[11px]">حجوزات اليوم</dt><dd className="mt-1 font-bold tabular-nums text-white">{formatNumber(branch.todayBookings)} / {formatNumber(branch.dailyBookingLimit)}</dd></div><div><dt className="text-neutral-500 text-[11px]">وسائل دفع نشطة</dt><dd className="mt-1 font-bold tabular-nums text-white">{formatNumber(branch.activePaymentMethodCount)}</dd></div><div><dt className="text-neutral-500 text-[11px]">التوزيع</dt><dd className="mt-1 text-neutral-300 font-medium">{branch.assignmentMode === 'AUTOMATIC' ? 'تلقائي' : 'يدوي'}</dd></div><div><dt className="text-neutral-500 text-[11px]">التوقيت</dt><dd dir="ltr" className="mt-1 text-neutral-400 font-mono">{branch.timezone}</dd></div></dl><a href={`tel:${branch.phone}`} className="mt-4 inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold text-[#d4af37] hover:text-[#f3e4a8] transition-colors">{branch.phone}</a></article>)}</div>}
 
-      <section aria-labelledby="branch-requests-title" className="mt-8 rounded-2xl border border-white/10 bg-white/[0.025] p-5"><h3 id="branch-requests-title" className="text-lg font-bold">طلبات الفروع</h3>{requests.length === 0 ? <div className="mt-4"><EmptyState title="لا توجد طلبات" description="لم يتم إرسال طلبات إضافة فروع من هذا الحساب." /></div> : <div className="mt-4 space-y-3">{requests.map((request) => <article key={request.id} className="rounded-xl border border-white/10 p-4"><div className="flex flex-wrap items-center justify-between gap-3"><p className="font-semibold">{request.branchName}</p><StatusBadge status={request.status} /></div><p className="mt-2 break-words text-sm text-white/55">{request.reason}</p><p className="mt-2 text-xs text-white/35">{formatDateTime(request.createdAt)}</p>{request.rejectionReason ? <p className={`mt-2 text-sm ${request.status === 'NEEDS_INFORMATION' ? 'text-amber-200' : 'text-red-200'}`}>{request.status === 'NEEDS_INFORMATION' ? 'المعلومات المطلوبة: ' : 'سبب الرفض: '}{request.rejectionReason}</p> : null}</article>)}</div>}</section>
+      <section aria-labelledby="branch-requests-title" className="mt-8 rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-lg"><h3 id="branch-requests-title" className="text-base font-bold text-white border-b border-neutral-800/60 pb-3 mb-4">طلبات الفروع السابقة</h3>{requests.length === 0 ? <EmptyState title="لا توجد طلبات" description="لم يتم إرسال طلبات إضافة فروع من هذا الحساب." /> : <div className="space-y-3">{requests.map((request) => <article key={request.id} className="rounded-xl border border-neutral-800/80 bg-neutral-950/40 p-4"><div className="flex flex-wrap items-center justify-between gap-3"><p className="font-semibold text-white text-sm">{request.branchName}</p><StatusBadge status={request.status} /></div><p className="mt-2 break-words text-xs sm:text-sm text-neutral-400">{request.reason}</p><p className="mt-2 text-xs text-neutral-500">{formatDateTime(request.createdAt)}</p>{request.rejectionReason ? <p className={`mt-2 text-xs sm:text-sm ${request.status === 'NEEDS_INFORMATION' ? 'text-amber-200' : 'text-rose-300'}`}>{request.status === 'NEEDS_INFORMATION' ? 'المعلومات المطلوبة: ' : 'سبب الرفض: '}{request.rejectionReason}</p> : null}</article>)}</div>}</section>
     </div>
   );
 }
 
 function ServicesSection({ services }: { services: ServiceDto[] }) {
   return (
-    <div>
+    <div className="space-y-6">
       <SectionHeader eyebrow="كتالوج الخدمات" title="الخدمات المنشورة" description="الأسعار والمدد وحالة الحجز الإلكتروني والـVariants والإضافات المسجلة فعليًا." />
-      <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-[#d4af37]/25 bg-[#d4af37]/[0.06] p-4 sm:flex-row sm:items-center sm:justify-between"><p className="text-sm leading-6 text-white/65">إدارة المحتوى والصور والتسعير والـVariants والإضافات وإعدادات الفروع متاحة كوحدة ذرية موثقة.</p><Link href="/admin/catalog" className={`${primaryButtonClass} shrink-0`}><PackageCheck aria-hidden="true" className="size-4" /> فتح مدير الكتالوج</Link></div>
-      {services.length === 0 ? <EmptyState title="لا توجد خدمات" description="لا توجد خدمات مسجلة في الكتالوج حتى الآن." /> : <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{services.map((service) => <article key={service.id} className="rounded-2xl border border-white/10 bg-white/[0.025] p-5"><div className="flex items-start justify-between gap-3"><h3 className="min-w-0 truncate text-lg font-bold">{service.nameAr}</h3><StatusBadge status={service.active ? 'ACTIVE' : 'DISABLED'} label={service.active ? 'نشطة' : 'متوقفة'} /></div><p dir="ltr" translate="no" className="mt-1 truncate text-xs text-white/35">/{service.slug}</p><p className="mt-5 text-2xl font-black tabular-nums text-[#d4af37]">{formatCurrency(service.basePrice)}</p><dl className="mt-4 grid grid-cols-2 gap-3 text-sm"><div><dt className="text-white/40">المدة</dt><dd className="mt-1 text-white/75">{formatNumber(service.durationMinutes)} دقيقة</dd></div><div><dt className="text-white/40">الحجوزات</dt><dd className="mt-1 tabular-nums text-white/75">{formatNumber(service.bookingCount)}</dd></div><div><dt className="text-white/40">Variants</dt><dd className="mt-1 tabular-nums text-white/75">{formatNumber(service.variantCount)}</dd></div><div><dt className="text-white/40">الإضافات</dt><dd className="mt-1 tabular-nums text-white/75">{formatNumber(service.addonCount)}</dd></div></dl><div className="mt-5 flex flex-wrap gap-2"><StatusBadge status={service.bookableOnline ? 'ACTIVE' : 'DISABLED'} label={service.bookableOnline ? 'حجز إلكتروني' : 'غير متاحة للحجز'} /><StatusBadge status={service.subscriptionEligible ? 'ACTIVE' : 'DISABLED'} label={service.subscriptionEligible ? 'ضمن الاشتراكات' : 'خارج الاشتراكات'} /></div><Link href={`/services/${service.slug}`} className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-[#d4af37] hover:underline">عرض صفحة الخدمة <ArrowLeft aria-hidden="true" className="size-4" /></Link></article>)}</div>}
+      <div className="flex flex-col gap-3 rounded-2xl border border-[#d4af37]/30 bg-[#d4af37]/[0.06] p-4 sm:flex-row sm:items-center sm:justify-between"><p className="text-xs sm:text-sm leading-6 text-neutral-300">إدارة المحتوى والصور والتسعير والـVariants والإضافات وإعدادات الفروع متاحة كوحدة ذرية موثقة.</p><Link href="/admin/catalog" className={`${primaryButtonClass} shrink-0`}><PackageCheck aria-hidden="true" className="size-4" /> فتح مدير الكتالوج</Link></div>
+      {services.length === 0 ? <EmptyState title="لا توجد خدمات" description="لا توجد خدمات مسجلة في الكتالوج حتى الآن." /> : <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{services.map((service) => <article key={service.id} className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-lg"><div className="flex items-start justify-between gap-3"><h3 className="min-w-0 truncate text-base font-bold text-white">{service.nameAr}</h3><StatusBadge status={service.active ? 'ACTIVE' : 'DISABLED'} label={service.active ? 'نشطة' : 'متوقفة'} /></div><p dir="ltr" translate="no" className="mt-0.5 truncate text-xs text-neutral-500 font-mono">/{service.slug}</p><p className="mt-4 text-2xl font-black tabular-nums text-[#f3e4a8]">{formatCurrency(service.basePrice)}</p><dl className="mt-3 grid grid-cols-2 gap-3 text-xs sm:text-sm rounded-xl bg-neutral-950/40 border border-neutral-800/60 p-3"><div><dt className="text-neutral-500 text-[11px]">المدة المقدرة</dt><dd className="mt-1 text-neutral-200 font-medium">{formatNumber(service.durationMinutes)} دقيقة</dd></div><div><dt className="text-neutral-500 text-[11px]">عدد الحجوزات</dt><dd className="mt-1 tabular-nums font-bold text-white">{formatNumber(service.bookingCount)}</dd></div><div><dt className="text-neutral-500 text-[11px]">الأحجام والخيارات</dt><dd className="mt-1 tabular-nums text-neutral-300">{formatNumber(service.variantCount)}</dd></div><div><dt className="text-neutral-500 text-[11px]">الإضافات</dt><dd className="mt-1 tabular-nums text-neutral-300">{formatNumber(service.addonCount)}</dd></div></dl><div className="mt-4 flex flex-wrap gap-2"><StatusBadge status={service.bookableOnline ? 'ACTIVE' : 'DISABLED'} label={service.bookableOnline ? 'حجز إلكتروني' : 'غير متاحة للحجز'} /><StatusBadge status={service.subscriptionEligible ? 'ACTIVE' : 'DISABLED'} label={service.subscriptionEligible ? 'ضمن الاشتراكات' : 'خارج الاشتراكات'} /></div><Link href={`/services/${service.slug}`} className="mt-4 inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold text-[#d4af37] hover:text-[#f3e4a8] transition-colors">عرض صفحة الخدمة <ArrowLeft aria-hidden="true" className="size-3.5" /></Link></article>)}</div>}
     </div>
   );
 }
 
 function SubscriptionsSection({ plans, subscriptions }: { plans: PlanDto[]; subscriptions: SubscriptionDto[] }) {
   return (
-    <div>
+    <div className="space-y-6">
       <SectionHeader eyebrow="الاشتراكات" title="الباقات والاشتراكات الفعلية" description="حالة الباقات وعدد المشتركين وآخر اشتراكات العملاء والزيارات المتبقية." />
-      <div className="mb-5 flex justify-end">
-        <Link href="/admin/subscriptions" className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[#d4af37]/30 bg-[#d4af37]/10 px-4 text-sm font-bold text-[#e4c762] transition-colors hover:bg-[#d4af37]/15 focus-visible:ring-2 focus-visible:ring-[#d4af37]">
+      <div className="flex justify-end">
+        <Link href="/admin/subscriptions" className={primaryButtonClass}>
           تفعيل وإدارة اشتراكات العملاء
           <ArrowLeft aria-hidden="true" className="size-4" />
         </Link>
       </div>
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{plans.length ? plans.map((plan) => <article key={plan.id} className="rounded-2xl border border-white/10 bg-white/[0.025] p-5"><div className="flex items-start justify-between gap-3"><h3 className="text-lg font-bold">{plan.nameAr}</h3><StatusBadge status={plan.active ? 'ACTIVE' : 'DISABLED'} label={plan.active ? 'نشطة' : 'متوقفة'} /></div><p className="mt-3 line-clamp-3 break-words text-sm leading-6 text-white/55">{plan.descriptionAr}</p><p className="mt-4 text-2xl font-black tabular-nums text-[#d4af37]">{formatCurrency(plan.price)}</p><dl className="mt-4 grid grid-cols-2 gap-3 text-sm"><div><dt className="text-white/40">الزيارات</dt><dd className="mt-1 font-semibold">{formatNumber(plan.visitCount)}</dd></div><div><dt className="text-white/40">الصلاحية</dt><dd className="mt-1 font-semibold">{formatNumber(plan.validityDays)} يوم</dd></div><div><dt className="text-white/40">كل الاشتراكات</dt><dd className="mt-1 font-semibold">{formatNumber(plan.subscriptionCount)}</dd></div><div><dt className="text-white/40">النشطة</dt><dd className="mt-1 font-semibold text-emerald-300">{formatNumber(plan.activeSubscriptionCount)}</dd></div></dl></article>) : <div className="md:col-span-2 xl:col-span-3"><EmptyState title="لا توجد باقات" description="لا توجد خطط اشتراك مسجلة." /></div>}</div>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{plans.length ? plans.map((plan) => <article key={plan.id} className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-lg"><div className="flex items-start justify-between gap-3"><h3 className="text-base font-bold text-white">{plan.nameAr}</h3><StatusBadge status={plan.active ? 'ACTIVE' : 'DISABLED'} label={plan.active ? 'نشطة' : 'متوقفة'} /></div><p className="mt-2 line-clamp-3 break-words text-xs sm:text-sm leading-6 text-neutral-400">{plan.descriptionAr}</p><p className="mt-3 text-2xl font-black tabular-nums text-[#f3e4a8]">{formatCurrency(plan.price)}</p><dl className="mt-3 grid grid-cols-2 gap-3 text-xs sm:text-sm rounded-xl bg-neutral-950/40 border border-neutral-800/60 p-3"><div><dt className="text-neutral-500 text-[11px]">الزيارات المضمنة</dt><dd className="mt-1 font-bold text-white">{formatNumber(plan.visitCount)}</dd></div><div><dt className="text-neutral-500 text-[11px]">صلاحية الباقة</dt><dd className="mt-1 font-medium text-neutral-300">{formatNumber(plan.validityDays)} يوم</dd></div><div><dt className="text-neutral-500 text-[11px]">إجمالي الاشتراكات</dt><dd className="mt-1 font-bold tabular-nums text-white">{formatNumber(plan.subscriptionCount)}</dd></div><div><dt className="text-neutral-500 text-[11px]">الاشتراكات النشطة</dt><dd className="mt-1 font-bold tabular-nums text-emerald-300">{formatNumber(plan.activeSubscriptionCount)}</dd></div></dl></article>) : <div className="md:col-span-2 xl:col-span-3"><EmptyState title="لا توجد باقات" description="لا توجد خطط اشتراك مسجلة." /></div>}</div>
 
-      <section aria-labelledby="recent-subscriptions-title" className="mt-8 rounded-2xl border border-white/10 bg-white/[0.025] p-5"><h3 id="recent-subscriptions-title" className="text-lg font-bold">آخر اشتراكات العملاء</h3>{subscriptions.length === 0 ? <div className="mt-4"><EmptyState title="لا توجد اشتراكات" description="لم يتم تسجيل اشتراكات عملاء حتى الآن." /></div> : <div className="mt-4 overflow-x-auto"><table className="w-full min-w-[760px] text-right text-sm"><caption className="sr-only">آخر اشتراكات العملاء</caption><thead className="text-white/40"><tr><th scope="col" className="px-3 py-3 font-medium">العميل</th><th scope="col" className="px-3 py-3 font-medium">الباقة</th><th scope="col" className="px-3 py-3 font-medium">الفرع</th><th scope="col" className="px-3 py-3 font-medium">الحالة</th><th scope="col" className="px-3 py-3 font-medium">الزيارات</th><th scope="col" className="px-3 py-3 font-medium">الانتهاء</th></tr></thead><tbody className="divide-y divide-white/10">{subscriptions.map((subscription) => <tr key={subscription.id}><td className="px-3 py-4"><p className="font-semibold">{subscription.customerName}</p><p dir="ltr" className="mt-1 text-xs text-white/40">{subscription.customerPhone}</p></td><td className="px-3 py-4 text-white/75">{subscription.planName}</td><td className="px-3 py-4 text-white/75">{subscription.branchName}</td><td className="px-3 py-4"><StatusBadge status={subscription.status} /></td><td className="px-3 py-4 tabular-nums">{formatNumber(subscription.remainingVisits)} / {formatNumber(subscription.totalVisits)}</td><td className="px-3 py-4 text-white/60">{formatDate(subscription.endDate)}</td></tr>)}</tbody></table></div>}</section>
+      <section aria-labelledby="recent-subscriptions-title" className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-lg"><h3 id="recent-subscriptions-title" className="text-base font-bold text-white border-b border-neutral-800/60 pb-3 mb-4">آخر اشتراكات العملاء المسجلة</h3>{subscriptions.length === 0 ? <EmptyState title="لا توجد اشتراكات" description="لم يتم تسجيل اشتراكات عملاء حتى الآن." /> : <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-right text-xs sm:text-sm"><caption className="sr-only">آخر اشتراكات العملاء</caption><thead className="text-neutral-400 border-b border-neutral-800"><tr><th scope="col" className="px-3 py-3 font-semibold">العميل</th><th scope="col" className="px-3 py-3 font-semibold">الباقة</th><th scope="col" className="px-3 py-3 font-semibold">الفرع</th><th scope="col" className="px-3 py-3 font-semibold">الحالة</th><th scope="col" className="px-3 py-3 font-semibold">الزيارات</th><th scope="col" className="px-3 py-3 font-semibold">تاريخ الانتهاء</th></tr></thead><tbody className="divide-y divide-neutral-800/60">{subscriptions.map((subscription) => <tr key={subscription.id} className="hover:bg-white/[0.02] transition"><td className="px-3 py-3.5"><p className="font-semibold text-white">{subscription.customerName}</p><p dir="ltr" className="mt-0.5 text-xs text-neutral-400 font-mono">{subscription.customerPhone}</p></td><td className="px-3 py-3.5 text-neutral-300">{subscription.planName}</td><td className="px-3 py-3.5 text-neutral-300">{subscription.branchName}</td><td className="px-3 py-3.5"><StatusBadge status={subscription.status} /></td><td className="px-3 py-3.5 tabular-nums font-bold text-white">{formatNumber(subscription.remainingVisits)} / {formatNumber(subscription.totalVisits)}</td><td className="px-3 py-3.5 text-neutral-400">{formatDate(subscription.endDate)}</td></tr>)}</tbody></table></div>}</section>
     </div>
   );
 }
 
 function ReportTable({ title, rows }: { title: string; rows: ReportRowDto[] }) {
   return (
-    <section className="rounded-2xl border border-white/10 bg-white/[0.025] p-5">
-      <h3 className="text-lg font-bold">{title}</h3>
-      {rows.length === 0 ? <div className="mt-4"><EmptyState title="لا توجد بيانات" description="لا توجد سجلات في الفترة المحددة لهذا التصنيف." /></div> : <div className="mt-4 overflow-x-auto"><table className="w-full min-w-[620px] text-right text-sm"><caption className="sr-only">{title}</caption><thead className="text-white/40"><tr><th scope="col" className="px-3 py-3 font-medium">التصنيف</th><th scope="col" className="px-3 py-3 font-medium">الحجوزات</th><th scope="col" className="px-3 py-3 font-medium">القيمة</th><th scope="col" className="px-3 py-3 font-medium">المحصل على الحجوزات</th></tr></thead><tbody className="divide-y divide-white/10">{rows.map((row) => <tr key={row.id}><th scope="row" className="px-3 py-4 font-semibold">{row.label}</th><td className="px-3 py-4 tabular-nums">{formatNumber(row.count)}</td><td className="px-3 py-4 tabular-nums">{formatCurrency(row.totalPrice)}</td><td className="px-3 py-4 tabular-nums">{formatCurrency(row.amountPaid)}</td></tr>)}</tbody></table></div>}
+    <section className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-lg">
+      <h3 className="text-base font-bold text-white border-b border-neutral-800/60 pb-3 mb-4">{title}</h3>
+      {rows.length === 0 ? <EmptyState title="لا توجد بيانات" description="لا توجد سجلات في الفترة المحددة لهذا التصنيف." /> : <div className="overflow-x-auto"><table className="w-full min-w-[620px] text-right text-xs sm:text-sm"><caption className="sr-only">{title}</caption><thead className="text-neutral-400 border-b border-neutral-800"><tr><th scope="col" className="px-3 py-3 font-semibold">التصنيف</th><th scope="col" className="px-3 py-3 font-semibold">عدد الحجوزات</th><th scope="col" className="px-3 py-3 font-semibold">إجمالي القيمة</th><th scope="col" className="px-3 py-3 font-semibold">المحصل الفعلي</th></tr></thead><tbody className="divide-y divide-neutral-800/60">{rows.map((row) => <tr key={row.id} className="hover:bg-white/[0.02] transition"><th scope="row" className="px-3 py-3 font-semibold text-white">{row.label}</th><td className="px-3 py-3 tabular-nums text-neutral-300">{formatNumber(row.count)}</td><td className="px-3 py-3 tabular-nums font-semibold text-neutral-200">{formatCurrency(row.totalPrice)}</td><td className="px-3 py-3 tabular-nums font-bold text-emerald-300">{formatCurrency(row.amountPaid)}</td></tr>)}</tbody></table></div>}
     </section>
   );
 }
 
 function ReportsSection({ reports }: { reports: ReportsDto }) {
   return (
-    <div>
+    <div className="space-y-6">
       <SectionHeader eyebrow="تقارير داخلية" title="التقرير التشغيلي والمالي" description="ملخص مبني على الفترة المحددة. صافي التحصيل هنا مدفوعات مسجلة ناقص استردادات مسجلة، وليس صافي ربح محاسبي." />
-      <form action="/admin" method="get" className="mb-6 grid gap-3 rounded-2xl border border-white/10 bg-white/[0.025] p-4 sm:grid-cols-[1fr_1fr_auto]">
+      <form action="/admin" method="get" className="grid gap-3 rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-4 sm:grid-cols-[1fr_1fr_auto] shadow-md">
         <input type="hidden" name="section" value="reports" />
-        <div><label htmlFor="report-from" className="mb-2 block text-sm font-medium text-white/70">من تاريخ</label><input id="report-from" name="from" type="date" defaultValue={reports.from} className={inputClass} /></div>
-        <div><label htmlFor="report-to" className="mb-2 block text-sm font-medium text-white/70">إلى تاريخ</label><input id="report-to" name="to" type="date" defaultValue={reports.to} className={inputClass} /></div>
+        <div><label htmlFor="report-from" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">من تاريخ</label><input id="report-from" name="from" type="date" defaultValue={reports.from} className={inputClass} /></div>
+        <div><label htmlFor="report-to" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">إلى تاريخ</label><input id="report-to" name="to" type="date" defaultValue={reports.to} className={inputClass} /></div>
         <button type="submit" className={`${primaryButtonClass} self-end`}>تحديث التقرير</button>
       </form>
-      <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-sky-400/20 bg-sky-400/[0.05] p-4 sm:flex-row sm:items-center sm:justify-between"><p className="text-sm leading-6 text-white/65">مركز التقارير الكامل يطبق فلاتر تاريخية وتشغيلية ويصدر CSV مؤمّنًا بكل الأقسام والصفوف المطابقة.</p><Link href="/admin/reports" className={`${secondaryButtonClass} shrink-0`}><BarChart3 aria-hidden="true" className="size-4" /> فتح التقارير والتصدير</Link></div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="flex flex-col justify-between gap-3 rounded-2xl border border-[#d4af37]/30 bg-[#d4af37]/[0.06] p-4 shadow-md">
+          <div>
+            <h4 className="text-sm font-bold text-[#f3e4a8]">مركز التقارير والإيرادات الشامل</h4>
+            <p className="text-xs text-neutral-300 mt-1 leading-5">متابعة دقيقة للأداء التشغيلي ومؤشرات الجودة ودفتر الإيرادات والأرباح الشهرية مع تصدير CSV.</p>
+          </div>
+          <Link href="/admin/reports" className={`${primaryButtonClass} shrink-0 self-start`}>
+            <BarChart3 aria-hidden="true" className="size-4" /> فتح مركز التقارير والإيرادات
+          </Link>
+        </div>
+        <div className="flex flex-col justify-between gap-3 rounded-2xl border border-emerald-500/25 bg-emerald-500/[0.05] p-4 shadow-md">
+          <div>
+            <h4 className="text-sm font-bold text-emerald-300">دفتر الإيرادات والحركات المالية</h4>
+            <p className="text-xs text-neutral-300 mt-1 leading-5">استعراض مباشر لكشف الحركات المالية وتوزيع الإيراد حسب وسائل الدفع والفروع لكل شهر.</p>
+          </div>
+          <Link href="/admin/reports?tab=revenue" className={`${secondaryButtonClass} shrink-0 self-start`}>
+            <DollarSign aria-hidden="true" className="size-4" /> فتح دفتر الإيرادات والحركات
+          </Link>
+        </div>
+      </div>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="إجمالي الحجوزات" value={formatNumber(reports.totalBookings)} icon={<CalendarDays aria-hidden="true" className="size-5" />} />
-        <MetricCard label="المحصل" value={formatCurrency(reports.collectedAmount)} icon={<Banknote aria-hidden="true" className="size-5" />} tone="green" />
+        <MetricCard label="المحصل الفعلي" value={formatCurrency(reports.collectedAmount)} icon={<Banknote aria-hidden="true" className="size-5" />} tone="green" />
         <MetricCard label="الاستردادات" value={formatCurrency(reports.refundedAmount)} icon={<ShieldAlert aria-hidden="true" className="size-5" />} tone="red" />
-        <MetricCard label="صافي التحصيل" value={formatCurrency(reports.netCollected)} hint="ليس صافي ربح" icon={<Activity aria-hidden="true" className="size-5" />} tone="blue" />
+        <MetricCard label="صافي التحصيل" value={formatCurrency(reports.netCollected)} hint="ليس صافي ربح محاسبي" icon={<Activity aria-hidden="true" className="size-5" />} tone="blue" />
         <MetricCard label="متوسط قيمة الحجز" value={formatCurrency(reports.averageBookingValue)} icon={<Gauge aria-hidden="true" className="size-5" />} />
         <MetricCard label="المبالغ المستحقة" value={formatCurrency(reports.amountDue)} icon={<WalletCards aria-hidden="true" className="size-5" />} tone="red" />
         <MetricCard label="اشتراكات جديدة" value={formatNumber(reports.newSubscriptions)} hint={`زيارات مستهلكة: ${formatNumber(reports.visitsConsumed)}`} icon={<PackageCheck aria-hidden="true" className="size-5" />} />
-        <MetricCard label="الشكاوى" value={formatNumber(reports.complaintCount)} icon={<AlertTriangle aria-hidden="true" className="size-5" />} tone="red" />
+        <MetricCard label="الشكاوى المسجلة" value={formatNumber(reports.complaintCount)} icon={<AlertTriangle aria-hidden="true" className="size-5" />} tone="red" />
       </div>
-      <div className="mt-8 grid gap-6 xl:grid-cols-2"><ReportTable title="حسب الخدمة" rows={reports.byService} /><ReportTable title="حسب الفرع" rows={reports.byBranch} /><ReportTable title="حسب الفريق" rows={reports.byTeam} /><section className="rounded-2xl border border-white/10 bg-white/[0.025] p-5"><h3 className="text-lg font-bold">أسباب الإلغاء</h3>{reports.cancellationReasons.length === 0 ? <div className="mt-4"><EmptyState title="لا توجد إلغاءات" description="لا توجد طلبات إلغاء في الفترة المحددة." /></div> : <ol className="mt-4 space-y-3">{reports.cancellationReasons.map((item) => <li key={item.reason} className="flex items-start justify-between gap-4 rounded-xl border border-white/10 p-3"><span className="break-words text-sm text-white/70">{item.reason}</span><span className="shrink-0 rounded-full bg-white/[0.07] px-2 py-1 text-xs font-bold tabular-nums">{formatNumber(item.count)}</span></li>)}</ol>}</section></div>
-      <section aria-labelledby="status-breakdown-title" className="mt-6 rounded-2xl border border-white/10 bg-white/[0.025] p-5"><h3 id="status-breakdown-title" className="text-lg font-bold">توزيع حالات الحجز</h3>{reports.byStatus.length === 0 ? <div className="mt-4"><EmptyState title="لا توجد حالات" description="لا توجد حجوزات في الفترة المحددة." /></div> : <div className="mt-4 flex flex-wrap gap-3">{reports.byStatus.map((item) => <div key={item.status} className="flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2"><StatusBadge status={item.status} label={bookingStatusLabel(item.status)} /><span className="font-bold tabular-nums">{formatNumber(item.count)}</span></div>)}</div>}</section>
+      <div className="grid gap-6 xl:grid-cols-2"><ReportTable title="حسب الخدمة" rows={reports.byService} /><ReportTable title="حسب الفرع" rows={reports.byBranch} /><ReportTable title="حسب الفريق" rows={reports.byTeam} /><section className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-lg"><h3 className="text-base font-bold text-white border-b border-neutral-800/60 pb-3 mb-4">أسباب الإلغاء</h3>{reports.cancellationReasons.length === 0 ? <EmptyState title="لا توجد إلغاءات" description="لا توجد طلبات إلغاء في الفترة المحددة." /> : <ol className="space-y-2.5">{reports.cancellationReasons.map((item) => <li key={item.reason} className="flex items-start justify-between gap-4 rounded-xl border border-neutral-800/80 bg-neutral-950/40 p-3"><span className="break-words text-xs sm:text-sm text-neutral-300">{item.reason}</span><span className="shrink-0 rounded-full bg-neutral-800 border border-neutral-700 px-2.5 py-1 text-xs font-black tabular-nums text-white">{formatNumber(item.count)}</span></li>)}</ol>}</section></div>
+      <section aria-labelledby="status-breakdown-title" className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-lg"><h3 id="status-breakdown-title" className="text-base font-bold text-white border-b border-neutral-800/60 pb-3 mb-4">توزيع حالات الحجز</h3>{reports.byStatus.length === 0 ? <EmptyState title="لا توجد حالات" description="لا توجد حجوزات في الفترة المحددة." /> : <div className="flex flex-wrap gap-2.5">{reports.byStatus.map((item) => <div key={item.status} className="flex items-center gap-2 rounded-xl border border-neutral-800 bg-neutral-950/50 px-3 py-2"><StatusBadge status={item.status} label={bookingStatusLabel(item.status)} /><span className="font-bold text-xs tabular-nums text-white">{formatNumber(item.count)}</span></div>)}</div>}</section>
     </div>
   );
 }
 
 function AuditSection({ auditLogs }: { auditLogs: AuditLogDto[] }) {
   return (
-    <div>
-      <SectionHeader eyebrow="الحوكمة" title="سجل التعديلات" description="آخر 50 حدثًا مسجلًا مع المنفذ والكيان والسبب إن وجد." />
-      {auditLogs.length === 0 ? <EmptyState title="لا توجد أحداث" description="لم تُسجل عمليات Audit حتى الآن." /> : <div className="space-y-3">{auditLogs.map((log) => <article key={log.id} className="rounded-2xl border border-white/10 bg-white/[0.025] p-4"><div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"><div className="min-w-0"><p dir="ltr" translate="no" className="break-words font-semibold text-white">{log.action}</p><p className="mt-1 text-sm text-white/45">{log.actorName} · {log.actorRole}</p></div><time dateTime={log.createdAt} className="shrink-0 text-xs text-white/35">{formatDateTime(log.createdAt)}</time></div><div className="mt-3 flex flex-wrap gap-2 text-xs"><span dir="ltr" translate="no" className="rounded-full bg-white/[0.06] px-2 py-1 text-white/60">{log.entityType}</span><span dir="ltr" translate="no" className="max-w-full truncate rounded-full bg-white/[0.06] px-2 py-1 text-white/60">{log.entityId}</span></div>{log.reason ? <p className="mt-3 break-words text-sm leading-6 text-white/60">{log.reason}</p> : null}</article>)}</div>}
+    <div className="space-y-6">
+      <SectionHeader eyebrow="الحوكمة" title="سجل التعديلات والتدقيق" description="آخر 50 حدثًا مسجلًا مع المنفذ والكيان والسبب إن وجد." />
+      {auditLogs.length === 0 ? <EmptyState title="لا توجد أحداث" description="لم تُسجل عمليات Audit حتى الآن." /> : <div className="space-y-3">{auditLogs.map((log) => <article key={log.id} className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-4 shadow-lg"><div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"><div className="min-w-0"><p dir="ltr" translate="no" className="break-words font-mono font-bold text-white text-sm">{log.action}</p><p className="mt-1 text-xs text-neutral-400">{log.actorName} · <span className="text-[#d4af37]">{log.actorRole}</span></p></div><time dateTime={log.createdAt} className="shrink-0 text-xs text-neutral-500">{formatDateTime(log.createdAt)}</time></div><div className="mt-3 flex flex-wrap gap-2 text-xs"><span dir="ltr" translate="no" className="rounded-md bg-neutral-900 border border-neutral-800 px-2 py-0.5 text-neutral-400 font-mono">{log.entityType}</span><span dir="ltr" translate="no" className="max-w-full truncate rounded-md bg-neutral-900 border border-neutral-800 px-2 py-0.5 text-neutral-400 font-mono">{log.entityId}</span></div>{log.reason ? <p className="mt-2.5 break-words text-xs sm:text-sm leading-6 text-neutral-300 border-t border-neutral-800/60 pt-2">{log.reason}</p> : null}</article>)}</div>}
     </div>
   );
 }
@@ -1048,19 +1178,35 @@ function OwnerActionDialog({
     : [];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto overscroll-contain bg-black/80 p-4">
-      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="owner-action-title" tabIndex={-1} className="w-full max-w-xl rounded-3xl border border-white/15 bg-[#0d0d0d] p-5 shadow-2xl focus-visible:ring-2 focus-visible:ring-[#d4af37] sm:p-7">
-        <div className="flex items-start justify-between gap-4"><div><p className="text-sm font-semibold text-[#d4af37]">إجراء مسجل</p><h2 id="owner-action-title" className="mt-1 text-xl font-black">{title}</h2></div><button type="button" onClick={onClose} disabled={pending} aria-label="إغلاق النافذة" className="rounded-lg p-2 text-white/50 hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-white/30 disabled:opacity-50"><X aria-hidden="true" className="size-5" /></button></div>
-        <p className="mt-3 text-sm leading-6 text-white/50">راجع البيانات قبل التنفيذ. لا يمكن إغلاق النافذة بالنقر خارجها.</p>
-        {error ? <div role="alert" tabIndex={-1} className="mt-4 rounded-xl border border-red-400/30 bg-red-400/10 p-3 text-sm text-red-100">{error}</div> : null}
-        <form onSubmit={onSubmit} className="mt-6 space-y-5">
-          {modal.type === 'payment' ? <><input type="hidden" name="proofId" value={modal.proof.id} /><div className="rounded-xl bg-white/[0.04] p-4 text-sm"><p dir="ltr" translate="no" className="font-bold">{modal.proof.booking.bookingNumber}</p><p className="mt-2 text-white/55">المرسل: {formatCurrency(modal.proof.amountSubmitted)} · المطلوب: {formatCurrency(modal.proof.expectedAmount)}</p></div><div><label htmlFor="payment-decision" className="mb-2 block text-sm font-medium text-white/75">القرار *</label><select id="payment-decision" name="decision" required value={paymentDecision} onChange={(event) => onPaymentDecision(event.target.value as PaymentDecision | '')} className={inputClass}><option value="" className="bg-[#111]">اختر القرار</option><option value="VERIFY" className="bg-[#111]">اعتماد الإثبات</option><option value="REJECT" className="bg-[#111]">رفض الإثبات</option><option value="SHORT" className="bg-[#111]">المبلغ ناقص</option><option value="REUPLOAD" className="bg-[#111]">طلب إعادة الرفع</option><option value="DUPLICATE" className="bg-[#111]">اشتباه إثبات مكرر</option></select></div><div><label htmlFor="payment-review-notes" className="mb-2 block text-sm font-medium text-white/75">ملاحظات القرار {paymentDecision === 'VERIFY' ? '(اختياري)' : '*'}</label><textarea id="payment-review-notes" name="reviewNotes" required={paymentDecision !== '' && paymentDecision !== 'VERIFY'} minLength={3} maxLength={1000} rows={4} autoComplete="off" className={inputClass} /></div></> : null}
-          {modal.type === 'booking-review' ? <><input type="hidden" name="bookingId" value={modal.booking.id} /><div className="rounded-xl bg-white/[0.04] p-4 text-sm"><p dir="ltr" translate="no" className="font-bold">{modal.booking.bookingNumber}</p><p className="mt-2 text-white/55">{modal.booking.customerName} · {modal.booking.serviceName}</p></div><div><label htmlFor="booking-decision" className="mb-2 block text-sm font-medium text-white/75">القرار *</label><select id="booking-decision" name="decision" required value={bookingDecision} onChange={(event) => onBookingDecision(event.target.value as BookingDecision | '')} className={inputClass}><option value="" className="bg-[#111]">اختر القرار</option><option value="ACCEPT" className="bg-[#111]">قبول تشغيلي</option><option value="REJECT" className="bg-[#111]">رفض الحجز</option></select></div><div><label htmlFor="booking-review-reason" className="mb-2 block text-sm font-medium text-white/75">سبب القرار *</label><textarea id="booking-review-reason" name="reason" required minLength={3} maxLength={1000} rows={4} autoComplete="off" className={inputClass} /></div></> : null}
-          {modal.type === 'assignment' ? <><input type="hidden" name="bookingId" value={modal.booking.id} /><div className="rounded-xl bg-white/[0.04] p-4 text-sm"><p dir="ltr" translate="no" className="font-bold">{modal.booking.bookingNumber}</p><p className="mt-2 text-white/55">{modal.booking.branchName} · {formatDateTime(modal.booking.startAt)}</p></div>{eligibleTeams.length ? <><div><label htmlFor="assignment-team" className="mb-2 block text-sm font-medium text-white/75">الفريق *</label><select id="assignment-team" name="teamId" required defaultValue="" className={inputClass}><option value="" className="bg-[#111]">اختر فريقًا من نفس الفرع</option>{eligibleTeams.map((team) => <option key={team.id} value={team.id} className="bg-[#111]">{team.name} — {team.todayBookingCount}/{team.dailyCapacity}</option>)}</select></div><div><label htmlFor="assignment-reason" className="mb-2 block text-sm font-medium text-white/75">سبب الإسناد *</label><textarea id="assignment-reason" name="reason" required minLength={3} maxLength={500} rows={3} autoComplete="off" className={inputClass} /></div></> : <CapabilityNotice>لا يوجد فريق نشط في نفس الفرع يمكن اختياره.</CapabilityNotice>}</> : null}
-          {modal.type === 'cancellation' ? <><input type="hidden" name="cancellationId" value={modal.request.id} /><div className="rounded-xl bg-white/[0.04] p-4 text-sm"><p dir="ltr" translate="no" className="font-bold">{modal.request.booking.bookingNumber}</p><p className="mt-2 text-white/55">المدفوع: {formatCurrency(modal.request.booking.amountPaid)} · تفضيل العميل: {modal.request.preferredAction}</p><p className="mt-2 break-words text-white/70">{modal.request.reason}</p></div><div><label htmlFor="cancellation-decision" className="mb-2 block text-sm font-medium text-white/75">القرار *</label><select id="cancellation-decision" name="decision" required value={cancellationDecision} onChange={(event) => { onCancellationDecision(event.target.value as CancellationDecision | ''); onCancellationResolution(''); }} className={inputClass}><option value="" className="bg-[#111]">اختر القرار</option><option value="APPROVE" className="bg-[#111]">اعتماد الطلب</option><option value="REJECT" className="bg-[#111]">رفض الطلب واستعادة حالة الحجز</option></select></div>{cancellationDecision === 'APPROVE' ? <><div><label htmlFor="cancellation-resolution" className="mb-2 block text-sm font-medium text-white/75">نوع الحل *</label><select id="cancellation-resolution" name="resolutionType" required value={cancellationResolution} onChange={(event) => onCancellationResolution(event.target.value as CancellationResolution | '')} className={inputClass}><option value="" className="bg-[#111]">اختر نوع الحل</option><option value="REFUND_FULL" className="bg-[#111]">استرداد كامل</option><option value="REFUND_PARTIAL" className="bg-[#111]">استرداد جزئي</option><option value="NO_REFUND" className="bg-[#111]">إلغاء دون استرداد</option><option value="KEEP_DEPOSIT" className="bg-[#111]">الاحتفاظ بالعربون</option><option value="ESCALATE" className="bg-[#111]">تصعيد للمراجعة</option></select></div><div><label htmlFor="cancellation-party" className="mb-2 block text-sm font-medium text-white/75">الطرف المسؤول *</label><select id="cancellation-party" name="responsibleParty" required defaultValue="" className={inputClass}><option value="" className="bg-[#111]">اختر الطرف</option><option value="CUSTOMER" className="bg-[#111]">العميل</option><option value="TEAM" className="bg-[#111]">الفريق</option><option value="BRANCH" className="bg-[#111]">الفرع</option><option value="ACCESS" className="bg-[#111]">تعذر الوصول</option><option value="FORCE_MAJEURE" className="bg-[#111]">ظرف قهري</option></select></div>{cancellationResolution === 'REFUND_PARTIAL' ? <div><label htmlFor="approved-refund-amount" className="mb-2 block text-sm font-medium text-white/75">مبلغ الاسترداد الجزئي *</label><input id="approved-refund-amount" name="approvedRefundAmount" type="number" min={1} max={modal.request.booking.amountPaid} step={1} inputMode="numeric" required className={inputClass} /></div> : null}</> : null}<div><label htmlFor="cancellation-notes" className="mb-2 block text-sm font-medium text-white/75">ملاحظات القرار *</label><textarea id="cancellation-notes" name="resolutionNotes" required minLength={3} maxLength={1000} rows={4} autoComplete="off" className={inputClass} /></div></> : null}
-          {modal.type === 'refund-approval' ? <><input type="hidden" name="refundId" value={modal.refund.id} /><div className="rounded-xl bg-white/[0.04] p-4 text-sm"><p dir="ltr" translate="no" className="font-bold">{modal.refund.booking.bookingNumber}</p><p className="mt-2 text-xl font-black tabular-nums text-[#d4af37]">{formatCurrency(modal.refund.amount)}</p><p className="mt-2 text-white/55">{modal.refund.refundMethod}{modal.refund.referenceNumber ? ` · ${modal.refund.referenceNumber}` : ''}</p></div><div><label htmlFor="refund-approval-reason" className="mb-2 block text-sm font-medium text-white/75">سبب الاعتماد *</label><textarea id="refund-approval-reason" name="reason" required minLength={3} maxLength={1000} rows={4} autoComplete="off" className={inputClass} /></div></> : null}
-          {modal.type === 'branch-request' ? <><div><label htmlFor="branch-request-name" className="mb-2 block text-sm font-medium text-white/75">اسم الفرع المقترح *</label><input id="branch-request-name" name="branchName" required minLength={2} maxLength={120} autoComplete="organization" className={inputClass} /></div><div><label htmlFor="branch-request-reason" className="mb-2 block text-sm font-medium text-white/75">سبب الإضافة *</label><textarea id="branch-request-reason" name="reason" required minLength={3} maxLength={1000} rows={4} autoComplete="off" className={inputClass} /></div></> : null}
-          <div className="flex flex-col-reverse gap-3 border-t border-white/10 pt-5 sm:flex-row sm:justify-end"><button type="button" onClick={onClose} disabled={pending} className={secondaryButtonClass}>إلغاء</button><button type="submit" disabled={pending || (modal.type === 'assignment' && eligibleTeams.length === 0)} aria-busy={pending} className={primaryButtonClass}>{pending ? <><LoaderCircle aria-hidden="true" className="size-4 animate-spin" /> جاري التنفيذ…</> : 'تأكيد الإجراء'}</button></div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto overscroll-contain bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="owner-action-title" tabIndex={-1} className="w-full max-w-xl rounded-3xl border border-neutral-800 bg-[#0f0f13] p-5 shadow-2xl focus-visible:ring-2 focus-visible:ring-[#d4af37] sm:p-7">
+        <div className="flex items-start justify-between gap-4 border-b border-neutral-800/80 pb-4">
+          <div>
+            <span className="inline-flex items-center gap-1 text-xs font-bold text-[#d4af37]">
+              <Sparkles className="size-3" />
+              إجراء إداري رسمي
+            </span>
+            <h2 id="owner-action-title" className="mt-1 text-lg sm:text-xl font-black text-white">{title}</h2>
+          </div>
+          <button type="button" onClick={onClose} disabled={pending} aria-label="إغلاق النافذة" className="rounded-xl p-2 text-neutral-400 hover:bg-white/10 hover:text-white transition focus-visible:ring-2 focus-visible:ring-white/30 disabled:opacity-50">
+            <X aria-hidden="true" className="size-5" />
+          </button>
+        </div>
+        <p className="mt-3 text-xs sm:text-sm leading-6 text-neutral-400">راجع البيانات بدقة قبل الاعتماد. يتم حفظ الإجراء وتوثيقه آلياً في سجل الحوكمة والتدقيق.</p>
+        {error ? <div role="alert" tabIndex={-1} className="mt-4 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs sm:text-sm font-medium text-rose-200">{error}</div> : null}
+        <form onSubmit={onSubmit} className="mt-5 space-y-4">
+          {modal.type === 'payment' ? <><input type="hidden" name="proofId" value={modal.proof.id} /><div className="rounded-xl bg-neutral-950/60 border border-neutral-800 p-4 text-xs sm:text-sm"><p dir="ltr" translate="no" className="font-mono font-bold text-white text-base">{modal.proof.booking.bookingNumber}</p><p className="mt-1.5 text-neutral-400">المرسل: <span className="font-bold text-emerald-300">{formatCurrency(modal.proof.amountSubmitted)}</span> · المطلوب: <span className="font-semibold text-neutral-200">{formatCurrency(modal.proof.expectedAmount)}</span></p></div><div><label htmlFor="payment-decision" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">القرار الإداري</label><select id="payment-decision" name="decision" required value={paymentDecision} onChange={(event) => onPaymentDecision(event.target.value as PaymentDecision | '')} className={inputClass}><option value="" className="bg-[#111]">اختر القرار المناسب</option><option value="VERIFY" className="bg-[#111]">اعتماد الإثبات والتحويل</option><option value="REJECT" className="bg-[#111]">رفض الإثبات نهائياً</option><option value="SHORT" className="bg-[#111]">المبلغ المحول ناقص</option><option value="REUPLOAD" className="bg-[#111]">طلب إعادة رفع إثبات واضح</option><option value="DUPLICATE" className="bg-[#111]">اشتباه إثبات مكرر</option></select></div><div><label htmlFor="payment-review-notes" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">ملاحظات وتوجيه القرار {paymentDecision === 'VERIFY' ? '(اختياري)' : ''}</label><textarea id="payment-review-notes" name="reviewNotes" required={paymentDecision !== '' && paymentDecision !== 'VERIFY'} minLength={3} maxLength={1000} rows={3} autoComplete="off" className={inputClass} /></div></> : null}
+          {modal.type === 'booking-review' ? <><input type="hidden" name="bookingId" value={modal.booking.id} /><div className="rounded-xl bg-neutral-950/60 border border-neutral-800 p-4 text-xs sm:text-sm"><p dir="ltr" translate="no" className="font-mono font-bold text-white text-base">{modal.booking.bookingNumber}</p><p className="mt-1.5 text-neutral-400">{modal.booking.customerName} · {modal.booking.serviceName}</p></div><div><label htmlFor="booking-decision" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">القرار</label><select id="booking-decision" name="decision" required value={bookingDecision} onChange={(event) => onBookingDecision(event.target.value as BookingDecision | '')} className={inputClass}><option value="" className="bg-[#111]">اختر القرار</option><option value="ACCEPT" className="bg-[#111]">قبول تشغيلي</option><option value="REJECT" className="bg-[#111]">رفض الحجز</option></select></div><div><label htmlFor="booking-review-reason" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">سبب القرار</label><textarea id="booking-review-reason" name="reason" required minLength={3} maxLength={1000} rows={3} autoComplete="off" className={inputClass} /></div></> : null}
+          {modal.type === 'assignment' ? <><input type="hidden" name="bookingId" value={modal.booking.id} /><div className="rounded-xl bg-neutral-950/60 border border-neutral-800 p-4 text-xs sm:text-sm"><p dir="ltr" translate="no" className="font-mono font-bold text-white text-base">{modal.booking.bookingNumber}</p><p className="mt-1.5 text-neutral-400">{modal.booking.branchName} · {formatDateTime(modal.booking.startAt)}</p></div>{eligibleTeams.length ? <><div><label htmlFor="assignment-team" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">الفريق المستهدف</label><select id="assignment-team" name="teamId" required defaultValue="" className={inputClass}><option value="" className="bg-[#111]">اختر فريقًا من نفس الفرع</option>{eligibleTeams.map((team) => <option key={team.id} value={team.id} className="bg-[#111]">{team.name} — الحمل: {team.todayBookingCount}/{team.dailyCapacity}</option>)}</select></div><div><label htmlFor="assignment-reason" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">سبب الإسناد اليدوي</label><textarea id="assignment-reason" name="reason" required minLength={3} maxLength={500} rows={3} autoComplete="off" className={inputClass} /></div></> : <CapabilityNotice>لا يوجد فريق نشط في نفس الفرع يمكن اختياره.</CapabilityNotice>}</> : null}
+          {modal.type === 'cancellation' ? <><input type="hidden" name="cancellationId" value={modal.request.id} /><div className="rounded-xl bg-neutral-950/60 border border-neutral-800 p-4 text-xs sm:text-sm"><p dir="ltr" translate="no" className="font-mono font-bold text-white text-base">{modal.request.booking.bookingNumber}</p><p className="mt-1 text-neutral-400">المدفوع: <span className="text-[#f3e4a8] font-bold">{formatCurrency(modal.request.booking.amountPaid)}</span> · تفضيل العميل: {modal.request.preferredAction}</p><p className="mt-2 break-words text-neutral-300">{modal.request.reason}</p></div><div><label htmlFor="cancellation-decision" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">القرار</label><select id="cancellation-decision" name="decision" required value={cancellationDecision} onChange={(event) => { onCancellationDecision(event.target.value as CancellationDecision | ''); onCancellationResolution(''); }} className={inputClass}><option value="" className="bg-[#111]">اختر القرار</option><option value="APPROVE" className="bg-[#111]">اعتماد الطلب</option><option value="REJECT" className="bg-[#111]">رفض الطلب واستعادة حالة الحجز</option></select></div>{cancellationDecision === 'APPROVE' ? <><div><label htmlFor="cancellation-resolution" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">نوع الحل المالي</label><select id="cancellation-resolution" name="resolutionType" required value={cancellationResolution} onChange={(event) => onCancellationResolution(event.target.value as CancellationResolution | '')} className={inputClass}><option value="" className="bg-[#111]">اختر نوع الحل</option><option value="REFUND_FULL" className="bg-[#111]">استرداد كامل</option><option value="REFUND_PARTIAL" className="bg-[#111]">استرداد جزئي</option><option value="NO_REFUND" className="bg-[#111]">إلغاء دون استرداد</option><option value="KEEP_DEPOSIT" className="bg-[#111]">الاحتفاظ بالعربون</option><option value="ESCALATE" className="bg-[#111]">تصعيد للمراجعة</option></select></div><div><label htmlFor="cancellation-party" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">الطرف المسؤول</label><select id="cancellation-party" name="responsibleParty" required defaultValue="" className={inputClass}><option value="" className="bg-[#111]">اختر الطرف</option><option value="CUSTOMER" className="bg-[#111]">العميل</option><option value="TEAM" className="bg-[#111]">الفريق</option><option value="BRANCH" className="bg-[#111]">الفرع</option><option value="ACCESS" className="bg-[#111]">تعذر الوصول</option><option value="FORCE_MAJEURE" className="bg-[#111]">ظرف قهري</option></select></div>{cancellationResolution === 'REFUND_PARTIAL' ? <div><label htmlFor="approved-refund-amount" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">مبلغ الاسترداد الجزئي</label><input id="approved-refund-amount" name="approvedRefundAmount" type="number" min={1} max={modal.request.booking.amountPaid} step={1} inputMode="numeric" required className={inputClass} /></div> : null}</> : null}<div><label htmlFor="cancellation-notes" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">ملاحظات القرار</label><textarea id="cancellation-notes" name="resolutionNotes" required minLength={3} maxLength={1000} rows={3} autoComplete="off" className={inputClass} /></div></> : null}
+          {modal.type === 'refund-approval' ? <><input type="hidden" name="refundId" value={modal.refund.id} /><div className="rounded-xl bg-neutral-950/60 border border-neutral-800 p-4 text-xs sm:text-sm"><p dir="ltr" translate="no" className="font-mono font-bold text-white text-base">{modal.refund.booking.bookingNumber}</p><p className="mt-2 text-2xl font-black tabular-nums text-[#f3e4a8]">{formatCurrency(modal.refund.amount)}</p><p className="mt-1 text-neutral-400">{modal.refund.refundMethod}{modal.refund.referenceNumber ? ` · ${modal.refund.referenceNumber}` : ''}</p></div><div><label htmlFor="refund-approval-reason" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">سبب الاعتماد</label><textarea id="refund-approval-reason" name="reason" required minLength={3} maxLength={1000} rows={3} autoComplete="off" className={inputClass} /></div></> : null}
+          {modal.type === 'branch-request' ? <><div><label htmlFor="branch-request-name" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">اسم الفرع المقترح</label><input id="branch-request-name" name="branchName" required minLength={2} maxLength={120} autoComplete="organization" className={inputClass} /></div><div><label htmlFor="branch-request-reason" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">سبب الإضافة</label><textarea id="branch-request-reason" name="reason" required minLength={3} maxLength={1000} rows={3} autoComplete="off" className={inputClass} /></div></> : null}
+          <div className="flex flex-col-reverse gap-3 border-t border-neutral-800/80 pt-4 sm:flex-row sm:justify-end">
+            <button type="button" onClick={onClose} disabled={pending} className={secondaryButtonClass}>إلغاء</button>
+            <button type="submit" disabled={pending || (modal.type === 'assignment' && eligibleTeams.length === 0)} aria-busy={pending} className={primaryButtonClass}>
+              {pending ? <><LoaderCircle aria-hidden="true" className="size-4 animate-spin" /> جاري التنفيذ…</> : 'تأكيد الإجراء'}
+            </button>
+          </div>
         </form>
       </div>
     </div>
@@ -1096,6 +1242,8 @@ export default function OwnerCommandCenter(props: OwnerCommandCenterProps) {
   const router = useRouter();
   const [modal, setModal] = useState<ModalState>(null);
   const [pending, setPending] = useState(false);
+  const [adminToolsOpen, setAdminToolsOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [actionError, setActionError] = useState('');
   const [feedback, setFeedback] = useState('');
   const [paymentDecision, setPaymentDecision] = useState<PaymentDecision | ''>('');
@@ -1107,6 +1255,20 @@ export default function OwnerCommandCenter(props: OwnerCommandCenterProps) {
   useEffect(() => {
     if (modal) dialogRef.current?.focus();
   }, [modal]);
+
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMobileMenuOpen(false);
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = prev;
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [mobileMenuOpen]);
 
   function openModal(nextModal: Exclude<ModalState, null>) {
     setActionError('');
@@ -1207,42 +1369,292 @@ export default function OwnerCommandCenter(props: OwnerCommandCenterProps) {
   }
 
   return (
-    <div dir="rtl" className="min-h-screen bg-[#080808] text-white">
+    <div dir="rtl" className="min-h-screen bg-[#09090c] text-white selection:bg-[#d4af37]/30 selection:text-white">
       <a href="#owner-main" className="sr-only rounded-lg bg-[#d4af37] px-4 py-2 font-bold text-black focus:not-sr-only focus:fixed focus:right-4 focus:top-4 focus:z-[60]">تخطي إلى المحتوى</a>
-      <header className="border-b border-white/10 bg-black/40">
-        <div className="mx-auto flex max-w-[1600px] flex-col gap-4 px-4 py-5 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
-          <div className="min-w-0"><p className="text-sm font-semibold text-[#d4af37]">{brand.brandNameAr}</p><h1 className="mt-1 truncate text-2xl font-black tracking-tight">لوحة المالك</h1><p className="mt-1 text-sm text-white/45">{owner.fullName} · <span dir="ltr" translate="no">{owner.role}</span></p></div>
-          <div className="flex flex-col gap-3 lg:items-end">
-            <nav aria-label="أدوات الإدارة" className="flex max-w-full gap-2 overflow-x-auto pb-1">
-              <Link href="/admin/calendar" className={`${secondaryButtonClass} shrink-0`}><CalendarDays aria-hidden="true" className="size-4" /> تقويم التشغيل</Link>
-              <Link href="/admin/reports" className={`${secondaryButtonClass} shrink-0`}><BarChart3 aria-hidden="true" className="size-4" /> مركز التقارير</Link>
-              <Link href="/admin/setup" className={`${secondaryButtonClass} shrink-0`}><Settings2 aria-hidden="true" className="size-4" /> إعداد التشغيل</Link>
-              <Link href="/admin/branches" className={`${secondaryButtonClass} shrink-0`}><Building2 aria-hidden="true" className="size-4" /> إدارة الفروع</Link>
-              <Link href="/admin/reviews" className={`${secondaryButtonClass} shrink-0`}><ClipboardCheck aria-hidden="true" className="size-4" /> تقييمات العملاء</Link>
-              <Link href="/admin/site" className={`${secondaryButtonClass} shrink-0`}><FileSearch aria-hidden="true" className="size-4" /> محتوى الموقع</Link>
-              <Link href="/operations/resources" className={`${secondaryButtonClass} shrink-0`}><Boxes aria-hidden="true" className="size-4" /> الموارد التشغيلية</Link>
-              <Link href="/operations/support" className={`${secondaryButtonClass} shrink-0`}><MessageCircle aria-hidden="true" className="size-4" /> دعم العملاء</Link>
-              <Link href="/admin/subscriptions" className={`${secondaryButtonClass} shrink-0`}><PackageCheck aria-hidden="true" className="size-4" /> إدارة الاشتراكات</Link>
-              <Link href="/operations/password-resets" className={`${secondaryButtonClass} shrink-0`}><ShieldAlert aria-hidden="true" className="size-4" /> استعادة كلمات المرور</Link>
-            </nav>
-            <div className="flex flex-wrap items-center gap-3"><Link href="/" className={secondaryButtonClass}>عرض الموقع</Link><form action={logoutAction}><button type="submit" className={secondaryButtonClass}><LogOut aria-hidden="true" className="size-4" /> تسجيل الخروج</button></form></div>
+
+      {/* Executive Command Header matching Customer Navbar Identity */}
+      <header className="sticky top-0 z-50 bg-[#080808]/90 backdrop-blur-md border-b border-[#cea355]/20 py-3 shadow-xl">
+        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 flex flex-row items-center justify-between">
+          {/* Brand Official Logo */}
+          <div className="flex items-center shrink-0">
+            <Link href="/admin" className="flex items-center" aria-label="بريق | BAREEQ">
+              <BareeqLogo size="md" />
+            </Link>
+          </div>
+
+          {/* Action Buttons, Owner Identity & Mobile Menu */}
+          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+            {/* Owner Pill Badge (Desktop / Tablet) */}
+            <div className="hidden sm:flex items-center gap-1.5 xs:gap-2 px-3 py-1.5 xs:px-4 xs:py-2 rounded-xl gold-gradient text-white font-bold text-xs xs:text-sm shadow-lg shadow-[#cea355]/25">
+              <User className="w-3.5 h-3.5 xs:w-4 xs:h-4 text-white" aria-hidden="true" />
+              <span>{owner.fullName}</span>
+              <span className="text-[10px] bg-black/30 text-white px-2 py-0.5 rounded font-black border border-white/20">
+                OWNER
+              </span>
+            </div>
+
+            {/* Website Link */}
+            <Link
+              href="/"
+              target="_blank"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 xs:px-3.5 xs:py-2 rounded-xl bg-[#141414] border border-white/20 text-neutral-200 hover:border-[#cea355]/50 hover:text-white transition-all text-xs font-semibold"
+            >
+              <Globe className="w-3.5 h-3.5 text-neutral-400" />
+              <span>الموقع</span>
+              <ExternalLink className="w-3 h-3 text-neutral-500" />
+            </Link>
+
+            {/* Mobile Menu Button matching Customer Layout */}
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(true)}
+              className="inline-flex lg:hidden items-center gap-1.5 rounded-xl border border-[#c9a227]/40 bg-[#c9a227]/10 px-3 py-2 text-xs font-bold text-[#e5c45a] transition hover:bg-[#c9a227]/20 focus:outline-none focus:ring-2 focus:ring-[#e5c45a]"
+              aria-label="فتح قائمة لوحة المالك"
+            >
+              <Menu className="size-4" aria-hidden="true" />
+              <span>القائمة</span>
+            </button>
           </div>
         </div>
       </header>
 
-      <main id="owner-main" className="mx-auto grid max-w-[1600px] gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[260px_minmax(0,1fr)] lg:px-8 lg:py-8">
-        <aside aria-label="أقسام لوحة المالك" className="min-w-0 lg:sticky lg:top-4 lg:self-start">
-          <nav className="flex gap-2 overflow-x-auto pb-2 lg:flex-col lg:overflow-visible lg:rounded-2xl lg:border lg:border-white/10 lg:bg-white/[0.025] lg:p-3">
+      {/* Slide-over Mobile Drawer for Small Screens */}
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm transition-opacity"
+            onClick={() => setMobileMenuOpen(false)}
+            aria-hidden="true"
+          />
+
+          {/* Drawer Panel */}
+          <div
+            className="fixed inset-y-0 right-0 z-50 flex w-[85%] max-w-xs flex-col justify-between border-l border-[#c9a227]/30 bg-[#121212] p-5 shadow-2xl transition-transform duration-300 overflow-y-auto"
+            dir="rtl"
+          >
+            <div>
+              {/* Drawer Header */}
+              <div className="flex items-center justify-between border-b border-neutral-800 pb-4">
+                <BareeqLogo size="sm" />
+                <button
+                  type="button"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="inline-flex size-8 items-center justify-center rounded-lg border border-neutral-700 bg-neutral-800 text-neutral-400 hover:text-white focus:outline-none focus:ring-2 focus:ring-[#e5c45a]"
+                  aria-label="إغلاق القائمة"
+                >
+                  <X className="size-4" aria-hidden="true" />
+                </button>
+              </div>
+
+              {/* Owner Info Card in Mobile Drawer */}
+              <div className="mt-4 rounded-2xl border border-neutral-800 bg-[#080808] p-3.5">
+                <div className="flex items-center gap-1.5 text-[10px] font-bold text-[#e5c45a]">
+                  <Crown className="size-3 text-[#d4af37]" />
+                  <span>لوحة المالك</span>
+                </div>
+                <p className="mt-0.5 truncate text-sm font-black text-white">{owner.fullName}</p>
+              </div>
+
+              {/* Section Links */}
+              <nav className="mt-4 flex flex-col gap-1.5" aria-label="أقسام لوحة المالك">
+                {sectionNav.map((item) => {
+                  const Icon = item.icon;
+                  const active = currentSection === item.id;
+
+                  let badgeCount = 0;
+                  if (item.id === 'payments') badgeCount = metrics.pendingProofs;
+                  else if (item.id === 'bookings') badgeCount = metrics.operationsReview + metrics.unassignedBookings;
+                  else if (item.id === 'cancellations') badgeCount = metrics.pendingCancellations + metrics.pendingRefunds;
+                  else if (item.id === 'quality') badgeCount = metrics.qualityOpen;
+
+                  return (
+                    <Link
+                      key={item.id}
+                      href={`/admin?section=${item.id}`}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={`inline-flex min-h-11 items-center justify-between gap-3 rounded-xl px-3.5 text-xs font-bold transition-all ${
+                        active
+                          ? 'border border-[#cea355] bg-[#cea355]/15 text-[#edce8b] shadow-sm shadow-[#cea355]/10 font-black ring-1 ring-[#cea355]/30'
+                          : 'border border-transparent text-neutral-400 hover:border-neutral-800 hover:bg-white/[0.04] hover:text-white'
+                      }`}
+                    >
+                      <span className="flex items-center gap-2.5">
+                        <Icon className={`size-4 shrink-0 ${active ? 'text-[#edce8b]' : 'text-[#c9a227]'}`} />
+                        <span>{item.label}</span>
+                      </span>
+                      {badgeCount > 0 ? (
+                        <span className="rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 px-2 py-0.5 text-[10px] font-black">
+                          {formatNumber(badgeCount)}
+                        </span>
+                      ) : null}
+                    </Link>
+                  );
+                })}
+              </nav>
+
+              {/* Admin Tools Accordion in Drawer */}
+              <div className="pt-2 mt-2 border-t border-neutral-800">
+                <button
+                  type="button"
+                  onClick={() => setAdminToolsOpen((prev) => !prev)}
+                  className="flex w-full items-center justify-between gap-2 rounded-xl px-3.5 py-2.5 text-xs font-bold text-[#f3e4a8] hover:bg-neutral-800/60 transition-all"
+                >
+                  <span className="flex items-center gap-2">
+                    <Wrench className="size-4 text-[#d4af37]" />
+                    <span>أدوات الإدارة</span>
+                  </span>
+                  <ChevronDown className={`size-4 transition-transform duration-200 text-[#d4af37] ${adminToolsOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {adminToolsOpen ? (
+                  <div className="mt-1 space-y-0.5 pr-2">
+                    {adminToolsNav.map((tool) => {
+                      const ToolIcon = tool.icon;
+                      return (
+                        <Link
+                          key={tool.href}
+                          href={tool.href}
+                          onClick={() => setMobileMenuOpen(false)}
+                          className="flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium text-neutral-300 hover:text-white hover:bg-white/[0.06] transition-all"
+                        >
+                          <ToolIcon className="size-3.5 text-neutral-400" />
+                          <span>{tool.label}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
+            {/* Bottom Actions in Drawer */}
+            <div className="mt-6 space-y-2 border-t border-neutral-800 pt-4">
+              <Link
+                href="/system-admin"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-xs font-bold text-[#f3e4a8] hover:bg-[#d4af37]/15 transition-all border border-[#d4af37]/20 bg-[#d4af37]/5"
+              >
+                <ShieldCheck className="size-4 text-[#d4af37]" />
+                <span>حوكمة النظام</span>
+              </Link>
+
+              <form action={logoutAction}>
+                <button
+                  type="submit"
+                  className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-red-500/20 bg-red-500/10 px-3 text-xs font-bold text-red-300 transition hover:bg-red-500/15"
+                >
+                  <LogOut className="size-4 text-rose-400" />
+                  <span>تسجيل الخروج</span>
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Main Content & Desktop Sticky Sidebar */}
+      <main id="owner-main" className="mx-auto max-w-[1600px] gap-6 px-4 py-6 sm:px-6 lg:grid lg:grid-cols-[240px_minmax(0,1fr)] lg:px-8 lg:py-8">
+        <aside aria-label="أقسام لوحة المالك" className="hidden lg:block min-w-0 lg:sticky lg:top-[90px] lg:self-start">
+          <nav className="rounded-2xl border border-neutral-800/80 bg-[#0e0e12]/90 backdrop-blur-xl p-2.5 shadow-xl space-y-1">
             {sectionNav.map((item) => {
               const Icon = item.icon;
               const active = currentSection === item.id;
-              return <Link key={item.id} href={`/admin?section=${item.id}`} aria-current={active ? 'page' : undefined} className={`flex shrink-0 items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold hover:bg-white/[0.06] focus-visible:ring-2 focus-visible:ring-[#d4af37]/40 ${active ? 'bg-[#d4af37] text-black hover:bg-[#e2c55d]' : 'text-white/65 hover:text-white'}`}><Icon aria-hidden="true" className="size-4" />{item.label}</Link>;
+
+              let badgeCount = 0;
+              if (item.id === 'payments') badgeCount = metrics.pendingProofs;
+              else if (item.id === 'bookings') badgeCount = metrics.operationsReview + metrics.unassignedBookings;
+              else if (item.id === 'cancellations') badgeCount = metrics.pendingCancellations + metrics.pendingRefunds;
+              else if (item.id === 'quality') badgeCount = metrics.qualityOpen;
+
+              return (
+                <Link
+                  key={item.id}
+                  href={`/admin?section=${item.id}`}
+                  aria-current={active ? 'page' : undefined}
+                  className={`flex items-center justify-between gap-3 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-semibold transition-all duration-200 ${
+                    active
+                      ? 'bg-gradient-to-r from-[#d4af37] via-[#e5c45a] to-[#d4af37] text-neutral-950 shadow-md shadow-[#d4af37]/20 font-bold'
+                      : 'text-neutral-300 hover:text-white hover:bg-white/[0.06]'
+                  }`}
+                >
+                  <span className="flex items-center gap-2.5">
+                    <Icon aria-hidden="true" className={`size-4 ${active ? 'text-neutral-950' : 'text-neutral-400'}`} />
+                    {item.label}
+                  </span>
+                  {badgeCount > 0 ? (
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[11px] font-black tabular-nums ${
+                        active
+                          ? 'bg-black/20 text-neutral-950'
+                          : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                      }`}
+                    >
+                      {formatNumber(badgeCount)}
+                    </span>
+                  ) : null}
+                </Link>
+              );
             })}
+
+            {/* أدوات الإدارة المتقدمة داخل القائمة الجانبية */}
+            <div className="pt-2 mt-2 border-t border-neutral-800/80">
+              <button
+                type="button"
+                onClick={() => setAdminToolsOpen((prev) => !prev)}
+                className="flex w-full items-center justify-between gap-2 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-bold text-[#f3e4a8] hover:bg-neutral-800/60 transition-all"
+              >
+                <span className="flex items-center gap-2.5">
+                  <Wrench className="size-4 text-[#d4af37]" />
+                  <span>أدوات الإدارة</span>
+                </span>
+                <ChevronDown className={`size-4 transition-transform duration-200 text-[#d4af37] ${adminToolsOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {adminToolsOpen ? (
+                <div className="mt-1 space-y-0.5 pr-2">
+                  {adminToolsNav.map((tool) => {
+                    const ToolIcon = tool.icon;
+                    return (
+                      <Link
+                        key={tool.href}
+                        href={tool.href}
+                        className="flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium text-neutral-300 hover:text-white hover:bg-white/[0.06] transition-all"
+                      >
+                        <ToolIcon className="size-3.5 text-neutral-400" />
+                        <span>{tool.label}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </div>
+
+            {/* حوكمة النظام وتسجيل الخروج في أسفل القائمة الجانبية */}
+            <div className="pt-2 mt-2 border-t border-neutral-800/80 space-y-1">
+              <Link
+                href="/system-admin"
+                className="flex items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-bold text-[#f3e4a8] hover:bg-[#d4af37]/15 transition-all border border-[#d4af37]/20 bg-[#d4af37]/5"
+              >
+                <ShieldCheck className="size-4 text-[#d4af37]" />
+                <span>حوكمة النظام</span>
+              </Link>
+
+              <form action={logoutAction}>
+                <button
+                  type="submit"
+                  className="flex w-full items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-semibold text-rose-300 hover:bg-rose-500/10 transition-all border border-rose-500/20 bg-rose-500/5"
+                >
+                  <LogOut className="size-4 text-rose-400" />
+                  <span>تسجيل الخروج</span>
+                </button>
+              </form>
+            </div>
           </nav>
         </aside>
 
         <div className="min-w-0">
-          <div aria-live="polite" className="mb-4 min-h-6 text-sm text-emerald-300">{feedback}</div>
+          <div aria-live="polite" className="mb-4 min-h-6 text-sm font-medium text-emerald-400">{feedback}</div>
           {sectionContent}
         </div>
       </main>

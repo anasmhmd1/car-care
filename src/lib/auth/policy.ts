@@ -13,7 +13,7 @@ const PROTECTED_ROUTE_ROLES: ReadonlyArray<{
   roles: readonly AppRole[];
   exact?: boolean;
 }> = [
-  { prefix: '/system-admin', roles: ['SYSTEM_SUPER_ADMIN'] },
+  { prefix: '/system-admin', roles: ['OWNER', 'SYSTEM_SUPER_ADMIN'] },
   {
     prefix: '/admin/calendar',
     roles: ['OPERATIONS_MANAGER', 'OWNER', 'SYSTEM_SUPER_ADMIN'],

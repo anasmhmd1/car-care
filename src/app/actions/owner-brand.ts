@@ -112,6 +112,7 @@ export async function createBranchDirectAction(formData: FormData) {
           slotUnitMinutes: 60,
           arrivalWindowMinutes: 30,
           travelBufferMinutes: 30,
+          restBufferMinutes: 0,
           dailyBookingLimit: parsed.data.dailyBookingLimit,
           assignmentMode: 'MANUAL',
           status: 'ACTIVE',

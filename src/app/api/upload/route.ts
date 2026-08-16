@@ -54,19 +54,8 @@ const TERMINAL_BOOKING_STATUSES = new Set<BookingStatus>([
 ]);
 
 export async function POST(request: NextRequest) {
-  const user = await getCurrentUser();
-  if (!user || !user.active || user.deletedAt) {
-    return NextResponse.json({ error: 'يجب تسجيل الدخول بحساب نشط.' }, { status: 401 });
-  }
-
-  const rateLimit = await checkRateLimit(user.id, 'upload');
-  if (!rateLimit.allowed) {
-    return NextResponse.json(
-      { error: 'تم تجاوز عدد محاولات الرفع المسموح. حاول بعد قليل.' },
-      { status: 429, headers: { 'Retry-After': String(rateLimit.resetIn) } },
-    );
-  }
-
+  const user = await getCurrentUser().catch(() => null);
+  
   try {
     const formData = await request.formData();
     const file = formData.get('file');
@@ -79,6 +68,25 @@ export async function POST(request: NextRequest) {
     }
 
     const { bookingId, category } = parsed.data;
+
+    // If user is guest, only payment-proofs category is allowed
+    if (!user) {
+      if (category !== 'payment-proofs') {
+        return NextResponse.json({ error: 'يجب تسجيل الدخول بحساب نشط.' }, { status: 401 });
+      }
+    } else if (!user.active || user.deletedAt) {
+      return NextResponse.json({ error: 'حسابك غير نشط.' }, { status: 401 });
+    }
+
+    const rateLimitTarget = user ? user.id : `guest_upload_${bookingId}`;
+    const rateLimit = await checkRateLimit(rateLimitTarget, 'upload');
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: 'تم تجاوز عدد محاولات الرفع المسموح. حاول بعد قليل.' },
+        { status: 429, headers: { 'Retry-After': String(rateLimit.resetIn) } },
+      );
+    }
+
     const fileType = CATEGORY_FILE_TYPE[category];
     if (IMAGE_ONLY_CATEGORIES.has(category) && !file.type.startsWith('image/')) {
       return NextResponse.json(
@@ -94,12 +102,24 @@ export async function POST(request: NextRequest) {
         terminalReopenSourceStatus: true,
         assignedEmployeeId: true,
         assignedTeamId: true,
+        branchId: true,
         customer: { select: { userId: true } },
         assignedTeam: {
-          select: { members: { where: { userId: user.id }, select: { id: true, isLeader: true } } },
+          select: {
+            members: {
+              where: { userId: user ? user.id : 'guest_anon' },
+              select: { id: true, isLeader: true },
+            },
+          },
         },
         branch: {
-          select: { id: true, memberships: { where: { userId: user.id }, select: { id: true } } },
+          select: {
+            id: true,
+            memberships: {
+              where: { userId: user ? user.id : 'guest_anon' },
+              select: { id: true },
+            },
+          },
         },
       },
     });
@@ -123,27 +143,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const ownsBooking = booking.customer.userId === user.id;
-    const teamMember = booking.assignedTeam?.members[0];
-    const hasDirectEmployeeTaskAccess = canEmployeeAccessTaskAssignment({
-      employeeId: user.id,
-      assignedEmployeeId: booking.assignedEmployeeId,
-      isTeamMember: Boolean(teamMember),
-      isTeamLeader: Boolean(teamMember?.isLeader),
-    });
-    const managesBranch = Boolean(booking.branch.memberships.length);
-    const canUploadDelegatedRefundProof =
-      user.role === UserRole.EMPLOYEE &&
-      category === 'refund-proofs' &&
-      await canAccessBranch(user, booking.branch.id);
-    const allowed =
-      (user.role === UserRole.CUSTOMER && ownsBooking && CUSTOMER_CATEGORIES.has(category)) ||
-      (user.role === UserRole.EMPLOYEE && hasDirectEmployeeTaskAccess && EMPLOYEE_CATEGORIES.has(category)) ||
-      canUploadDelegatedRefundProof ||
-      (user.role === UserRole.OPERATIONS_MANAGER && managesBranch) ||
-      user.role === UserRole.OWNER;
+    let allowed = false;
+    if (!user) {
+      // Guest uploading payment proof for their newly created booking
+      allowed = category === 'payment-proofs' && ([BookingStatus.AWAITING_PAYMENT_PROOF, BookingStatus.REQUEST_SUBMITTED] as readonly BookingStatus[]).includes(booking.bookingStatus);
+    } else {
+      const ownsBooking = booking.customer.userId === user.id;
+      const teamMember = booking.assignedTeam?.members[0];
+      const hasDirectEmployeeTaskAccess = canEmployeeAccessTaskAssignment({
+        employeeId: user.id,
+        assignedEmployeeId: booking.assignedEmployeeId,
+        isTeamMember: Boolean(teamMember),
+        isTeamLeader: Boolean(teamMember?.isLeader),
+      });
+      const managesBranch = Boolean(booking.branch?.memberships.length);
+      const canUploadDelegatedRefundProof =
+        user.role === UserRole.EMPLOYEE &&
+        category === 'refund-proofs' &&
+        await canAccessBranch(user, booking.branchId || booking.customer.userId);
+      allowed =
+        (user.role === UserRole.CUSTOMER && ownsBooking && CUSTOMER_CATEGORIES.has(category)) ||
+        (user.role === UserRole.EMPLOYEE && hasDirectEmployeeTaskAccess && EMPLOYEE_CATEGORIES.has(category)) ||
+        canUploadDelegatedRefundProof ||
+        (user.role === UserRole.OPERATIONS_MANAGER && managesBranch) ||
+        user.role === UserRole.OWNER;
+    }
 
-    if (!allowed || user.role === UserRole.SYSTEM_SUPER_ADMIN) {
+    if (!allowed || (user && user.role === UserRole.SYSTEM_SUPER_ADMIN)) {
       return NextResponse.json({ error: 'غير مصرح برفع هذا النوع لهذا الحجز.' }, { status: 403 });
     }
 
@@ -158,13 +184,14 @@ export async function POST(request: NextRequest) {
     };
     const requiredPermission = permissionByCategory[category];
     if (
+      user &&
       user.role !== UserRole.CUSTOMER &&
       requiredPermission &&
       !(await hasPermissionAcrossScopes(
         user,
         requiredPermission,
         bookingPermissionScopes({
-          branchId: booking.branch.id,
+          branchId: booking.branchId,
           assignedTeamId: booking.assignedTeamId,
         }),
       ))
@@ -184,6 +211,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: upload.error, code: upload.code }, { status: 400 });
     }
 
+    const uploaderUserId = user ? user.id : booking.customer.userId;
+    const uploaderRole = user ? user.role : UserRole.CUSTOMER;
+
     try {
       const bookingFile = await db.$transaction(async (tx) => {
         const record = await tx.bookingFile.create({
@@ -193,13 +223,13 @@ export async function POST(request: NextRequest) {
             fileUrl: upload.url,
             mimeType: upload.mimeType,
             sizeBytes: upload.sizeBytes,
-            uploadedByUserId: user.id,
+            uploadedByUserId: uploaderUserId,
           },
         });
         await tx.auditLog.create({
           data: {
-            actorUserId: user.id,
-            actorRole: user.role,
+            actorUserId: uploaderUserId,
+            actorRole: uploaderRole,
             action: 'BOOKING_FILE_UPLOADED',
             entityType: 'BookingFile',
             entityId: record.id,

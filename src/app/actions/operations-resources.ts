@@ -1,6 +1,7 @@
 'use server';
 
 import {
+  EmployeeMovementType,
   MaterialMovementType,
   OperationalVehicleStatus,
   Prisma,
@@ -865,3 +866,191 @@ export async function assignBookingOperationalResourcesAction(
     return { error: resourceError(error) };
   }
 }
+
+const employeeStockAllocationSchema = z.object({
+  employeeId: databaseIdSchema,
+  materialId: databaseIdSchema,
+  branchId: optionalIdSchema,
+  type: z.enum(['ALLOCATION', 'ADJUSTMENT', 'RETURN']).default('ALLOCATION'),
+  quantity: z.coerce.number().min(0.001, 'الكمية يجب أن تكون أكبر من صفر').max(1_000_000),
+  minAlertLevel: nullableNonnegativeIntegerSchema,
+  reason: z.string().trim().max(500).optional(),
+});
+
+export async function allocateEmployeeStockAction(formData: FormData): Promise<OperationsResourceActionResult> {
+  const actor = await requireRole([...RESOURCE_ROLES]);
+  const parsed = employeeStockAllocationSchema.safeParse({
+    employeeId: formData.get('employeeId'),
+    materialId: formData.get('materialId'),
+    branchId: formData.get('branchId'),
+    type: formData.get('type') ?? 'ALLOCATION',
+    quantity: formData.get('quantity'),
+    minAlertLevel: formData.get('minAlertLevel'),
+    reason: formData.get('reason'),
+  });
+
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? 'بيانات عهدة الموظف غير صالحة.' };
+  }
+
+  const { employeeId, materialId, branchId, type, quantity, minAlertLevel, reason } = parsed.data;
+
+  try {
+    await db.$transaction(async (tx) => {
+      const employee = await tx.user.findUnique({
+        where: { id: employeeId, deletedAt: null },
+        select: { id: true, fullName: true, active: true },
+      });
+      if (!employee || !employee.active) throw new Error('EMPLOYEE_NOT_FOUND');
+
+      const material = await tx.material.findUnique({
+        where: { id: materialId },
+        select: { id: true, nameAr: true, unit: true, active: true },
+      });
+      if (!material || !material.active) throw new Error('MATERIAL_NOT_FOUND');
+
+      let movementType: EmployeeMovementType;
+      let quantityChange = 0;
+
+      const existingStock = await tx.employeeMaterialStock.findUnique({
+        where: { employeeId_materialId: { employeeId, materialId } },
+      });
+
+      const currentBalance = existingStock ? existingStock.quantityOnHand : 0;
+      let newBalance = currentBalance;
+
+      if (type === 'ALLOCATION') {
+        movementType = EmployeeMovementType.ALLOCATION;
+        quantityChange = quantity;
+        newBalance = currentBalance + quantity;
+      } else if (type === 'RETURN') {
+        movementType = EmployeeMovementType.RETURN;
+        quantityChange = -quantity;
+        newBalance = Math.max(0, currentBalance - quantity);
+      } else {
+        movementType = EmployeeMovementType.ADJUSTMENT;
+        quantityChange = quantity - currentBalance;
+        newBalance = quantity;
+      }
+
+      const stock = await tx.employeeMaterialStock.upsert({
+        where: { employeeId_materialId: { employeeId, materialId } },
+        create: {
+          employeeId,
+          materialId,
+          quantityOnHand: newBalance,
+          minAlertLevel: minAlertLevel ?? undefined,
+          active: true,
+        },
+        update: {
+          quantityOnHand: newBalance,
+          minAlertLevel: minAlertLevel !== undefined ? minAlertLevel : undefined,
+          active: true,
+        },
+      });
+
+      await tx.employeeInventoryMovement.create({
+        data: {
+          employeeStockId: stock.id,
+          type: movementType,
+          quantityChange,
+          balanceAfter: newBalance,
+          reason: reason || (type === 'ALLOCATION' ? `تسليم عهدة: ${quantity} ${material.unit}` : type === 'RETURN' ? `إرجاع عهدة للمخزن: ${quantity} ${material.unit}` : `تسوية جرد العهدة`),
+          createdByUserId: actor.id,
+        },
+      });
+
+      // If branchId is supplied and type is ALLOCATION, deduct from branch stock if present
+      if (branchId && type === 'ALLOCATION') {
+        const branchStock = await tx.branchMaterialStock.findUnique({
+          where: { branchId_materialId: { branchId, materialId } },
+        });
+        if (branchStock) {
+          const intQty = Math.round(quantity);
+          const updatedBranch = await tx.branchMaterialStock.update({
+            where: { id: branchStock.id },
+            data: { quantityOnHand: { decrement: intQty } },
+          });
+          await tx.inventoryMovement.create({
+            data: {
+              branchStockId: branchStock.id,
+              type: MaterialMovementType.CONSUMPTION,
+              quantityChange: -intQty,
+              balanceAfter: updatedBranch.quantityOnHand,
+              reason: `صرف عهدة للموظف ${employee.fullName}`,
+              createdByUserId: actor.id,
+            },
+          });
+        }
+      }
+
+      await writeAudit(
+        tx,
+        actor,
+        'EMPLOYEE_MATERIAL_STOCK_UPDATED',
+        'EmployeeMaterialStock',
+        stock.id,
+        { previousBalance: currentBalance },
+        {
+          employeeName: employee.fullName,
+          materialName: material.nameAr,
+          type,
+          quantityChange,
+          newBalance,
+          reason,
+        },
+      );
+    }, transactionOptions);
+
+    revalidatePath('/operations/resources');
+    revalidatePath('/staff');
+    return {
+      success: true,
+      message: type === 'ALLOCATION'
+        ? 'تم تسليم العهدة للموظف وتحديث المخزون بنجاح.'
+        : type === 'RETURN'
+          ? 'تم إرجاع العهدة وتحديث المخزون بنجاح.'
+          : 'تمت تسوية وتحديث مخزون الموظف بنجاح.',
+    };
+  } catch (error) {
+    if (error instanceof Error && error.message === 'EMPLOYEE_NOT_FOUND') return { error: 'الموظف غير موجود أو حسابه غير نشط.' };
+    if (error instanceof Error && error.message === 'MATERIAL_NOT_FOUND') return { error: 'المادة غير موجودة أو غير نشطة.' };
+    return { error: resourceError(error) };
+  }
+}
+
+export async function deleteEmployeeMaterialStockAction(formData: FormData): Promise<OperationsResourceActionResult> {
+  const actor = await requireRole([...RESOURCE_ROLES]);
+  const stockId = formData.get('stockId');
+  if (typeof stockId !== 'string' || !stockId) return { error: 'معرف العهدة مطلوب.' };
+
+  try {
+    await db.$transaction(async (tx) => {
+      const stock = await tx.employeeMaterialStock.findUnique({
+        where: { id: stockId },
+        include: { employee: true, material: true },
+      });
+      if (!stock) throw new Error('STOCK_NOT_FOUND');
+
+      await tx.employeeMaterialStock.delete({ where: { id: stockId } });
+
+      await writeAudit(
+        tx,
+        actor,
+        'EMPLOYEE_MATERIAL_STOCK_DELETED',
+        'EmployeeMaterialStock',
+        stockId,
+        { employeeName: stock.employee.fullName, materialName: stock.material.nameAr, quantityOnHand: stock.quantityOnHand },
+        undefined,
+      );
+    }, transactionOptions);
+
+    revalidatePath('/operations/resources');
+    revalidatePath('/staff');
+    return { success: true, message: 'تم حذف بند العهدة بنجاح.' };
+  } catch (error) {
+    if (error instanceof Error && error.message === 'STOCK_NOT_FOUND') return { error: 'بند العهدة غير موجود.' };
+    return { error: resourceError(error) };
+  }
+}
+

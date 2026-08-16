@@ -13,7 +13,7 @@ import { UserRole } from '@prisma/client';
 describe('authorization policy', () => {
   it('enforces the five role route boundaries', () => {
     expect(canAccessRoute('SYSTEM_SUPER_ADMIN', '/system-admin')).toBe(true);
-    expect(canAccessRoute('OWNER', '/system-admin')).toBe(false);
+    expect(canAccessRoute('OWNER', '/system-admin')).toBe(true);
     expect(canAccessRoute('OPERATIONS_MANAGER', '/admin')).toBe(false);
     expect(canAccessRoute('OWNER', '/operations')).toBe(true);
     expect(canAccessRoute('EMPLOYEE', '/staff/tasks')).toBe(true);

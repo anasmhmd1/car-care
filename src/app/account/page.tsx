@@ -6,9 +6,7 @@ import {
   Car,
   ChevronLeft,
   Clock,
-  Coins,
   MapPin,
-  Sparkles,
   User,
 } from 'lucide-react';
 import { requireRole } from '@/lib/auth/session';
@@ -105,39 +103,15 @@ export default async function AccountPage() {
   ];
 
   return (
-    <div className="space-y-8 pb-12" dir="rtl">
-      <header className="rounded-3xl border border-[#c9a227]/30 bg-[#14130f] p-6 shadow-2xl sm:p-8">
-        <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-          <div>
-            <p className="inline-flex items-center gap-2 rounded-full border border-[#c9a227]/30 bg-[#c9a227]/10 px-3 py-1 text-xs font-bold text-[#e5c45a]">
-              <Sparkles className="size-3.5" aria-hidden="true" />
-              حساب عميل بريق
-            </p>
-            <h1 className="mt-3 text-3xl font-black text-white sm:text-4xl">أهلًا، {user.fullName}</h1>
-            <p className="mt-2 text-xs text-neutral-400">{user.phone}{user.whatsapp ? ` · واتساب ${user.whatsapp}` : ''}</p>
-          </div>
-          <Link
-            href="/services"
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl gold-gradient px-6 text-sm font-black text-[#080808] transition hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-[#e5c45a]"
-          >
-            <Calendar className="size-4" aria-hidden="true" />
-            حجز خدمة جديدة
-          </Link>
-        </div>
-      </header>
-
-      <section className="grid gap-4 sm:grid-cols-3" aria-label="ملخص الحساب">
+    <div className="space-y-6 pb-12" dir="rtl">
+      <section className="grid gap-4 sm:grid-cols-2" aria-label="ملخص الحساب">
         <div className="rounded-2xl border border-neutral-800 bg-[#121212] p-5">
-          <p className="text-xs font-bold text-neutral-500">رصيد التعويضات</p>
-          <p className="mt-2 text-2xl font-black text-[#f0d36d]">{customer?.creditBalance ?? 0} ج.م</p>
+          <p className="text-xs font-bold text-neutral-500">إجمالي الحجوزات</p>
+          <p className="mt-2 text-2xl font-black text-white">{customer?._count.bookings ?? 0}</p>
         </div>
         <div className="rounded-2xl border border-neutral-800 bg-[#121212] p-5">
           <p className="text-xs font-bold text-neutral-500">الزيارات المتبقية</p>
-          <p className="mt-2 text-2xl font-black text-white">{remainingVisits}</p>
-        </div>
-        <div className="rounded-2xl border border-neutral-800 bg-[#121212] p-5">
-          <p className="text-xs font-bold text-neutral-500">الحجوزات النشطة</p>
-          <p className="mt-2 text-2xl font-black text-white">{nextBooking ? 'يوجد حجز قادم' : 'لا يوجد'}</p>
+          <p className="mt-2 text-2xl font-black text-[#e5c45a]">{remainingVisits}</p>
         </div>
       </section>
 
@@ -177,26 +151,6 @@ export default async function AccountPage() {
           </Link>
         ))}
       </section>
-
-      {customer?.creditTransactions.length ? (
-        <section className="rounded-3xl border border-neutral-800 bg-[#121212] p-6" aria-labelledby="credit-ledger-title">
-          <h2 id="credit-ledger-title" className="flex items-center gap-2 text-base font-black text-white">
-            <Coins className="size-5 text-[#c9a227]" aria-hidden="true" />
-            آخر حركات رصيد التعويضات
-          </h2>
-          <div className="mt-4 divide-y divide-neutral-800">
-            {customer.creditTransactions.map((entry) => (
-              <div key={entry.id} className="flex items-center justify-between gap-4 py-3 text-xs">
-                <div>
-                  <p className="font-bold text-neutral-200">{entry.reason}</p>
-                  <p className="mt-1 text-neutral-600">{entry.createdAt.toLocaleString('ar-EG')}</p>
-                </div>
-                <p className={`text-left font-black ${entry.amount >= 0 ? 'text-emerald-300' : 'text-amber-300'}`}>{entry.amount >= 0 ? '+' : ''}{entry.amount} ج.م<br /><span className="text-[10px] font-medium text-neutral-500">الرصيد {entry.balanceAfter}</span></p>
-              </div>
-            ))}
-          </div>
-        </section>
-      ) : null}
     </div>
   );
 }

@@ -365,7 +365,11 @@ export default function DelegatedOperationsBoard({
                       <div><dt className="text-xs text-neutral-500">الوسيلة</dt><dd>{proof.paymentMethod.name}</dd></div>
                       <div><dt className="text-xs text-neutral-500">وقت التحويل</dt><dd>{formatDate(proof.transferTimestamp)}</dd></div>
                     </dl>
-                    <a href={proof.proofFileUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-[#c9a227]/50 px-3 py-2 text-xs font-bold text-[#e5c45a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c9a227]">فتح الإثبات الخاص <ExternalLink className="size-4" aria-hidden="true" /></a>
+                    {proof.proofFileUrl && proof.proofFileUrl.startsWith('/api/files/') ? (
+                      <a href={proof.proofFileUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-[#c9a227]/50 px-3 py-2 text-xs font-bold text-[#e5c45a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c9a227]">فتح الإثبات الخاص <ExternalLink className="size-4" aria-hidden="true" /></a>
+                    ) : (
+                      <span className="text-xs text-neutral-400">🗑️ تم حذف صورة الإيصال تلقائيًا بعد القبول لتوفير المساحة.</span>
+                    )}
                     <form onSubmit={(event) => { event.preventDefault(); execute(event.currentTarget, reviewPaymentProofAction, 'تم حفظ قرار مراجعة الإثبات.'); }} className="space-y-3">
                       <input type="hidden" name="proofId" value={proof.id} />
                       <div><label className={labelClass}>القرار</label><select name="decision" defaultValue="VERIFY" className={inputClass}><option value="VERIFY">اعتماد</option><option value="SHORT">المبلغ ناقص</option><option value="REUPLOAD">طلب إعادة رفع</option><option value="DUPLICATE">اشتباه تكرار</option><option value="REJECT">رفض</option></select></div>

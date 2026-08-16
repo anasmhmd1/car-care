@@ -48,6 +48,30 @@ export const updateBookingStatusSchema = z.object({
   reason: z.string().max(500).optional().default(''),
 });
 
+export const cancelBookingByOperationsSchema = z.object({
+  bookingId: databaseIdSchema,
+  reason: z.string().trim().min(3, 'سبب الإلغاء مطلوب (3 أحرف على الأقل)').max(1000),
+});
+
+export const rescheduleBookingByOperationsSchema = z.object({
+  bookingId: databaseIdSchema,
+  targetDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'تاريخ الموعد الجديد غير صالح.'),
+  targetTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'وقت الموعد الجديد غير صالح.'),
+  reason: z.string().trim().min(3, 'سبب تغيير الموعد مطلوب').max(500),
+});
+
+export const transferBookingTeamSchema = z.object({
+  bookingId: databaseIdSchema,
+  targetTeamId: databaseIdSchema,
+  reason: z.string().trim().min(3, 'سبب نقل الحجز مطلوب').max(500),
+});
+
+export const toggleBranchScheduleLockSchema = z.object({
+  branchId: databaseIdSchema,
+  locked: z.preprocess((val) => val === 'true' || val === true, z.boolean()),
+  reason: z.string().trim().max(500).optional(),
+});
+
 // --------------------------------------------------------
 // Cancellation & Refund Schemas
 // --------------------------------------------------------

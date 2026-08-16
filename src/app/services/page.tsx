@@ -5,131 +5,344 @@ import PublicImage from '@/components/PublicImage';
 import { getCurrentUser } from '@/lib/auth/session';
 import { db } from '@/lib/db';
 import { createPublicMetadata } from '@/lib/seo';
-import { Clock, Check, Sparkles } from 'lucide-react';
+import { readServiceCollections } from '@/lib/service-collections';
+import { Clock, CheckCircle2, Award, Layers, Filter, X } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
 export const metadata = createPublicMetadata({
   title: 'خدمات العناية بالسيارات',
-  description: 'قارن خدمات بريق للعناية المتنقلة بالسيارات من حيث المشتملات والمدة والسعر، ثم ابدأ الحجز.',
+  description: 'استعرض جميع خدمات العناية المتنقلة وباقات الاشتراكات الدورية من بريق مع تفاصيل الأسعار والحجز المباشر.',
   path: '/services',
 });
 
-export default async function ServicesPage() {
-  const user = await getCurrentUser();
-  const services = await db.service.findMany({
-    where: { active: true, bookableOnline: true },
-    select: {
-      id: true,
-      slug: true,
-      nameAr: true,
-      shortDescriptionAr: true,
-      coverImage: true,
-      durationMinutes: true,
-      basePrice: true,
-      includedItems: true,
-    },
-    orderBy: { basePrice: 'asc' },
-  });
+import { getServiceRealImage } from '@/lib/service-images';
+
+interface ServicesPageProps {
+  searchParams?: Promise<{ collection?: string; view?: string }> | { collection?: string; view?: string };
+}
+
+export default async function ServicesPage({ searchParams }: ServicesPageProps) {
+  const resolvedParams = searchParams ? await Promise.resolve(searchParams) : {};
+  const activeCollectionId = resolvedParams?.collection;
+  
+  // Default is 'services' (only services) unless explicitly requested 'all'
+  const isViewAll = resolvedParams?.view === 'all' && !activeCollectionId;
+  const showServices = true;
+  const showPlans = isViewAll;
+
+  const [user, brand, allServices, plans] = await Promise.all([
+    getCurrentUser().catch(() => null),
+    db.brandSettings.findFirst({ select: { homepageContent: true } }).catch(() => null),
+    db.service.findMany({
+      where: { active: true, bookableOnline: true },
+      select: {
+        id: true,
+        slug: true,
+        nameAr: true,
+        shortDescriptionAr: true,
+        coverImage: true,
+        durationMinutes: true,
+        basePrice: true,
+        benefits: true,
+        includedItems: true,
+      },
+      orderBy: { basePrice: 'asc' },
+    }),
+    db.subscriptionPlan.findMany({
+      where: { active: true },
+      include: { services: { include: { service: true } } },
+      orderBy: { price: 'asc' },
+    }),
+  ]);
+
+  const collections = readServiceCollections(brand?.homepageContent).filter((c) => c.active);
+  const selectedCollection = activeCollectionId ? collections.find((c) => c.id === activeCollectionId) : null;
+
+  // Filter services if a specific collection with assigned services is selected
+  const displayedServices = selectedCollection
+    ? allServices.filter((s) => {
+        if (selectedCollection.serviceIds && selectedCollection.serviceIds.length > 0) {
+          return selectedCollection.serviceIds.includes(s.id);
+        }
+        const cid = selectedCollection.id.toLowerCase();
+        const ctitle = selectedCollection.titleAr.toLowerCase();
+        const slug = s.slug.toLowerCase();
+        const sname = s.nameAr.toLowerCase();
+
+        if (cid.includes('exterior') || ctitle.includes('خارجي') || ctitle.includes('دهان')) {
+          return slug.includes('exterior') || slug.includes('complete') || slug.includes('vip') || sname.includes('خارجي') || sname.includes('شامل') || sname.includes('ملكية');
+        }
+        if (cid.includes('interior') || ctitle.includes('داخلي') || ctitle.includes('جلد') || ctitle.includes('فرش')) {
+          return slug.includes('interior') || slug.includes('upholstery') || slug.includes('roof') || slug.includes('complete') || sname.includes('داخلي') || sname.includes('فرش') || sname.includes('سقف');
+        }
+        if (cid.includes('engine') || ctitle.includes('موتور') || ctitle.includes('محرك')) {
+          return slug.includes('engine') || slug.includes('vip') || sname.includes('موتور') || sname.includes('محرك');
+        }
+        return true;
+      })
+    : allServices;
 
   return (
-    <div className="min-h-screen bg-[#080808] text-white flex flex-col font-sans">
+    <div className="min-h-screen bg-[#050505] text-white flex flex-col font-sans selection:bg-[#cea355] selection:text-black" dir="rtl">
       <Navbar user={user} />
 
-      <main id="main-content" className="flex-1 pt-32 pb-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
+      <main id="main-content" className="flex-1 pt-32 pb-28 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full space-y-14">
         
-        {/* Header */}
-        <div className="text-center space-y-4 mb-16">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#141414] border border-[#c9a227]/30 text-xs font-semibold text-[#e5c45a]">
-            <Sparkles className="w-4 h-4 text-[#c9a227]" aria-hidden="true" />
-            <span>منتجات العناية بالسيارات المتنقلة</span>
-          </div>
-          <h1 className="text-3xl sm:text-5xl font-black gold-gradient-text">خدمات بريق المتخصصة</h1>
-          <p className="text-neutral-400 text-sm max-w-2xl mx-auto leading-relaxed">
-            جميع خدماتنا تُنفّذ بمواد مخصصة وحماية فائقة للسطح. اختر الخدمة واعرض تفاصيلها أو ابدأ الحجز مباشرة.
+        {/* Page Header */}
+        <div className="text-center space-y-4 max-w-3xl mx-auto">
+          <h1 className="text-3xl sm:text-5xl font-black text-white">
+            {isViewAll ? 'كافة الخدمات وباقات العناية' : 'خدمات بريق المتخصصة'}
+          </h1>
+          <p className="text-white text-sm sm:text-base leading-relaxed">
+            {isViewAll
+              ? 'جميع خدماتنا وباقاتنا تُنفّذ بمواد مخصصة وحماية فائقة للدهان والفرش بدون قطرة مياه. اختر الخدمة الفردية أو باقة الزيارات الدورية المناسبة لك.'
+              : 'جميع خدماتنا تُنفّذ بمواد مخصصة وحماية فائقة للدهان والفرش بدون قطرة مياه، مع حجز مباشر لكل زيارة.'}
           </p>
         </div>
 
-        {/* Services Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {services.length === 0 ? (
-            <section className="md:col-span-2 lg:col-span-3 rounded-3xl border border-neutral-800 bg-[#141414] p-10 text-center" aria-labelledby="services-empty-title">
-              <h2 id="services-empty-title" className="text-xl font-bold text-white">لا توجد خدمات متاحة عبر الموقع حاليًا</h2>
-              <p className="mt-2 text-sm text-neutral-400">يمكنك التواصل مع فريق بريق لمعرفة الخدمات والمواعيد المتاحة.</p>
-              <Link href="/contact" className="mt-5 inline-flex min-h-11 items-center justify-center rounded-xl border border-[#cea355]/40 px-5 py-2.5 text-sm font-bold text-[#edce8b] hover:bg-[#cea355]/10 transition-colors">
-                تواصل معنا
-              </Link>
-            </section>
-          ) : services.map((service) => (
-            <div
-              key={service.id}
-              className="rounded-3xl glass-card border border-[#c9a227]/20 hover:border-[#c9a227]/60 transition-[border-color,box-shadow] flex flex-col justify-between overflow-hidden group gold-glow-hover"
+        {/* Collection Filter Bar */}
+        {collections.length > 0 && (
+          <div className="flex flex-wrap items-center justify-center gap-2.5 bg-[#101010] p-3 rounded-2xl border border-neutral-800 max-w-4xl mx-auto">
+            <Link
+              href={isViewAll ? '/services?view=all' : '/services'}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                !activeCollectionId
+                  ? 'gold-gradient text-white shadow-md'
+                  : 'bg-[#181818] text-white hover:bg-[#222]'
+              }`}
             >
-              <div>
-                <div className="relative h-56 overflow-hidden">
-                  <PublicImage
-                    src={service.coverImage}
-                    alt={service.nameAr}
-                    sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
-                  <div className="absolute top-4 left-4 bg-black/80 backdrop-blur-md px-3 py-1 rounded-full text-xs font-bold text-[#e5c45a] border border-[#c9a227]/30 flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5 text-[#c9a227]" aria-hidden="true" />
-                    <span>{service.durationMinutes} دقيقة</span>
-                  </div>
-                </div>
+              <Layers className="w-3.5 h-3.5 text-white" />
+              <span>جميع الخدمات ({allServices.length})</span>
+            </Link>
 
-                <div className="p-6 space-y-4">
-                  <h2 className="text-xl font-bold text-white group-hover:text-[#e5c45a] transition-colors">
-                    {service.nameAr}
-                  </h2>
-                  <p className="text-neutral-400 text-xs leading-relaxed line-clamp-3">
-                    {service.shortDescriptionAr}
-                  </p>
+            {collections.map((col) => {
+              const isSelected = activeCollectionId === col.id;
+              const viewParam = isViewAll ? '&view=all' : '';
+              return (
+                <Link
+                  key={col.id}
+                  href={`/services?collection=${col.id}${viewParam}`}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                    isSelected
+                      ? 'gold-gradient text-white shadow-md'
+                      : 'bg-[#181818] text-white hover:bg-[#222]'
+                  }`}
+                >
+                  <span>{col.titleAr}</span>
+                </Link>
+              );
+            })}
+          </div>
+        )}
 
-                  {/* Included Items */}
-                  {Array.isArray(service.includedItems) && (
-                    <div className="space-y-2 pt-2 border-t border-neutral-800">
-                      <span className="text-[11px] font-semibold text-[#e5c45a]">تشمل الخدمة:</span>
-                      <ul className="space-y-1">
-                        {(service.includedItems as string[]).slice(0, 3).map((item, idx) => (
-                          <li key={idx} className="text-xs text-neutral-300 flex items-center gap-2">
-                            <Check className="w-3.5 h-3.5 text-[#c9a227] shrink-0" aria-hidden="true" />
-                            <span>{item}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Price & Action */}
-              <div className="p-6 bg-[#141414]/60 border-t border-neutral-800/80 flex items-center justify-between">
-                <div>
-                  <span className="text-[10px] text-neutral-400 block">السعر الأساسي</span>
-                  <span className="text-2xl font-black text-[#e5c45a]">{service.basePrice} <span className="text-xs font-normal text-neutral-400">ج.م</span></span>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Link
-                    href={`/services/${service.slug}`}
-                    className="px-3.5 py-2 rounded-xl bg-[#080808] border border-[#c9a227]/30 text-xs font-semibold text-neutral-300 hover:text-white transition-colors"
-                  >
-                    التفاصيل
-                  </Link>
-                  <Link
-                    href={`/services/${service.slug}/book`}
-                    className="px-4 py-2 rounded-xl gold-gradient text-[#080808] font-bold text-xs hover:brightness-110 transition-[filter,transform] shadow-md"
-                  >
-                    احجز الآن
-                  </Link>
-                </div>
-              </div>
-
+        {/* Active Collection Filter Notification */}
+        {selectedCollection && (
+          <div className="p-4 rounded-2xl bg-[#121212] border border-[#cea355]/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2">
+              <Filter className="w-4 h-4 text-[#edce8b]" />
+              <span className="text-white">
+                أنت تستعرض خدمات مجموعة: <strong className="text-white text-sm">{selectedCollection.titleAr}</strong>
+              </span>
             </div>
-          ))}
-        </div>
+            <Link
+              href={isViewAll ? '/services?view=all' : '/services'}
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-black/60 border border-neutral-700 text-white hover:border-[#cea355] transition-all self-start sm:self-auto"
+            >
+              <X className="w-3.5 h-3.5 text-white" />
+              <span>عرض كافة الخدمات</span>
+            </Link>
+          </div>
+        )}
+
+        {/* ==================================================== */}
+        {/* 1. INDIVIDUAL SERVICES SECTION                       */}
+        {/* ==================================================== */}
+        {showServices && (
+          <section id="individual-services" className="space-y-10">
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-neutral-800/80 pb-6">
+              <div className="space-y-1">
+                <span className="text-xs font-bold text-[#edce8b] uppercase tracking-wider">حجز مباشر لكل زيارة</span>
+                <h2 className="text-2xl sm:text-3xl font-black text-white">خدمات بريق المتخصصة</h2>
+              </div>
+              <span className="text-xs font-semibold text-white bg-[#121212] px-3.5 py-1.5 rounded-full border border-neutral-800">
+                {displayedServices.length} خدمة متوفرة
+              </span>
+            </div>
+
+            {displayedServices.length === 0 ? (
+              <section className="rounded-3xl border border-neutral-800 bg-[#121212] p-10 text-center" aria-labelledby="services-empty-title">
+                <h3 id="services-empty-title" className="text-xl font-bold text-white">لا توجد خدمات متاحة في هذا التصنيف حالياً</h3>
+                <p className="mt-2 text-sm text-white">يمكنك استعراض كافة الخدمات المتوفرة أو التواصل مع فريق بريق.</p>
+                <Link href="/services" className="mt-5 inline-flex min-h-11 items-center justify-center rounded-xl gold-gradient px-6 py-2.5 text-sm font-bold text-white hover:brightness-110 transition-all">
+                  استعرض كافة الخدمات
+                </Link>
+              </section>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {displayedServices.map((service) => {
+                  const realImg = getServiceRealImage(service.slug, service.coverImage);
+                  return (
+                    <div
+                      key={service.id}
+                      className="rounded-3xl bg-[#121212] border border-[#cea355]/25 hover:border-[#cea355] transition-all glass-card-hover flex flex-col justify-between overflow-hidden group"
+                    >
+                      <div>
+                        <div className="relative h-60 overflow-hidden bg-[#0d0d0d]">
+                          <PublicImage
+                            src={realImg}
+                            alt={service.nameAr}
+                            sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
+                            className="w-full h-full object-cover group-hover:scale-108 transition-transform duration-700"
+                          />
+                          <div className="absolute top-4 right-4 bg-black/85 backdrop-blur-md px-3.5 py-1.5 rounded-full text-xs font-bold text-[#edce8b] border border-[#cea355]/40 flex items-center gap-1.5">
+                            <Clock className="w-3.5 h-3.5 text-white" />
+                            <span>المدة: {service.durationMinutes} دقيقة</span>
+                          </div>
+                        </div>
+
+                        <div className="p-7 space-y-4">
+                          <h3 className="text-xl font-extrabold text-white group-hover:text-[#edce8b] transition-colors">
+                            {service.nameAr}
+                          </h3>
+                          <p className="text-white text-xs leading-relaxed line-clamp-2">
+                            {service.shortDescriptionAr}
+                          </p>
+
+                          {((Array.isArray(service.benefits) && service.benefits.length > 0)
+                            ? (service.benefits as string[])
+                            : (Array.isArray(service.includedItems) ? (service.includedItems as string[]) : [])
+                          ).length > 0 && (
+                            <div className="space-y-2 pt-3 border-t border-neutral-800/80">
+                              {((Array.isArray(service.benefits) && service.benefits.length > 0)
+                                ? (service.benefits as string[])
+                                : (Array.isArray(service.includedItems) ? (service.includedItems as string[]) : [])
+                              ).slice(0, 3).map((item, idx) => (
+                                <div key={idx} className="text-xs text-white flex items-center gap-2">
+                                  <span className="truncate text-white/90">{item}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="p-7 pt-0 space-y-4">
+                        <div className="flex items-center justify-between border-t border-neutral-800/80 pt-4">
+                          <div>
+                            <span className="text-[11px] text-white block font-medium">السعر يبدأ من</span>
+                            <span className="text-2xl font-black text-[#edce8b]">{service.basePrice} <span className="text-xs font-normal text-white">ج.م</span></span>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <Link
+                              href={`/services/${service.slug}`}
+                              className="px-4 py-2.5 rounded-xl bg-[#1a1a1a] border border-[#cea355]/30 text-xs font-bold text-white hover:border-[#cea355] transition-all"
+                            >
+                              التفاصيل
+                            </Link>
+                            <Link
+                              href={`/services/${service.slug}/book`}
+                              className="px-5 py-2.5 rounded-xl gold-gradient text-white font-extrabold text-xs hover:brightness-110 transition-all shadow-lg shadow-[#cea355]/20 active:scale-95"
+                            >
+                              احجز الآن
+                            </Link>
+                          </div>
+                        </div>
+                      </div>
+
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* ==================================================== */}
+        {/* 2. SUBSCRIPTION PLANS SECTION (ONLY ON VIEW ALL)     */}
+        {/* ==================================================== */}
+        {showPlans && plans.length > 0 && (
+          <section id="subscription-plans" className="space-y-10 pt-8 border-t border-neutral-900">
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-neutral-800/80 pb-6">
+              <div className="space-y-1">
+                <span className="text-xs font-bold text-[#edce8b] uppercase tracking-wider">اشتراكات دورية وتوفير مستمر</span>
+                <h2 className="text-2xl sm:text-3xl font-black text-white">باقات الاشتراكات الشهرية والعائلية</h2>
+              </div>
+              <span className="text-xs font-semibold text-white bg-[#121212] px-3.5 py-1.5 rounded-full border border-neutral-800">
+                {plans.length} باقات دورية
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {plans.map((plan, idx) => {
+                const isFeatured = idx === 1 || plan.price > 2000;
+                return (
+                  <div
+                    key={plan.id}
+                    className={`relative rounded-3xl bg-[#121212] p-8 space-y-6 flex flex-col justify-between transition-all glass-card-hover ${
+                      isFeatured
+                        ? 'border-2 border-[#cea355] shadow-[0_0_35px_rgba(206,163,85,0.25)]'
+                        : 'border border-[#cea355]/30 hover:border-[#cea355]'
+                    }`}
+                  >
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="px-3 py-1 rounded-full bg-[#cea355]/15 text-[#edce8b] text-xs font-bold border border-[#cea355]/30">
+                          صلاحية {plan.validityDays} يوم
+                        </span>
+                        <Award className="w-6 h-6 text-white" aria-hidden="true" />
+                      </div>
+
+                      <h3 className="text-2xl font-black text-white">{plan.nameAr}</h3>
+                      <p className="text-xs text-white leading-relaxed">{plan.descriptionAr}</p>
+
+                      <div className="py-4 border-y border-neutral-800/80">
+                        <span className="text-3xl font-black text-[#edce8b]">{plan.price} ج.م</span>
+                        <span className="text-xs text-white me-2">/ باقة دورية</span>
+                      </div>
+
+                      <div className="space-y-3 pt-1">
+                        <span className="text-xs font-bold text-[#edce8b] block">الخدمات والمزايا المشمولة:</span>
+                        <ul className="space-y-2.5 text-xs text-white">
+                          <li className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-white shrink-0" aria-hidden="true" />
+                            <span>تشمل {plan.visitCount} زيارات عناية جافة شاملة</span>
+                          </li>
+                          {plan.services.map(({ service, visitQuota }) => (
+                            <li key={service.id} className="flex items-center gap-2">
+                              <CheckCircle2 className="w-4 h-4 text-white shrink-0" aria-hidden="true" />
+                              <span>{service.nameAr}{visitQuota !== null ? ` — ${visitQuota} زيارة` : ''}</span>
+                            </li>
+                          ))}
+                          <li className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-white shrink-0" aria-hidden="true" />
+                            <span>تأكيد المواعيد تلقائياً بدون طلب بياناتك مجدداً</span>
+                          </li>
+                          <li className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-white shrink-0" aria-hidden="true" />
+                            <span>أولوية الإسناد لفرق التشغيل المخصصة</span>
+                          </li>
+                        </ul>
+                      </div>
+                    </div>
+
+                    <Link
+                      href={`/account/subscriptions?plan=${plan.id}`}
+                      className={`w-full flex items-center justify-center gap-2 py-4 rounded-xl font-extrabold text-sm transition-all shadow-lg active:scale-98 ${
+                        isFeatured
+                          ? 'gold-gradient text-white shadow-[#cea355]/30 hover:brightness-110'
+                          : 'bg-[#1a1a1a] text-white border border-[#cea355]/40 hover:bg-[#cea355]/20 hover:border-[#cea355]'
+                      }`}
+                    >
+                      <span>اشترك الآن</span>
+                    </Link>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
 
       </main>
 

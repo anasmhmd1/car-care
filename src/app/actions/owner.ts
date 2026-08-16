@@ -404,8 +404,8 @@ export async function createCoverageAreaAction(formData: FormData) {
   const zoneId = formData.get('zoneId') as string;
   const compound = (formData.get('compound') as string || '').trim();
   const district = (formData.get('district') as string || '').trim();
-  const city = (formData.get('city') as string || 'الشيخ زايد').trim();
-  const governorate = (formData.get('governorate') as string || 'الجيزة').trim();
+  const city = (formData.get('city') as string || '').trim();
+  const governorate = (formData.get('governorate') as string || '').trim();
 
   if (!zoneId || !compound) {
     return { error: 'اسم المنطقة والزون مطلوبان' };
@@ -446,8 +446,8 @@ export async function updateCoverageAreaAction(formData: FormData) {
   const areaId = formData.get('areaId') as string;
   const compound = (formData.get('compound') as string || '').trim();
   const district = (formData.get('district') as string || '').trim();
-  const city = (formData.get('city') as string || 'الشيخ زايد').trim();
-  const governorate = (formData.get('governorate') as string || 'الجيزة').trim();
+  const city = (formData.get('city') as string || '').trim();
+  const governorate = (formData.get('governorate') as string || '').trim();
   const active = formData.get('active') === 'true';
 
   if (!areaId || !compound) {
@@ -1047,7 +1047,11 @@ export async function updateBranchSlotConfigAction(formData: FormData) {
  * which closes the usual role-escalation path through a generic user editor.
  */
 export async function updateCustomerAccountAction(formData: FormData) {
-  const actor = await requireRole([UserRole.OWNER, UserRole.SYSTEM_SUPER_ADMIN]);
+  const actor = await requireRole([
+    UserRole.OWNER,
+    UserRole.SYSTEM_SUPER_ADMIN,
+    UserRole.OPERATIONS_MANAGER,
+  ]);
 
   const parsed = ownerCustomerAccountSchema.safeParse({
     customerId: (formData.get('customerId') as string || '').trim(),
@@ -1056,6 +1060,7 @@ export async function updateCustomerAccountAction(formData: FormData) {
     whatsapp: (formData.get('whatsapp') as string || '').trim(),
     email: (formData.get('email') as string || '').trim(),
     active: (formData.get('active') as string || '').trim(),
+    notes: (formData.get('notes') as string || '').trim(),
     temporaryPassword: (formData.get('temporaryPassword') as string || '').trim(),
   });
   if (!parsed.success) {
@@ -1072,6 +1077,7 @@ export async function updateCustomerAccountAction(formData: FormData) {
     select: {
       id: true,
       userId: true,
+      notes: true,
       user: {
         select: {
           id: true,
@@ -1126,6 +1132,13 @@ export async function updateCustomerAccountAction(formData: FormData) {
         },
       });
 
+      await tx.customerProfile.update({
+        where: { id: customer.id },
+        data: {
+          notes: data.notes || null,
+        },
+      });
+
       if (sessionsMustBeRevoked) {
         const securityReason = passwordReset
           ? 'CUSTOMER_PASSWORD_RESET'
@@ -1148,6 +1161,7 @@ export async function updateCustomerAccountAction(formData: FormData) {
             whatsapp: customer.user.whatsapp,
             email: customer.user.email,
             active: customer.user.active,
+            notes: customer.notes,
           },
           afterJson: {
             fullName: data.fullName,
@@ -1155,6 +1169,7 @@ export async function updateCustomerAccountAction(formData: FormData) {
             whatsapp: normalizedWhatsapp,
             email: normalizedEmail,
             active: data.active,
+            notes: data.notes || null,
             passwordReset,
             sessionsRevoked: sessionsMustBeRevoked,
           },
@@ -1319,3 +1334,79 @@ export async function deleteEmployeeAction(formData: FormData) {
   revalidatePath('/operations');
   return { success: true, message: 'تم حذف حساب الموظف بنجاح' };
 }
+
+export async function toggleCustomerBlockAction(formData: FormData) {
+  const actor = await requireRole([
+    UserRole.OWNER,
+    UserRole.SYSTEM_SUPER_ADMIN,
+    UserRole.OPERATIONS_MANAGER,
+  ]);
+
+  const customerId = (formData.get('customerId') as string || '').trim();
+  const block = formData.get('block') === 'true';
+  const reason = (formData.get('reason') as string || '').trim();
+
+  if (!customerId) return { error: 'معرف العميل مطلوب.' };
+  if (block && reason.length < 3) {
+    return { error: 'يجب كتابة سبب الحظر (3 أحرف على الأقل).' };
+  }
+
+  const customer = await db.customerProfile.findUnique({
+    where: { id: customerId },
+    include: { user: true },
+  });
+
+  if (!customer || customer.user.role !== UserRole.CUSTOMER || customer.user.deletedAt) {
+    return { error: 'حساب العميل غير موجود أو غير صالح.' };
+  }
+
+  try {
+    await db.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: customer.userId },
+        data: {
+          active: !block,
+          sessionVersion: { increment: 1 },
+        },
+      });
+
+      const timestamp = new Intl.DateTimeFormat('ar-EG', {
+        dateStyle: 'short',
+        timeStyle: 'short',
+      }).format(new Date());
+      const actionLabel = block ? 'حظر العميل' : 'إلغاء حظر العميل';
+      const actorLabel = actor.role === UserRole.OPERATIONS_MANAGER ? 'مدير التشغيل' : 'المالك';
+      const entry = `[${actionLabel} بواسطة ${actorLabel} (${actor.fullName}) - ${timestamp}]: ${reason || 'استئناف الحساب'}`;
+      const newNotes = customer.notes ? `${customer.notes}\n${entry}` : entry;
+
+      await tx.customerProfile.update({
+        where: { id: customer.id },
+        data: { notes: newNotes },
+      });
+
+      if (block) {
+        await revokeAllUserSessionsAndBumpVersion(tx, customer.userId, 'CUSTOMER_BLOCKED_BY_MANAGEMENT');
+      }
+
+      await tx.auditLog.create({
+        data: {
+          actorUserId: actor.id,
+          actorRole: actor.role,
+          action: block ? 'CUSTOMER_BLOCKED' : 'CUSTOMER_UNBLOCKED',
+          entityType: 'CustomerProfile',
+          entityId: customer.id,
+          beforeJson: { active: customer.user.active },
+          afterJson: { active: !block, reason },
+          reason: reason || null,
+        },
+      });
+    });
+
+    revalidatePath('/admin');
+    revalidatePath('/operations');
+    return { success: true, message: block ? 'تم حظر العميل بنجاح ومنعه من الحجز وتسجيل الدخول' : 'تم إلغاء حظر العميل واستئناف حسابه بنجاح' };
+  } catch {
+    return { error: 'تعذر تنفيذ إجراء الحظر/إلغاء الحظر على العميل.' };
+  }
+}
+

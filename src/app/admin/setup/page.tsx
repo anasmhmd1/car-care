@@ -42,6 +42,7 @@ export default async function SetupPage() {
       slotUnitMinutes: true,
       arrivalWindowMinutes: true,
       travelBufferMinutes: true,
+      restBufferMinutes: true,
       dailyBookingLimit: true,
       assignmentMode: true,
       workingHours: {
@@ -252,6 +253,7 @@ export default async function SetupPage() {
     slotUnitMinutes: branch.slotUnitMinutes,
     arrivalWindowMinutes: branch.arrivalWindowMinutes,
     travelBufferMinutes: branch.travelBufferMinutes,
+    restBufferMinutes: branch.restBufferMinutes,
     dailyBookingLimit: branch.dailyBookingLimit,
     assignmentMode: branch.assignmentMode,
     workingHours: branch.workingHours,

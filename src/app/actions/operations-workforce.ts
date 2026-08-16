@@ -365,17 +365,34 @@ export async function saveOperationsEmployeeAction(
         });
       }
 
-      await tx.branchMembership.deleteMany({
-        where: { userId: user.id, branchId: { not: branch.id } },
-      });
-      await tx.branchMembership.upsert({
-        where: { branchId_userId: { branchId: branch.id, userId: user.id } },
-        update: {},
-        create: { branchId: branch.id, userId: user.id },
-      });
-      await tx.teamMember.deleteMany({
-        where: { userId: user.id, team: { branchId: { not: branch.id } } },
-      });
+      if (parsed.data.role === UserRole.OPERATIONS_MANAGER) {
+        const rawBranchIds = formData.getAll('branchIds').map((val) => String(val).trim()).filter(Boolean);
+        const targetBranchIds = rawBranchIds.length > 0 ? rawBranchIds : [branch.id];
+
+        await tx.branchMembership.deleteMany({
+          where: { userId: user.id, branchId: { notIn: targetBranchIds } },
+        });
+        for (const bId of targetBranchIds) {
+          await tx.branchMembership.upsert({
+            where: { branchId_userId: { branchId: bId, userId: user.id } },
+            update: {},
+            create: { branchId: bId, userId: user.id },
+          });
+        }
+      } else {
+        await tx.branchMembership.deleteMany({
+          where: { userId: user.id, branchId: { not: branch.id } },
+        });
+        await tx.branchMembership.upsert({
+          where: { branchId_userId: { branchId: branch.id, userId: user.id } },
+          update: {},
+          create: { branchId: branch.id, userId: user.id },
+        });
+        await tx.teamMember.deleteMany({
+          where: { userId: user.id, team: { branchId: { not: branch.id } } },
+        });
+      }
+
       if (!parsed.data.active) await tx.teamMember.deleteMany({ where: { userId: user.id } });
       if (
         before &&

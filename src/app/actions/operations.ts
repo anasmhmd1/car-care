@@ -3,9 +3,11 @@
 import {
   BookingHoldStatus,
   BookingStatus,
+  BranchStatus,
   PaymentStatus,
   Prisma,
   ProofStatus,
+  TimeChangeStatus,
   UserRole,
 } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
@@ -16,6 +18,7 @@ import {
   hasPermissionAcrossScopes,
 } from '@/lib/auth/permissions';
 import { db } from '@/lib/db';
+import { localDateTimeToUtc } from '@/lib/engine/time';
 import {
   AssignmentError,
   assignTeamToBooking,
@@ -37,12 +40,17 @@ import {
   canExpireAwaitingPaymentBooking,
   expireAwaitingPaymentBooking,
 } from '@/lib/engine/booking-expiration';
+import { purgePaymentProofReceiptsForBooking } from '@/lib/engine/payment-proof-cleanup';
 import {
   assignTeamManuallySchema,
+  cancelBookingByOperationsSchema,
   recordBalancePaymentSchema,
   releaseBookingHoldSchema,
+  rescheduleBookingByOperationsSchema,
   reviewBookingSchema,
   reviewPaymentProofSchema,
+  toggleBranchScheduleLockSchema,
+  transferBookingTeamSchema,
 } from '@/lib/validations/operations';
 
 const DELEGATED_OPERATIONS_ROLES = [
@@ -426,6 +434,25 @@ export async function reviewBookingAction(formData: FormData) {
         actorRole: manager.role,
         reason: 'توزيع الحجز بعد اعتماده تشغيليًا',
       });
+
+      // Automatically purge payment receipt images to optimize storage
+      const purgeResult = await purgePaymentProofReceiptsForBooking(tx, booking.id);
+      if (purgeResult.deletedFilesCount > 0) {
+        await tx.auditLog.create({
+          data: {
+            actorUserId: manager.id,
+            actorRole: manager.role,
+            action: 'PAYMENT_PROOF_RECEIPT_PURGED_ON_ACCEPTANCE',
+            entityType: 'Booking',
+            entityId: booking.id,
+            afterJson: {
+              purgedFilesCount: purgeResult.deletedFilesCount,
+              savedBytes: purgeResult.purgedSizeBytes,
+            },
+          },
+        });
+      }
+
       return { accepted: true, ...assignment };
     }, {
       isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
@@ -711,3 +738,334 @@ export async function releaseBookingHoldAction(formData: FormData) {
     return { error: operationError(error, 'تعذر تحرير الحجز المؤقت.') };
   }
 }
+
+export async function cancelBookingByOperationsAction(formData: FormData) {
+  const manager = await requireRole([...MANAGEMENT_OPERATIONS_ROLES]);
+  const parsed = cancelBookingByOperationsSchema.safeParse({
+    bookingId: formData.get('bookingId'),
+    reason: formData.get('reason'),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? 'بيانات الإلغاء غير مكتملة.' };
+  }
+
+  const booking = await db.booking.findUnique({
+    where: { id: parsed.data.bookingId, deletedAt: null },
+    select: { id: true, branchId: true, bookingStatus: true, bookingNumber: true, assignedTeamId: true },
+  });
+  if (!booking) return { error: 'الحجز غير موجود.' };
+  await assertBranchScope(manager, booking.branchId);
+
+  const TERMINAL: readonly string[] = ['CLOSED', 'CANCELLED', 'REJECTED', 'EXPIRED'];
+  if (TERMINAL.includes(booking.bookingStatus)) {
+    return { error: 'لا يمكن إلغاء حجز منتهٍ أو ملغي بالفعل.' };
+  }
+
+  try {
+    await db.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`booking:${booking.id}`}))`;
+
+      // 1. Release any active holds
+      await tx.bookingHold.updateMany({
+        where: { bookingId: booking.id, status: BookingHoldStatus.ACTIVE },
+        data: {
+          status: BookingHoldStatus.RELEASED,
+          releasedAt: new Date(),
+          releasedReason: parsed.data.reason,
+        },
+      });
+
+      // 2. Update booking status to CANCELLED
+      await tx.booking.update({
+        where: { id: booking.id },
+        data: { bookingStatus: BookingStatus.CANCELLED },
+      });
+
+      // 3. Status history
+      await tx.bookingStatusHistory.create({
+        data: {
+          bookingId: booking.id,
+          fromStatus: booking.bookingStatus,
+          toStatus: BookingStatus.CANCELLED,
+          changedByUserId: manager.id,
+          actorRole: manager.role,
+          reason: parsed.data.reason,
+          metadata: { cancelledBy: 'OPERATIONS_MANAGER', managerId: manager.id },
+        },
+      });
+
+      // 4. Audit log
+      await tx.auditLog.create({
+        data: {
+          actorUserId: manager.id,
+          actorRole: manager.role,
+          branchId: booking.branchId,
+          action: 'BOOKING_CANCELLED_BY_OPERATIONS',
+          entityType: 'Booking',
+          entityId: booking.id,
+          beforeJson: { bookingStatus: booking.bookingStatus },
+          afterJson: { bookingStatus: BookingStatus.CANCELLED },
+          reason: parsed.data.reason,
+        },
+      });
+    });
+
+    revalidateOperations(booking.id);
+    return { success: true, message: `تم إلغاء الحجز رقم #${booking.bookingNumber} بنجاح.` };
+  } catch (error) {
+    return { error: operationError(error, 'تعذر إلغاء الحجز.') };
+  }
+}
+
+export async function rescheduleBookingByOperationsAction(formData: FormData) {
+  const manager = await requireRole([...MANAGEMENT_OPERATIONS_ROLES]);
+  const parsed = rescheduleBookingByOperationsSchema.safeParse({
+    bookingId: formData.get('bookingId'),
+    targetDate: formData.get('targetDate'),
+    targetTime: formData.get('targetTime'),
+    reason: formData.get('reason'),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? 'بيانات الموعد الجديد غير مكتملة.' };
+  }
+
+  const booking = await db.booking.findUnique({
+    where: { id: parsed.data.bookingId, deletedAt: null },
+    include: {
+      branch: { include: { workingHours: true } },
+      service: { include: { variants: true } },
+      vehicle: true,
+      addons: true,
+    },
+  });
+  if (!booking) return { error: 'الحجز غير موجود.' };
+  await assertBranchScope(manager, booking.branchId);
+
+  const TERMINAL: readonly string[] = ['CLOSED', 'CANCELLED', 'REJECTED', 'EXPIRED'];
+  if (TERMINAL.includes(booking.bookingStatus)) {
+    return { error: 'لا يمكن تعديل موعد حجز منتهٍ أو ملغي.' };
+  }
+
+  const newStartAt = localDateTimeToUtc(
+    parsed.data.targetDate,
+    parsed.data.targetTime,
+    booking.branch.timezone,
+  );
+
+  const durationMinutes = booking.service.variants.find(
+    (v) => v.vehicleSize === booking.vehicle?.vehicleSize,
+  )?.durationMinutes ?? 60;
+
+  const newEndAt = new Date(newStartAt.getTime() + durationMinutes * 60_000);
+
+  try {
+    await db.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`booking:${booking.id}`}))`;
+
+      const previousStartAt = booking.startAt;
+      const previousEndAt = booking.endAt;
+
+      // Update booking date & time
+      await tx.booking.update({
+        where: { id: booking.id },
+        data: {
+          startAt: newStartAt,
+          endAt: newEndAt,
+          ...(booking.bookingStatus === BookingStatus.RESCHEDULE_REQUESTED
+            ? { bookingStatus: booking.assignedTeamId ? BookingStatus.ASSIGNED : BookingStatus.ACCEPTED }
+            : {}),
+        },
+      });
+
+      // If there was a pending time change request, approve it
+      await tx.bookingTimeChange.updateMany({
+        where: { bookingId: booking.id, status: TimeChangeStatus.PENDING },
+        data: {
+          status: TimeChangeStatus.APPROVED,
+          reviewedByUserId: manager.id,
+          reviewNotes: parsed.data.reason,
+          reviewedAt: new Date(),
+        },
+      });
+
+      // Log status history / time change
+      await tx.bookingStatusHistory.create({
+        data: {
+          bookingId: booking.id,
+          fromStatus: booking.bookingStatus,
+          toStatus: booking.bookingStatus === BookingStatus.RESCHEDULE_REQUESTED
+            ? (booking.assignedTeamId ? BookingStatus.ASSIGNED : BookingStatus.ACCEPTED)
+            : booking.bookingStatus,
+          changedByUserId: manager.id,
+          actorRole: manager.role,
+          reason: `تعديل/تأجيل الموعد: ${parsed.data.reason}`,
+          metadata: {
+            previousStartAt: previousStartAt.toISOString(),
+            previousEndAt: previousEndAt.toISOString(),
+            newStartAt: newStartAt.toISOString(),
+            newEndAt: newEndAt.toISOString(),
+          },
+        },
+      });
+
+      // Audit log
+      await tx.auditLog.create({
+        data: {
+          actorUserId: manager.id,
+          actorRole: manager.role,
+          branchId: booking.branchId,
+          action: 'BOOKING_RESCHEDULED_BY_OPERATIONS',
+          entityType: 'Booking',
+          entityId: booking.id,
+          beforeJson: { startAt: previousStartAt, endAt: previousEndAt },
+          afterJson: { startAt: newStartAt, endAt: newEndAt },
+          reason: parsed.data.reason,
+        },
+      });
+    });
+
+    revalidateOperations(booking.id);
+    revalidatePath('/admin/calendar');
+    return { success: true, message: `تم تأجيل وتعديل موعد الحجز #${booking.bookingNumber} بنجاح.` };
+  } catch (error) {
+    return { error: operationError(error, 'تعذر تعديل موعد الحجز.') };
+  }
+}
+
+export async function transferBookingTeamAction(formData: FormData) {
+  const manager = await requireRole([...MANAGEMENT_OPERATIONS_ROLES]);
+  const parsed = transferBookingTeamSchema.safeParse({
+    bookingId: formData.get('bookingId'),
+    targetTeamId: formData.get('targetTeamId'),
+    reason: formData.get('reason'),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? 'بيانات نقل الفريق غير مكتملة.' };
+  }
+
+  const booking = await db.booking.findUnique({
+    where: { id: parsed.data.bookingId, deletedAt: null },
+    select: { id: true, branchId: true, assignedTeamId: true, bookingNumber: true, bookingStatus: true },
+  });
+  if (!booking) return { error: 'الحجز غير موجود.' };
+  await assertBranchScope(manager, booking.branchId);
+
+  const targetTeam = await db.team.findUnique({
+    where: { id: parsed.data.targetTeamId },
+    select: { id: true, name: true, branchId: true, active: true },
+  });
+  if (!targetTeam || !targetTeam.active || targetTeam.branchId !== booking.branchId) {
+    return { error: 'الفريق المستهدف غير متاح أو لا يتبع نفس الفرع.' };
+  }
+
+  try {
+    await db.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`booking:${booking.id}`}))`;
+
+      const previousTeamId = booking.assignedTeamId;
+      const nextStatus = booking.bookingStatus === BookingStatus.AWAITING_ASSIGNMENT
+        ? BookingStatus.ASSIGNED
+        : booking.bookingStatus;
+
+      await tx.booking.update({
+        where: { id: booking.id },
+        data: {
+          assignedTeamId: targetTeam.id,
+          assignedEmployeeId: null,
+          operationalVehicleId: null,
+          bookingStatus: nextStatus,
+        },
+      });
+
+      await tx.bookingAssignmentHistory.create({
+        data: {
+          bookingId: booking.id,
+          fromTeamId: previousTeamId,
+          toTeamId: targetTeam.id,
+          changedByUserId: manager.id,
+          action: 'REASSIGNED',
+          reason: parsed.data.reason,
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          actorUserId: manager.id,
+          actorRole: manager.role,
+          branchId: booking.branchId,
+          action: 'BOOKING_TEAM_TRANSFERRED',
+          entityType: 'Booking',
+          entityId: booking.id,
+          beforeJson: { assignedTeamId: previousTeamId },
+          afterJson: { assignedTeamId: targetTeam.id, teamName: targetTeam.name },
+          reason: parsed.data.reason,
+        },
+      });
+    });
+
+    revalidateOperations(booking.id);
+    revalidatePath('/admin/calendar');
+    revalidatePath('/staff');
+    return { success: true, message: `تم نقل الحجز #${booking.bookingNumber} إلى ${targetTeam.name} بنجاح.` };
+  } catch (error) {
+    return { error: operationError(error, 'تعذر نقل الحجز للفريق الجديد.') };
+  }
+}
+
+export async function toggleBranchScheduleLockAction(formData: FormData) {
+  const manager = await requireRole([...MANAGEMENT_OPERATIONS_ROLES]);
+  const parsed = toggleBranchScheduleLockSchema.safeParse({
+    branchId: formData.get('branchId'),
+    locked: formData.get('locked'),
+    reason: formData.get('reason'),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? 'بيانات قفل الجدول غير صالحة.' };
+  }
+
+  const { branchId, locked, reason } = parsed.data;
+  await assertBranchScope(manager, branchId);
+
+  const branch = await db.branch.findUnique({
+    where: { id: branchId },
+    select: { id: true, nameAr: true, status: true },
+  });
+  if (!branch) return { error: 'الفرع غير موجود.' };
+
+  const targetStatus = locked ? BranchStatus.PAUSED : BranchStatus.ACTIVE;
+
+  try {
+    await db.branch.update({
+      where: { id: branchId },
+      data: { status: targetStatus },
+    });
+
+    await db.auditLog.create({
+      data: {
+        actorUserId: manager.id,
+        actorRole: manager.role,
+        branchId,
+        action: locked ? 'BRANCH_SCHEDULE_LOCKED' : 'BRANCH_SCHEDULE_UNLOCKED',
+        entityType: 'Branch',
+        entityId: branchId,
+        beforeJson: { status: branch.status },
+        afterJson: { status: targetStatus, locked },
+        reason: reason || (locked ? 'قفل جدول المواعيد بقرار تشغيلي' : 'إلغاء قفل جدول المواعيد'),
+      },
+    });
+
+    revalidateOperations();
+    revalidatePath('/admin/calendar');
+    revalidatePath('/admin');
+    revalidatePath('/services');
+    return {
+      success: true,
+      message: locked
+        ? `تم قفل جدول مواعيد ${branch.nameAr} وإيقاف استقبال الحجوزات من الموقع.`
+        : `تم فتح جدول مواعيد ${branch.nameAr} واستئناف استقبال الحجوزات.`,
+    };
+  } catch (error) {
+    return { error: operationError(error, 'تعذر تحديث حالة جدول المواعيد.') };
+  }
+}
+

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Alexandria, Tajawal } from 'next/font/google';
 import { serializeJsonLd, siteUrl } from '@/lib/seo';
+import FloatingContactWidget from '@/components/FloatingContactWidget';
 import './globals.css';
 
 const tajawal = Tajawal({
@@ -15,34 +16,33 @@ const alexandria = Alexandria({
   variable: '--font-display',
 });
 
-const description =
-  'خدمة عناية وتفصيل متنقلة بالسيارات في الشيخ زايد والمناطق المحيطة، مع حجز منظم وصور توثيقية قبل التنفيذ وبعده.';
+const description = 'BAREEQ Premium Mobile Auto Care — official website.';
 
 export const metadata: Metadata = {
   metadataBase: siteUrl,
-  applicationName: 'بريق',
+  applicationName: 'BAREEQ',
   title: {
-    default: 'بريق | عناية متنقلة بالسيارات',
-    template: '%s | بريق',
+    default: 'BAREEQ',
+    template: 'BAREEQ',
   },
   description,
-  keywords: ['غسيل سيارات متنقل', 'الشيخ زايد', 'تفصيل سيارات', 'بريق', 'Bareeq', 'عناية بالسيارات', 'سوديك', 'بيفرلي هيلز'],
+  keywords: ['غسيل سيارات متنقل', 'غسيل جاف', 'تفصيل سيارات', 'بريق', 'Bareeq', 'عناية بالسيارات', 'تلميع سيارات'],
   icons: {
-    icon: '/logo.svg',
-    shortcut: '/logo.svg',
-    apple: '/logo.svg',
+    icon: '/icon.svg',
+    shortcut: '/icon.svg',
+    apple: '/icon.svg',
   },
   openGraph: {
-    title: 'بريق | عناية متنقلة بالسيارات',
+    title: 'BAREEQ',
     description,
     url: '/',
-    siteName: 'بريق Bareeq',
+    siteName: 'BAREEQ',
     images: [
       {
-        url: '/logo.svg',
-        width: 600,
-        height: 600,
-        alt: 'شعار بريق للعناية المتنقلة بالسيارات',
+        url: '/images/bareeq_official_logo.png',
+        width: 1200,
+        height: 630,
+        alt: 'BAREEQ',
       },
     ],
     locale: 'ar_EG',
@@ -50,9 +50,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'بريق | عناية متنقلة بالسيارات',
+    title: 'BAREEQ',
     description,
-    images: ['/logo.svg'],
+    images: ['/images/bareeq_official_logo.png'],
   },
   robots: {
     index: true,
@@ -77,10 +77,7 @@ const localBusinessJsonLd = {
   logo: new URL('/logo.svg', siteUrl).toString(),
   image: new URL('/logo.svg', siteUrl).toString(),
   priceRange: '$$',
-  areaServed: [
-    { '@type': 'City', name: 'الشيخ زايد' },
-    { '@type': 'Place', name: 'سوديك والمناطق المحيطة' },
-  ],
+  areaServed: { '@type': 'AdministrativeArea', name: 'مناطق التغطية والخدمة' },
 };
 
 export default function RootLayout({
@@ -90,12 +87,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ar" dir="rtl" className={`${tajawal.variable} ${alexandria.variable}`}>
-      <body className="antialiased min-h-screen bg-[#080808] text-white flex flex-col font-sans">
+      <body className="antialiased min-h-screen bg-[#080808] text-white flex flex-col font-sans relative">
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: serializeJsonLd(localBusinessJsonLd) }}
         />
         {children}
+        <FloatingContactWidget />
       </body>
     </html>
   );

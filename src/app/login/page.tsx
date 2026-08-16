@@ -7,7 +7,6 @@ import { loginAction } from '@/app/actions/auth';
 import { Phone, Lock, LogIn, UserPlus } from 'lucide-react';
 import BareeqLogo from '@/components/BareeqLogo';
 import SkipLink from '@/components/SkipLink';
-import PasswordResetRequestForm from './PasswordResetRequestForm';
 
 export default function LoginPage() {
   return (
@@ -39,7 +38,7 @@ function LoginPageContent({ callback }: { callback: string | null }) {
           </Link>
           <div className="pt-2">
             <h1 className="text-xl font-extrabold text-white">تسجيل الدخول إلى حسابك</h1>
-            <p className="text-xs text-neutral-400 mt-1">ادخل رقم الهاتف أو البريد الإلكتروني وكلمة المرور لمتابعة حسابك</p>
+            <p className="text-xs text-neutral-400 mt-1">ادخل رقم الهاتف وكلمة المرور لمتابعة حسابك</p>
           </div>
         </div>
 
@@ -54,16 +53,17 @@ function LoginPageContent({ callback }: { callback: string | null }) {
         <form action={formAction} className="space-y-5" aria-describedby={state?.error ? 'auth-error' : undefined}>
           {callback ? <input type="hidden" name="callback" value={callback} /> : null}
           <div className="space-y-1.5">
-            <label htmlFor="login-phone" className="text-xs font-semibold text-neutral-300 block">رقم الهاتف أو البريد الإلكتروني</label>
+            <label htmlFor="login-phone" className="text-xs font-semibold text-neutral-300 block">رقم الهاتف</label>
             <div className="relative">
               <Phone className="w-4 h-4 text-neutral-500 absolute top-3.5 right-3.5" aria-hidden="true" />
               <input
                 id="login-phone"
-                type="text"
+                type="tel"
                 name="phone"
                 required
-                placeholder="010XXXXXXXX أو name@domain.com"
-                autoComplete="username"
+                placeholder="010XXXXXXXX"
+                autoComplete="username tel"
+                inputMode="tel"
                 spellCheck={false}
                 dir="ltr"
                 className="w-full bg-[#080808] border border-neutral-800 focus:border-[#cea355] focus-visible:ring-2 focus-visible:ring-[#cea355]/35 rounded-xl pr-10 pl-4 py-3 text-sm text-white placeholder-neutral-600 transition-[border-color,box-shadow] text-right"
@@ -105,8 +105,6 @@ function LoginPageContent({ callback }: { callback: string | null }) {
             )}
           </button>
         </form>
-
-        <PasswordResetRequestForm />
 
         {/* Footer Link */}
         <div className="text-center pt-4 text-xs text-neutral-400 border-t border-neutral-800">

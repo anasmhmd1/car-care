@@ -2,9 +2,8 @@
 
 import type { FormEvent } from 'react';
 import { useState, useTransition } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { CheckCircle2, ExternalLink, FileText, LoaderCircle, RotateCcw } from 'lucide-react';
+import { CheckCircle2, FileText, LoaderCircle, RotateCcw } from 'lucide-react';
 import { updateFaqsContentAction, updateHomepageContentAction } from '@/app/actions/owner-brand';
 import { HelpCircle, Plus, Trash2 } from 'lucide-react';
 import { DEFAULT_HOMEPAGE_CONTENT, type FaqItem, type HomepageContent } from '@/lib/homepage-content';
@@ -57,8 +56,6 @@ const groups: ContentGroup[] = [
       { key: 'plansTitle', label: 'عنوان الباقات', description: 'العنوان الرئيسي للباقات.' },
       { key: 'testimonialsEyebrow', label: 'شارة آراء العملاء', description: 'السطر الصغير فوق التقييمات.' },
       { key: 'testimonialsTitle', label: 'عنوان آراء العملاء', description: 'العنوان الرئيسي للتجارب.' },
-      { key: 'coverageEyebrow', label: 'شارة مناطق التغطية', description: 'السطر الصغير فوق المناطق.' },
-      { key: 'coverageTitle', label: 'عنوان مناطق التغطية', description: 'العنوان الرئيسي للمناطق.' },
     ],
   },
   {
@@ -77,9 +74,14 @@ const groups: ContentGroup[] = [
 interface SiteContentManagerProps {
   initialContent: HomepageContent;
   initialFaqs?: FaqItem[];
+  defaultSection?: 'content' | 'faqs' | 'all';
 }
 
-export default function SiteContentManager({ initialContent, initialFaqs = [] }: SiteContentManagerProps) {
+export default function SiteContentManager({
+  initialContent,
+  initialFaqs = [],
+  defaultSection = 'all',
+}: SiteContentManagerProps) {
   const router = useRouter();
   const [content, setContent] = useState<HomepageContent>(initialContent);
   const [faqs, setFaqs] = useState<FaqItem[]>(initialFaqs);
@@ -139,58 +141,158 @@ export default function SiteContentManager({ initialContent, initialFaqs = [] }:
         setFeedback({ kind: 'error', message: result.error });
         return;
       }
-      setFeedback({ kind: 'success', message: result.message ?? 'تم حفظ المحتوى.' });
+      setFeedback({ kind: 'success', message: result.message ?? 'تم حفظ ونشر المحتوى بنجاح.' });
       router.refresh();
     });
   }
 
   return (
-    <main className="min-h-screen bg-[#080808] px-4 py-10 text-white sm:px-6 lg:px-8" dir="rtl">
-      <div className="mx-auto max-w-6xl space-y-8">
-        <header className="flex flex-col gap-5 border-b border-white/10 pb-6 sm:flex-row sm:items-end sm:justify-between"><div><p className="flex items-center gap-2 text-xs font-bold text-[#d4af37]"><FileText className="size-4" aria-hidden="true" /> إدارة المحتوى</p><h1 className="mt-2 text-3xl font-black">محتوى الموقع والأسئلة الشائعة</h1><p className="mt-2 max-w-3xl text-sm leading-7 text-white/55">حدّث رسائل الموقع والأسئلة الشائعة بدون تعديل كود. التعديلات تنشر فوراً للمستخدمين.</p></div><div className="flex flex-wrap gap-3"><Link href="/faq" target="_blank" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/10 px-4 text-sm font-bold text-white/80"><ExternalLink className="size-4" aria-hidden="true" />صفحة FAQ</Link><Link href="/" target="_blank" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#d4af37]/35 bg-[#d4af37]/[0.06] px-4 text-sm font-bold text-[#e5c45a]"><ExternalLink className="size-4" aria-hidden="true" />معاينة الموقع</Link><Link href="/admin" className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] px-4 text-sm font-bold">لوحة المالك</Link></div></header>
-        {feedback ? <div role={feedback.kind === 'error' ? 'alert' : 'status'} aria-live="polite" className={`rounded-2xl border px-5 py-4 text-sm font-bold ${feedback.kind === 'error' ? 'border-red-500/35 bg-red-500/10 text-red-100' : 'border-emerald-500/35 bg-emerald-500/10 text-emerald-100'}`}>{feedback.message}</div> : null}
+    <div className="space-y-8">
+      {feedback ? (
+        <div
+          role={feedback.kind === 'error' ? 'alert' : 'status'}
+          aria-live="polite"
+          className={`rounded-2xl border px-5 py-4 text-xs font-bold ${
+            feedback.kind === 'error'
+              ? 'border-red-500/35 bg-red-500/10 text-red-300'
+              : 'border-emerald-500/35 bg-emerald-500/10 text-emerald-300'
+          }`}
+        >
+          {feedback.message}
+        </div>
+      ) : null}
 
-        {/* FAQs Management Section */}
-        <section className="rounded-3xl border border-[#d4af37]/30 bg-[#141414] p-6 sm:p-8 space-y-6">
-          <div className="flex items-center justify-between border-b border-white/10 pb-5">
+      {/* FAQs Management Section */}
+      {(defaultSection === 'faqs' || defaultSection === 'all') && (
+        <section className="rounded-3xl border border-[#cea355]/30 bg-[#121212] p-6 sm:p-8 space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-800 pb-5">
             <div>
-              <h2 className="text-xl font-black flex items-center gap-2">
-                <HelpCircle className="size-5 text-[#d4af37]" />
+              <h2 className="text-xl font-black text-white flex items-center gap-2">
+                <HelpCircle className="w-5 h-5 text-[#edce8b]" />
                 <span>إدارة الأسئلة الشائعة (FAQ)</span>
               </h2>
-              <p className="mt-1 text-sm text-white/50">تظهر هذه الأسئلة في الصفحة الرئيسية وصفحة الأسئلة الشائعة المستقلة.</p>
+              <p className="mt-1 text-xs text-neutral-400">تظهر هذه الأسئلة في الصفحة الرئيسية وصفحة الأسئلة الشائعة المستقلة.</p>
             </div>
-            <button type="button" onClick={addFaqItem} className="inline-flex items-center gap-1.5 rounded-xl border border-[#d4af37]/40 bg-[#d4af37]/10 px-4 py-2 text-xs font-bold text-[#e5c45a] hover:bg-[#d4af37]/20">
-              <Plus className="size-4" /> إضافة سؤال جديد
+            <button
+              type="button"
+              onClick={addFaqItem}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-[#cea355]/40 bg-[#cea355]/10 px-4 py-2 text-xs font-bold text-[#edce8b] hover:bg-[#cea355]/20 transition-all self-start sm:self-auto"
+            >
+              <Plus className="w-4 h-4" /> إضافة سؤال جديد
             </button>
           </div>
 
           <div className="space-y-4">
             {faqs.map((item, idx) => (
-              <div key={idx} className="rounded-2xl border border-white/10 bg-[#080808] p-5 space-y-3">
+              <div key={idx} className="rounded-2xl border border-neutral-800 bg-[#080808] p-5 space-y-3">
                 <div className="flex items-center justify-between gap-4">
-                  <span className="text-xs font-bold text-[#e5c45a]">سؤال {idx + 1}</span>
+                  <span className="text-xs font-bold text-[#edce8b]">سؤال {idx + 1}</span>
                   <button type="button" onClick={() => removeFaqItem(idx)} className="text-red-400 hover:text-red-300 text-xs font-bold flex items-center gap-1">
-                    <Trash2 className="size-3.5" /> حذف
+                    <Trash2 className="w-3.5 h-3.5" /> حذف
                   </button>
                 </div>
-                <input required maxLength={240} value={item.q} onChange={(e) => handleFaqChange(idx, 'q', e.target.value)} placeholder="السؤال" className="w-full rounded-xl border border-white/10 bg-[#141414] px-4 py-2.5 text-sm text-white outline-none focus:border-[#d4af37]" />
-                <textarea required maxLength={1_200} value={item.a} onChange={(e) => handleFaqChange(idx, 'a', e.target.value)} placeholder="الإجابة" rows={2} className="w-full rounded-xl border border-white/10 bg-[#141414] px-4 py-2.5 text-sm text-white outline-none focus:border-[#d4af37]" />
+                <input
+                  required
+                  maxLength={240}
+                  value={item.q}
+                  onChange={(e) => handleFaqChange(idx, 'q', e.target.value)}
+                  placeholder="السؤال"
+                  className="w-full rounded-xl border border-neutral-800 bg-[#121212] px-4 py-2.5 text-xs text-white outline-none focus:border-[#cea355]"
+                />
+                <textarea
+                  required
+                  maxLength={1_200}
+                  value={item.a}
+                  onChange={(e) => handleFaqChange(idx, 'a', e.target.value)}
+                  placeholder="الإجابة"
+                  rows={2}
+                  className="w-full rounded-xl border border-neutral-800 bg-[#121212] px-4 py-2.5 text-xs text-white outline-none focus:border-[#cea355]"
+                />
               </div>
             ))}
           </div>
 
-          <div className="flex justify-end">
-            <button type="button" disabled={pending} onClick={saveFaqs} className="inline-flex items-center gap-2 rounded-xl bg-[#d4af37] px-6 py-2.5 text-xs font-black text-black hover:brightness-110 disabled:opacity-50">
-              {pending ? <LoaderCircle className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
+          <div className="flex justify-end pt-2">
+            <button
+              type="button"
+              disabled={pending}
+              onClick={saveFaqs}
+              className="inline-flex items-center gap-2 rounded-xl gold-gradient px-6 py-2.5 text-xs font-black text-white hover:brightness-110 disabled:opacity-50 shadow-md"
+            >
+              {pending ? <LoaderCircle className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
               <span>حفظ وتحديث الأسئلة الشائعة</span>
             </button>
           </div>
         </section>
+      )}
 
-        <form id="site-content-form" onSubmit={submit} className="space-y-6">{groups.map((group) => <section key={group.title} className="rounded-3xl border border-white/10 bg-[#141414] p-6 sm:p-8"><div className="border-b border-white/10 pb-5"><h2 className="text-xl font-black">{group.title}</h2><p className="mt-1 text-sm leading-6 text-white/50">{group.description}</p></div><div className="mt-6 grid gap-5 sm:grid-cols-2">{group.fields.map((field) => <label key={field.key} className={`block text-sm font-bold ${field.multiline ? 'sm:col-span-2' : ''}`}><span>{field.label}</span><span className="mt-1 block text-xs font-normal leading-5 text-white/45">{field.description}</span>{field.multiline ? <textarea name={field.key} value={content[field.key]} onChange={(event) => updateField(field.key, event.target.value)} required maxLength={1_200} rows={4} className="mt-2 w-full resize-y rounded-xl border border-white/10 bg-[#080808] px-4 py-3 text-sm leading-6 text-white outline-none transition focus:border-[#d4af37]" /> : <input name={field.key} value={content[field.key]} onChange={(event) => updateField(field.key, event.target.value)} required maxLength={240} className="mt-2 w-full rounded-xl border border-white/10 bg-[#080808] px-4 py-3 text-sm text-white outline-none transition focus:border-[#d4af37]" />}</label>)}</div></section>)}</form>
-        <div className="sticky bottom-4 z-10 rounded-2xl border border-[#d4af37]/25 bg-[#12100a]/95 p-4 shadow-2xl backdrop-blur sm:flex sm:items-center sm:justify-between"><p className="text-sm leading-6 text-white/65">يُسجل كل نشر في سجل المراجعة، وتظهر النصوص كـنص آمن فقط.</p><div className="mt-3 flex flex-col-reverse gap-3 sm:mt-0 sm:flex-row"><button type="button" disabled={pending} onClick={restoreDefaults} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/15 px-5 text-sm font-bold text-white/80 hover:bg-white/[0.05] disabled:opacity-50"><RotateCcw className="size-4" aria-hidden="true" />استعادة الافتراضي</button><button form="site-content-form" type="submit" disabled={pending} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#d4af37] px-6 text-sm font-black text-[#080808] disabled:opacity-50">{pending ? <LoaderCircle className="size-4 animate-spin" aria-hidden="true" /> : <CheckCircle2 className="size-4" aria-hidden="true" />}{pending ? 'جارٍ الحفظ…' : 'حفظ ونشر المحتوى'}</button></div></div>
-      </div>
-    </main>
+      {/* Page Content Form */}
+      {(defaultSection === 'content' || defaultSection === 'all') && (
+        <>
+          <form id="site-content-form" onSubmit={submit} className="space-y-6">
+            {groups.map((group) => (
+              <section key={group.title} className="rounded-3xl border border-neutral-800 bg-[#121212] p-6 sm:p-8">
+                <div className="border-b border-neutral-800 pb-5">
+                  <h2 className="text-xl font-black text-white">{group.title}</h2>
+                  <p className="mt-1 text-xs leading-5 text-neutral-400">{group.description}</p>
+                </div>
+                <div className="mt-6 grid gap-5 sm:grid-cols-2">
+                  {group.fields.map((field) => (
+                    <label key={field.key} className={`block text-xs font-bold text-neutral-300 ${field.multiline ? 'sm:col-span-2' : ''}`}>
+                      <span>{field.label}</span>
+                      <span className="mt-1 block text-[11px] font-normal leading-4 text-neutral-500">{field.description}</span>
+                      {field.multiline ? (
+                        <textarea
+                          name={field.key}
+                          value={content[field.key]}
+                          onChange={(event) => updateField(field.key, event.target.value)}
+                          required
+                          maxLength={1_200}
+                          rows={3}
+                          className="mt-2 w-full resize-y rounded-xl border border-neutral-800 bg-[#080808] px-4 py-3 text-xs leading-relaxed text-white outline-none transition focus:border-[#cea355]"
+                        />
+                      ) : (
+                        <input
+                          name={field.key}
+                          value={content[field.key]}
+                          onChange={(event) => updateField(field.key, event.target.value)}
+                          required
+                          maxLength={240}
+                          className="mt-2 w-full rounded-xl border border-neutral-800 bg-[#080808] px-4 py-2.5 text-xs text-white outline-none transition focus:border-[#cea355]"
+                        />
+                      )}
+                    </label>
+                  ))}
+                </div>
+              </section>
+            ))}
+          </form>
+
+          <div className="sticky bottom-4 z-10 rounded-2xl border border-[#cea355]/30 bg-[#121212]/95 p-4 shadow-2xl backdrop-blur sm:flex sm:items-center sm:justify-between">
+            <p className="text-xs leading-5 text-neutral-400">يُسجل كل نشر في سجل المراجعة، وتظهر النصوص بصورة آمنة ومباشرة.</p>
+            <div className="mt-3 flex flex-col-reverse gap-3 sm:mt-0 sm:flex-row">
+              <button
+                type="button"
+                disabled={pending}
+                onClick={restoreDefaults}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-neutral-700 bg-black/50 px-5 text-xs font-bold text-neutral-300 hover:text-white hover:bg-neutral-800 disabled:opacity-50 transition-all"
+              >
+                <RotateCcw className="w-4 h-4" />
+                استعادة الافتراضي
+              </button>
+              <button
+                form="site-content-form"
+                type="submit"
+                disabled={pending}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl gold-gradient px-6 text-xs font-black text-white hover:brightness-110 disabled:opacity-50 transition-all shadow-lg"
+              >
+                {pending ? <LoaderCircle className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                {pending ? 'جارٍ الحفظ…' : 'حفظ ونشر المحتوى'}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
   );
 }

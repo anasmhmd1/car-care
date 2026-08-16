@@ -528,7 +528,7 @@ export default function TechnicianTaskClient({ employee, bookings }: Props) {
                   >
                     {isChecked ? <CheckSquare className="mt-0.5 h-5 w-5 shrink-0 text-emerald-400" aria-hidden="true" /> : <Square className="mt-0.5 h-5 w-5 shrink-0 text-neutral-500" aria-hidden="true" />}
                     <span>
-                      <span className={`block text-xs font-medium ${isChecked ? 'text-neutral-500 line-through' : 'text-neutral-200'}`}>{item.labelAr}{item.required ? ' *' : ''}</span>
+                      <span className={`block text-xs font-medium ${isChecked ? 'text-neutral-500 line-through' : 'text-neutral-200'}`}>{item.labelAr}</span>
                       {item.descriptionAr ? <span className="mt-1 block text-[10px] text-neutral-500">{item.descriptionAr}</span> : null}
                       {item.requiresPhoto || item.requiresNote ? <span className="mt-1 block text-[10px] text-amber-300">{item.requiresPhoto ? 'يتطلب صورة' : ''}{item.requiresPhoto && item.requiresNote ? ' · ' : ''}{item.requiresNote ? 'يتطلب ملاحظة' : ''}</span> : null}
                     </span>

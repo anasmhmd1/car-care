@@ -9,6 +9,7 @@ import {
   validateStatusTransition,
 } from './state-machine';
 import { completeSubscriptionVisitForBooking } from './subscription';
+import { deductEmployeeMaterialsForCompletedBooking } from './inventory-consumption';
 
 export class BookingTransitionError extends Error {
   constructor(
@@ -47,6 +48,7 @@ export async function transitionBookingStatus(
     include: {
       service: {
         select: {
+          nameAr: true,
           minimumBeforePhotos: true,
           minimumAfterPhotos: true,
           checklistTemplates: {
@@ -78,9 +80,9 @@ export async function transitionBookingStatus(
       },
       assignedTeam: {
         select: {
+          leaderId: true,
           members: {
-            where: { userId: input.actorUserId },
-            select: { id: true },
+            select: { id: true, userId: true },
           },
         },
       },
@@ -167,12 +169,26 @@ export async function transitionBookingStatus(
     throw new BookingTransitionError('تغيرت حالة الحجز بالفعل؛ حدّث الصفحة وحاول مجددًا.', 'STALE_BOOKING_STATUS');
   }
 
-  if (input.toStatus === BookingStatus.SERVICE_COMPLETED && booking.subscriptionId) {
-    await completeSubscriptionVisitForBooking(tx, {
+  if (input.toStatus === BookingStatus.SERVICE_COMPLETED) {
+    if (booking.subscriptionId) {
+      await completeSubscriptionVisitForBooking(tx, {
+        bookingId: booking.id,
+        userId: input.actorUserId,
+        role: input.actorRole,
+        reason: 'خصم زيارة الاشتراك عند اكتمال الخدمة',
+      });
+    }
+
+    await deductEmployeeMaterialsForCompletedBooking(tx, {
       bookingId: booking.id,
-      userId: input.actorUserId,
-      role: input.actorRole,
-      reason: 'خصم زيارة الاشتراك عند اكتمال الخدمة',
+      bookingNumber: booking.bookingNumber,
+      serviceId: booking.serviceId,
+      serviceNameAr: booking.service.nameAr,
+      branchId: booking.branchId,
+      assignedEmployeeId: booking.assignedEmployeeId,
+      assignedTeamMembers: booking.assignedTeam?.members.map((m) => m.userId) ?? [],
+      teamLeaderId: booking.assignedTeam?.leaderId ?? null,
+      actorUserId: input.actorUserId,
     });
   }
 

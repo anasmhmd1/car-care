@@ -229,6 +229,12 @@ export default async function StaffPage() {
     ? teamBookingsWithMaterials.filter((b) => !b.assignedEmployeeId || b.assignedEmployeeId === employee.id)
     : teamBookingsWithMaterials;
 
+  const myCustodyStocks = await db.employeeMaterialStock.findMany({
+    where: { employeeId: employee.id, active: true },
+    include: { material: { select: { nameAr: true, sku: true, unit: true } } },
+    orderBy: { material: { nameAr: 'asc' } },
+  });
+
   return (
     <div className="min-h-screen bg-[#080808] text-white">
       <main className="mx-auto w-full max-w-xl space-y-6 px-4 py-8">
@@ -260,6 +266,24 @@ export default async function StaffPage() {
             </nav>
           ) : null}
         </header>
+
+        {myCustodyStocks.length > 0 && (
+          <section aria-labelledby="custody-title" className="rounded-3xl border border-white/10 bg-[#141414] p-5">
+            <h2 id="custody-title" className="text-xs font-black text-[#e5c45a]">
+              عهدة المواد المتاحة معك
+            </h2>
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {myCustodyStocks.map((stock) => (
+                <div key={stock.id} className="rounded-xl border border-white/5 bg-black/40 p-2.5 text-right">
+                  <p className="truncate text-xs font-bold text-white/80">{stock.material.nameAr}</p>
+                  <p className="mt-1 text-sm font-black text-[#f0d36d]">
+                    {stock.quantityOnHand.toLocaleString('ar-EG', { maximumFractionDigits: 2 })} <span className="text-[10px] text-white/40">{stock.material.unit}</span>
+                  </p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         <TechnicianTaskClient
           employee={toPublicUser(employee)}

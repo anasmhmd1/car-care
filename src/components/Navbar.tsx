@@ -91,11 +91,11 @@ export default function Navbar({ user }: NavbarProps) {
                 {/* Dashboard Link */}
                 <Link
                   href={getDashboardLink()}
-                  className="flex items-center gap-1.5 xs:gap-2 px-3 py-1.5 xs:px-4 xs:py-2 rounded-xl gold-gradient text-[#080808] font-bold text-xs xs:text-sm shadow-lg shadow-[#cea355]/25 hover:brightness-110 active:scale-95 transition-[filter,transform]"
+                  className="flex items-center gap-1.5 xs:gap-2 px-3 py-1.5 xs:px-4 xs:py-2 rounded-xl gold-gradient text-white font-bold text-xs xs:text-sm shadow-lg shadow-[#cea355]/25 hover:brightness-110 active:scale-95 transition-[filter,transform]"
                 >
-                  <User className="w-3.5 h-3.5 xs:w-4 xs:h-4 text-[#080808]" aria-hidden="true" />
+                  <User className="w-3.5 h-3.5 xs:w-4 xs:h-4 text-white" aria-hidden="true" />
                   <span>Dashboard ({user.fullName.split(' ')[0]})</span>
-                  <span className="hidden sm:inline-block text-[10px] bg-[#080808]/20 text-[#080808] px-2 py-0.5 rounded font-black border border-black/10">
+                  <span className="hidden sm:inline-block text-[10px] bg-black/30 text-white px-2 py-0.5 rounded font-black border border-white/20">
                     {getRoleBadge(user.role)}
                   </span>
                 </Link>
@@ -104,10 +104,10 @@ export default function Navbar({ user }: NavbarProps) {
                 <form action={logoutAction} className="hidden sm:block">
                   <button
                     type="submit"
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#141414] border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors text-xs font-semibold"
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#141414] border border-red-500/30 text-white hover:bg-red-500/10 transition-colors text-xs font-semibold"
                     title="Logout"
                   >
-                    <LogOut className="w-3.5 h-3.5 text-red-400" aria-hidden="true" />
+                    <LogOut className="w-3.5 h-3.5 text-white" aria-hidden="true" />
                     <span>Logout</span>
                   </button>
                 </form>
@@ -117,17 +117,17 @@ export default function Navbar({ user }: NavbarProps) {
                 {/* Primary Golden Button: LOGIN */}
                 <Link
                   href="/login"
-                  className="flex items-center justify-center px-3.5 py-1.5 xs:px-5 xs:py-2 rounded-xl gold-gradient text-[#080808] font-extrabold text-[11px] xs:text-xs sm:text-sm shadow-lg shadow-[#cea355]/20 hover:brightness-110 active:scale-95 transition-[filter,transform]"
+                  className="flex items-center justify-center px-4 py-1.5 xs:px-5 xs:py-2 rounded-2xl bg-gradient-to-r from-[#d99b42] to-[#b87d2b] text-white font-black text-xs xs:text-sm shadow-lg shadow-[#d99b42]/20 hover:brightness-110 active:scale-95 transition-all"
                 >
-                  <span className="whitespace-nowrap uppercase tracking-wider">LOGIN</span>
+                  <span className="whitespace-nowrap uppercase tracking-wider text-white">LOGIN</span>
                 </Link>
 
                 {/* Secondary Button: SIGN UP */}
                 <Link
                   href="/register"
-                  className="flex items-center justify-center px-3 py-1.5 xs:px-4.5 xs:py-2 rounded-xl bg-[#141414] border border-[#cea355]/30 text-[#edce8b] hover:bg-[#cea355]/10 transition-colors text-[11px] xs:text-xs sm:text-sm font-bold"
+                  className="flex items-center justify-center px-3.5 py-1.5 xs:px-4.5 xs:py-2 rounded-2xl bg-black/60 border border-white/30 text-white hover:bg-white/10 transition-colors text-xs xs:text-sm font-bold"
                 >
-                  <span className="whitespace-nowrap uppercase tracking-wider">SIGN UP</span>
+                  <span className="whitespace-nowrap uppercase tracking-wider text-white">SIGN UP</span>
                 </Link>
               </>
             )}
@@ -236,9 +236,9 @@ export default function Navbar({ user }: NavbarProps) {
                 <Link
                   href={getDashboardLink()}
                   onClick={() => setMobileMenuOpen(false)}
-                  className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl gold-gradient text-[#080808] font-extrabold text-xs shadow-md"
+                  className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl gold-gradient text-white font-extrabold text-xs shadow-md"
                 >
-                  <span>Dashboard ({user.fullName.split(' ')[0]})</span>
+                  <span className="text-white">Dashboard ({user.fullName.split(' ')[0]})</span>
                 </Link>
                 <form action={logoutAction}>
                   <button

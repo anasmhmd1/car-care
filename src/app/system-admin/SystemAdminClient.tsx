@@ -395,19 +395,19 @@ export default function SystemAdminClient({
 
             <form onSubmit={handleCreateOwner} className="space-y-4">
               <div>
-                <label className="text-xs text-neutral-300 block mb-1">الاسم الكامل *</label>
+                <label className="text-xs text-neutral-300 block mb-1">الاسم الكامل</label>
                 <input
                   type="text"
                   required
                   value={ownerName}
                   onChange={(e) => setOwnerName(e.target.value)}
-                  placeholder="المهندس طارق المالكي..."
+                  placeholder="كريم..."
                   className="w-full bg-[#080808] border border-neutral-800 rounded-xl p-3 text-xs text-white"
                 />
               </div>
 
               <div>
-                <label className="text-xs text-neutral-300 block mb-1">رقم الهاتف *</label>
+                <label className="text-xs text-neutral-300 block mb-1">رقم الهاتف</label>
                 <input
                   type="text"
                   required
@@ -430,7 +430,7 @@ export default function SystemAdminClient({
               </div>
 
               <div>
-                <label className="text-xs text-neutral-300 block mb-1">كلمة المرور المؤقتة *</label>
+                <label className="text-xs text-neutral-300 block mb-1">كلمة المرور المؤقتة</label>
                 <input
                   type="password"
                   required
@@ -470,7 +470,7 @@ export default function SystemAdminClient({
             <h3 id="branch-review-title" className="text-xl font-bold text-white">قرار طلب الفرع: {selectedRequest.branchName}</h3>
             
             <div className="space-y-2 font-mono text-xs text-neutral-300 p-4 rounded-xl bg-[#080808]">
-              <div>المالك طالب الفرع: {selectedRequest.owner.fullName} ({selectedRequest.owner.phone})</div>
+              <div>المالك طالب الفرع: {selectedRequest.owner.fullName}</div>
               <div>مبرر الإضافة: {selectedRequest.reason}</div>
             </div>
 
@@ -491,7 +491,7 @@ export default function SystemAdminClient({
               <legend className="px-2 text-sm font-bold text-[#e5c45a]">بيانات الفرع الذي سيُنشأ عند الموافقة</legend>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <label htmlFor="branch-code" className="mb-1 block text-xs text-neutral-300">كود الفرع *</label>
+                  <label htmlFor="branch-code" className="mb-1 block text-xs text-neutral-300">كود الفرع</label>
                   <input
                     id="branch-code"
                     value={branchCode}
@@ -504,7 +504,7 @@ export default function SystemAdminClient({
                   />
                 </div>
                 <div>
-                  <label htmlFor="branch-address" className="mb-1 block text-xs text-neutral-300">العنوان التفصيلي *</label>
+                  <label htmlFor="branch-address" className="mb-1 block text-xs text-neutral-300">العنوان التفصيلي</label>
                   <input
                     id="branch-address"
                     value={branchAddress}
@@ -514,7 +514,7 @@ export default function SystemAdminClient({
                   />
                 </div>
                 <div>
-                  <label htmlFor="branch-phone" className="mb-1 block text-xs text-neutral-300">هاتف الفرع *</label>
+                  <label htmlFor="branch-phone" className="mb-1 block text-xs text-neutral-300">هاتف الفرع</label>
                   <input
                     id="branch-phone"
                     type="tel"
@@ -527,7 +527,7 @@ export default function SystemAdminClient({
                   />
                 </div>
                 <div>
-                  <label htmlFor="branch-whatsapp" className="mb-1 block text-xs text-neutral-300">واتساب الفرع *</label>
+                  <label htmlFor="branch-whatsapp" className="mb-1 block text-xs text-neutral-300">واتساب الفرع</label>
                   <input
                     id="branch-whatsapp"
                     type="tel"

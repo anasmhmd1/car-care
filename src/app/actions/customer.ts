@@ -179,11 +179,43 @@ export async function deleteVehicleAction(formData: FormData) {
 export async function addAddressAction(formData: FormData) {
   const user = await requireRole([UserRole.CUSTOMER]);
 
+  const coverageAreaId = (formData.get('coverageAreaId') as string || '').trim();
+  let verifiedArea: { governorate: string; city: string; district: string; compound: string } | null = null;
+
+  if (coverageAreaId) {
+    verifiedArea = await db.coverageArea.findFirst({
+      where: {
+        id: coverageAreaId,
+        active: true,
+        zone: { branch: { status: 'ACTIVE' } },
+      },
+      select: { governorate: true, city: true, district: true, compound: true },
+    });
+  }
+
+  if (!verifiedArea) {
+    const compound = (formData.get('compound') as string || '').trim();
+    if (compound) {
+      verifiedArea = await db.coverageArea.findFirst({
+        where: {
+          compound,
+          active: true,
+          zone: { branch: { status: 'ACTIVE' } },
+        },
+        select: { governorate: true, city: true, district: true, compound: true },
+      });
+    }
+  }
+
+  if (!verifiedArea) {
+    return { error: 'المنطقة أو الكمبوند المختار غير مدعوم حالياً ضمن نطاقات التغطية المعتمدة.' };
+  }
+
   const raw = {
-    governorate: (formData.get('governorate') as string || '').trim(),
-    city: (formData.get('city') as string || '').trim(),
-    district: (formData.get('district') as string || '').trim(),
-    compound: (formData.get('compound') as string || '').trim(),
+    governorate: verifiedArea.governorate,
+    city: verifiedArea.city,
+    district: verifiedArea.district,
+    compound: verifiedArea.compound,
     street: (formData.get('street') as string || '').trim(),
     buildingNumber: (formData.get('buildingNumber') as string || '').trim(),
     unitNumber: (formData.get('unitNumber') as string || '').trim(),
@@ -233,11 +265,43 @@ export async function updateAddressAction(formData: FormData) {
   const addressId = formData.get('addressId') as string;
   if (!addressId) return { error: 'معرف العنوان مطلوب' };
 
+  const coverageAreaId = (formData.get('coverageAreaId') as string || '').trim();
+  let verifiedArea: { governorate: string; city: string; district: string; compound: string } | null = null;
+
+  if (coverageAreaId) {
+    verifiedArea = await db.coverageArea.findFirst({
+      where: {
+        id: coverageAreaId,
+        active: true,
+        zone: { branch: { status: 'ACTIVE' } },
+      },
+      select: { governorate: true, city: true, district: true, compound: true },
+    });
+  }
+
+  if (!verifiedArea) {
+    const compound = (formData.get('compound') as string || '').trim();
+    if (compound) {
+      verifiedArea = await db.coverageArea.findFirst({
+        where: {
+          compound,
+          active: true,
+          zone: { branch: { status: 'ACTIVE' } },
+        },
+        select: { governorate: true, city: true, district: true, compound: true },
+      });
+    }
+  }
+
+  if (!verifiedArea) {
+    return { error: 'المنطقة أو الكمبوند المختار غير مدعوم حالياً ضمن نطاقات التغطية المعتمدة.' };
+  }
+
   const raw = {
-    governorate: (formData.get('governorate') as string || '').trim(),
-    city: (formData.get('city') as string || '').trim(),
-    district: (formData.get('district') as string || '').trim(),
-    compound: (formData.get('compound') as string || '').trim(),
+    governorate: verifiedArea.governorate,
+    city: verifiedArea.city,
+    district: verifiedArea.district,
+    compound: verifiedArea.compound,
     street: (formData.get('street') as string || '').trim(),
     buildingNumber: (formData.get('buildingNumber') as string || '').trim(),
     unitNumber: (formData.get('unitNumber') as string || '').trim(),

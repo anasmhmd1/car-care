@@ -1,7 +1,8 @@
+import Link from 'next/link';
 import BareeqLogo from '@/components/BareeqLogo';
 import { requireRole } from '@/lib/auth/session';
 import { logoutAction } from '@/app/actions/auth';
-import { LogOut } from 'lucide-react';
+import { LogOut, LayoutDashboard, ShieldCheck } from 'lucide-react';
 import { db } from '@/lib/db';
 import { UserRole } from '@prisma/client';
 import {
@@ -11,7 +12,7 @@ import {
 import SystemAdminClient from './SystemAdminClient';
 
 export default async function SystemAdminPage() {
-  await requireRole([UserRole.SYSTEM_SUPER_ADMIN]);
+  await requireRole([UserRole.OWNER, UserRole.SYSTEM_SUPER_ADMIN]);
 
   const [brand, branchRequests, owners, branches, auditLogs, securityEvents, appSettings] = await Promise.all([
     db.brandSettings.findFirst(),
@@ -76,14 +77,24 @@ export default async function SystemAdminPage() {
           <div className="space-y-2">
             <div className="flex items-center gap-4">
               <BareeqLogo size="sm" showText={true} />
-              <div className="text-xs font-bold text-red-400 uppercase tracking-wider">لوحة مدير النظام المخفي (System Super Admin)</div>
+              <div className="flex items-center gap-1.5 text-xs font-bold text-[#edce8b] uppercase tracking-wider bg-[#cea355]/15 border border-[#cea355]/30 px-3 py-1 rounded-full">
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>لوحة الإدارة العليا وحوكمة النظام</span>
+              </div>
             </div>
-            <h1 className="text-2xl sm:text-4xl font-black text-white">إدارة الحد الأقصى للفروع والطلبات العليا</h1>
+            <h1 className="text-2xl sm:text-4xl font-black text-white">إدارة البنية التحتية، الفروع، وسجلات الحوكمة</h1>
           </div>
 
           <div className="flex items-center gap-3">
-            <span className="px-3.5 py-1.5 rounded-full bg-red-500/20 border border-red-500/40 text-red-400 text-xs font-bold">
-              الحد الأقصى الحالي للفروع: {brand?.maxBranches || 1}
+            <Link
+              href="/admin"
+              className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-xs font-bold text-neutral-300 flex items-center gap-2 transition-all"
+            >
+              <LayoutDashboard className="w-4 h-4" />
+              <span>لوحة المالك الرئيسية</span>
+            </Link>
+            <span className="px-3.5 py-1.5 rounded-full bg-[#cea355]/20 border border-[#cea355]/40 text-[#edce8b] text-xs font-bold">
+              الحد الأقصى للفروع: {brand?.maxBranches || 1}
             </span>
             <form action={logoutAction}>
               <button

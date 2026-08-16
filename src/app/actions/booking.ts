@@ -14,7 +14,8 @@ import {
   VisitLedgerAction,
 } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
-import { requireRole } from '@/lib/auth/session';
+import bcrypt from 'bcryptjs';
+import { getCurrentUser, requireRole } from '@/lib/auth/session';
 import { db } from '@/lib/db';
 import { evaluateRequestedInterval } from '@/lib/engine/availability';
 import { expireAwaitingPaymentBooking } from '@/lib/engine/booking-expiration';
@@ -38,8 +39,8 @@ const PAYMENT_REVIEW_HOLD_MINUTES = 24 * 60;
 const TERMINAL_STATUSES: BookingStatus[] = [
   BookingStatus.CANCELLED,
   BookingStatus.REJECTED,
-  BookingStatus.EXPIRED,
   BookingStatus.CLOSED,
+  BookingStatus.EXPIRED,
 ];
 
 class BookingInputError extends Error {}
@@ -67,11 +68,7 @@ function bookingNumber(now: Date) {
 }
 
 export async function createBookingAction(formData: FormData) {
-  const user = await requireRole([UserRole.CUSTOMER]);
-  const rateLimit = await checkRateLimit(user.id, 'booking');
-  if (!rateLimit.allowed) {
-    return { error: 'تم تجاوز عدد محاولات الحجز المسموح. حاول بعد قليل.' };
-  }
+  const user = await getCurrentUser().catch(() => null);
 
   const parsed = createBookingSchema.safeParse({
     serviceId: formData.get('serviceId'),
@@ -91,9 +88,9 @@ export async function createBookingAction(formData: FormData) {
     gateInstructions: formData.get('gateInstructions') || '',
     locationUrl: formData.get('locationUrl') || '',
     customerNotes: formData.get('customerNotes') || '',
-    contactName: formData.get('contactName') || user.fullName,
-    contactPhone: formData.get('contactPhone') || user.phone,
-    contactWhatsapp: formData.get('contactWhatsapp') || user.whatsapp || user.phone,
+    contactName: formData.get('contactName') || user?.fullName,
+    contactPhone: formData.get('contactPhone') || user?.phone,
+    contactWhatsapp: formData.get('contactWhatsapp') || user?.whatsapp || user?.phone,
     policyAccepted: formData.get('policyAccepted'),
     policyVersion: formData.get('policyVersion') || BOOKING_TERMS_VERSION,
     acceptedCancellationPolicyId: formData.get('acceptedCancellationPolicyId'),
@@ -108,6 +105,12 @@ export async function createBookingAction(formData: FormData) {
   }
 
   const data = parsed.data;
+  const rateLimitTarget = user?.id || `guest_${data.contactPhone}`;
+  const rateLimit = await checkRateLimit(rateLimitTarget, 'booking');
+  if (!rateLimit.allowed) {
+    return { error: 'تم تجاوز عدد محاولات الحجز المسموح. حاول بعد قليل.' };
+  }
+
   const now = new Date();
   if (data.startAt <= now) return { error: 'لا يمكن الحجز في موعد مضى.' };
 
@@ -123,9 +126,42 @@ export async function createBookingAction(formData: FormData) {
       // request re-evaluate all teams instead of both choosing the same one.
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`capacity:${area.zone.branchId}`}))`;
 
+      let customerUser = user;
+      if (!customerUser) {
+        const normalizedPhone = data.contactPhone;
+        let existingUser = await tx.user.findFirst({
+          where: { phone: normalizedPhone },
+        });
+        if (existingUser && !existingUser.active) {
+          throw new BookingInputError('تم حظر هذا الحساب من قِبل إدارة التشغيل؛ يُرجى التواصل مع الدعم.');
+        }
+        if (!existingUser) {
+          const randomSecret = randomUUID();
+          const randomHash = await bcrypt.hash(randomSecret, 10);
+          existingUser = await tx.user.create({
+            data: {
+              fullName: data.contactName,
+              phone: normalizedPhone,
+              whatsapp: data.contactWhatsapp || normalizedPhone,
+              passwordHash: randomHash,
+              role: UserRole.CUSTOMER,
+              active: true,
+            },
+          });
+        }
+        customerUser = existingUser;
+      }
+
+      if (customerUser && !customerUser.active) {
+        throw new BookingInputError('تم حظر هذا الحساب من قِبل إدارة التشغيل؛ يُرجى التواصل مع الدعم.');
+      }
+
+      const actorUserId = user?.id || customerUser.id;
+      const actorRole = user?.role || UserRole.CUSTOMER;
+
       const customer = await tx.customerProfile.upsert({
-        where: { userId: user.id },
-        create: { userId: user.id },
+        where: { userId: customerUser.id },
+        create: { userId: customerUser.id },
         update: {},
       });
       let currentCreditBalance = customer.creditBalance;
@@ -153,13 +189,20 @@ export async function createBookingAction(formData: FormData) {
         ? await tx.customerAddress.findFirst({ where: { id: data.addressId, customerId: customer.id } })
         : null;
       if (data.addressId && !address) throw new BookingInputError('العنوان المختار لا يخص حسابك.');
-      if (address && (
-        address.governorate !== area.governorate ||
-        address.city !== area.city ||
-        address.district !== area.district ||
-        address.compound !== area.compound
-      )) {
-        throw new BookingInputError('العنوان المحفوظ لا يطابق منطقة التغطية المختارة.');
+      if (address) {
+        const norm = (s: string) => (s || '').trim().toLowerCase().replace(/[\u064B-\u065F]/g, '').replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').replace(/\s+/g, ' ');
+        const matchExact =
+          address.governorate === area.governorate &&
+          address.city === area.city &&
+          address.district === area.district &&
+          address.compound === area.compound;
+        const matchNorm =
+          norm(address.compound) === norm(area.compound) ||
+          (norm(address.city) === norm(area.city) && norm(address.district) === norm(area.district));
+
+        if (!matchExact && !matchNorm) {
+          throw new BookingInputError('العنوان المحفوظ لا يطابق منطقة التغطية المختارة.');
+        }
       }
       if (!address) {
         address = await tx.customerAddress.create({
@@ -292,7 +335,7 @@ export async function createBookingAction(formData: FormData) {
       }
       const scheduledEndAt = new Date(data.startAt.getTime() + availability.totalDurationMinutes * 60_000);
       const totalPrice = subscription ? availability.addonPrice : availability.totalPrice;
-      const depositAmount = subscription ? availability.addonPrice : availability.depositAmount;
+      const depositAmount = subscription ? 0 : availability.depositAmount;
       const creditAppliedAmount = data.useCredit
         ? Math.min(currentCreditBalance, totalPrice)
         : 0;
@@ -388,7 +431,7 @@ export async function createBookingAction(formData: FormData) {
             transactionType: 'BOOKING_CREDIT_APPLIED',
             idempotencyKey: `booking:${booking.id}:credit-applied`,
             reason: 'استخدام رصيد التعويضات في سداد الحجز',
-            createdByUserId: user.id,
+            createdByUserId: actorUserId,
           },
         });
       }
@@ -446,14 +489,14 @@ export async function createBookingAction(formData: FormData) {
           bookingId: booking.id,
           fromStatus: BookingStatus.DRAFT,
           toStatus: BookingStatus.REQUEST_SUBMITTED,
-          changedByUserId: user.id,
-          actorRole: user.role,
+          changedByUserId: actorUserId,
+          actorRole,
           reason: 'إنشاء طلب حجز من العميل',
         },
       });
       await tx.customerConsent.create({
         data: {
-          userId: user.id,
+          userId: actorUserId,
           consentType: 'BOOKING_TERMS',
           version: BOOKING_TERMS_VERSION,
           accepted: true,
@@ -462,8 +505,8 @@ export async function createBookingAction(formData: FormData) {
       });
       await tx.auditLog.create({
         data: {
-          actorUserId: user.id,
-          actorRole: user.role,
+          actorUserId,
+          actorRole,
           action: 'BOOKING_CREATED',
           entityType: 'Booking',
           entityId: booking.id,
@@ -479,7 +522,7 @@ export async function createBookingAction(formData: FormData) {
         },
       });
 
-      await syncInvoiceForBooking(tx, booking, user.id);
+      await syncInvoiceForBooking(tx, booking, actorUserId);
 
       if (subscription) {
         await tx.subscriptionVisitLedger.create({
@@ -500,23 +543,23 @@ export async function createBookingAction(formData: FormData) {
         await transitionBookingStatus(tx, {
           bookingId: booking.id,
           toStatus: BookingStatus.PAYMENT_VERIFIED,
-          actorUserId: user.id,
-          actorRole: user.role,
+          actorUserId,
+          actorRole,
           reason: 'الحجز لا يتطلب دفعة مسبقة',
         });
         await transitionBookingStatus(tx, {
           bookingId: booking.id,
           toStatus: BookingStatus.AWAITING_OPERATIONS_REVIEW,
-          actorUserId: user.id,
-          actorRole: user.role,
+          actorUserId,
+          actorRole,
           reason: 'إحالة الحجز إلى مراجعة التشغيل دون دفعة مسبقة',
         });
       } else {
         await transitionBookingStatus(tx, {
           bookingId: booking.id,
           toStatus: BookingStatus.AWAITING_PAYMENT_PROOF,
-          actorUserId: user.id,
-          actorRole: user.role,
+          actorUserId,
+          actorRole,
           reason: 'بانتظار إثبات التحويل',
         });
       }
@@ -552,7 +595,11 @@ export async function createBookingAction(formData: FormData) {
 }
 
 export async function uploadPaymentProofAction(formData: FormData) {
-  const user = await requireRole([UserRole.CUSTOMER]);
+  const user = await getCurrentUser().catch(() => null);
+  if (user && user.role !== UserRole.CUSTOMER && user.role !== UserRole.OWNER && user.role !== UserRole.SYSTEM_SUPER_ADMIN) {
+    return { error: 'غير مصرح لك بإرسال إثبات التحويل.' };
+  }
+
   const parsed = uploadPaymentProofSchema.safeParse({
     bookingId: formData.get('bookingId'),
     paymentMethodId: formData.get('paymentMethodId'),
@@ -578,10 +625,11 @@ export async function uploadPaymentProofAction(formData: FormData) {
         where: {
           id: data.bookingId,
           deletedAt: null,
-          customer: { userId: user.id },
+          ...(user && user.role === UserRole.CUSTOMER ? { customer: { userId: user.id } } : {}),
           bookingStatus: { in: [BookingStatus.AWAITING_PAYMENT_PROOF, BookingStatus.REQUEST_SUBMITTED] },
         },
         include: {
+          customer: { include: { user: true } },
           holds: {
             where: {
               status: BookingHoldStatus.ACTIVE,
@@ -604,7 +652,7 @@ export async function uploadPaymentProofAction(formData: FormData) {
         });
         await expireAwaitingPaymentBooking(tx, {
           booking,
-          actor: user,
+          actor: user || booking.customer.user,
           now: expiredAt,
         });
         return { expired: true as const };
@@ -618,7 +666,6 @@ export async function uploadPaymentProofAction(formData: FormData) {
           where: {
             id: data.bookingFileId,
             bookingId: booking.id,
-            uploadedByUserId: user.id,
             fileType: FileType.PAYMENT_PROOF,
           },
         }),
@@ -659,15 +706,15 @@ export async function uploadPaymentProofAction(formData: FormData) {
       await transitionBookingStatus(tx, {
         bookingId: booking.id,
         toStatus: BookingStatus.PAYMENT_UNDER_REVIEW,
-        actorUserId: user.id,
-        actorRole: user.role,
+        actorUserId: user?.id || booking.customer.userId,
+        actorRole: user?.role || UserRole.CUSTOMER,
         reason: 'رفع إثبات التحويل للمراجعة',
         metadata: { proofId: created.id },
       });
       await tx.auditLog.create({
         data: {
-          actorUserId: user.id,
-          actorRole: user.role,
+          actorUserId: user?.id || booking.customer.userId,
+          actorRole: user?.role || UserRole.CUSTOMER,
           action: 'PAYMENT_PROOF_UPLOADED',
           entityType: 'PaymentProof',
           entityId: created.id,

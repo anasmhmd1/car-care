@@ -70,9 +70,9 @@ export default function ProfileForms({ user }: ProfileFormsProps) {
         </h2>
         <form onSubmit={submitProfile} className="mt-5 space-y-4">
           <NoticeBox notice={profileNotice} />
-          <label className="block text-xs font-bold text-neutral-300">الاسم بالكامل *<input name="fullName" required minLength={3} defaultValue={user.fullName} className={`mt-2 ${inputClass}`} autoComplete="name" /></label>
+          <label className="block text-xs font-bold text-neutral-300">الاسم بالكامل<input name="fullName" required minLength={3} defaultValue={user.fullName} className={`mt-2 ${inputClass}`} autoComplete="name" /></label>
           <div className="grid gap-4 sm:grid-cols-2">
-            <label className="block text-xs font-bold text-neutral-300"><span className="flex items-center gap-1.5"><Phone className="size-3.5 text-[#c9a227]" aria-hidden="true" />رقم الهاتف *</span><input name="phone" type="tel" required defaultValue={user.phone} className={`mt-2 ${inputClass}`} autoComplete="tel" dir="ltr" /></label>
+            <label className="block text-xs font-bold text-neutral-300"><span className="flex items-center gap-1.5"><Phone className="size-3.5 text-[#c9a227]" aria-hidden="true" />رقم الهاتف</span><input name="phone" type="tel" required defaultValue={user.phone} className={`mt-2 ${inputClass}`} autoComplete="tel" dir="ltr" /></label>
             <label className="block text-xs font-bold text-neutral-300">رقم واتساب<input name="whatsapp" type="tel" defaultValue={user.whatsapp ?? user.phone} className={`mt-2 ${inputClass}`} autoComplete="tel" dir="ltr" /></label>
           </div>
           <label className="block text-xs font-bold text-neutral-300"><span className="flex items-center gap-1.5"><Mail className="size-3.5 text-[#c9a227]" aria-hidden="true" />البريد الإلكتروني</span><input name="email" type="email" defaultValue={user.email ?? ''} className={`mt-2 ${inputClass}`} autoComplete="email" dir="ltr" /></label>
@@ -84,10 +84,10 @@ export default function ProfileForms({ user }: ProfileFormsProps) {
         <h2 id="password-title" className="flex items-center gap-2 border-b border-neutral-800 pb-4 text-base font-black text-white"><Shield className="size-4 text-[#c9a227]" aria-hidden="true" />كلمة المرور والجلسات</h2>
         <form onSubmit={submitPassword} className="mt-5 space-y-4">
           <NoticeBox notice={passwordNotice} />
-          <label className="block text-xs font-bold text-neutral-300">كلمة المرور الحالية *<input name="currentPassword" type="password" required className={`mt-2 ${inputClass}`} autoComplete="current-password" /></label>
+          <label className="block text-xs font-bold text-neutral-300">كلمة المرور الحالية<input name="currentPassword" type="password" required className={`mt-2 ${inputClass}`} autoComplete="current-password" /></label>
           <div className="grid gap-4 sm:grid-cols-2">
-            <label className="block text-xs font-bold text-neutral-300">كلمة المرور الجديدة *<input name="newPassword" type="password" required minLength={12} className={`mt-2 ${inputClass}`} autoComplete="new-password" /></label>
-            <label className="block text-xs font-bold text-neutral-300">تأكيد كلمة المرور *<input name="confirmPassword" type="password" required minLength={12} className={`mt-2 ${inputClass}`} autoComplete="new-password" /></label>
+            <label className="block text-xs font-bold text-neutral-300">كلمة المرور الجديدة<input name="newPassword" type="password" required minLength={12} className={`mt-2 ${inputClass}`} autoComplete="new-password" /></label>
+            <label className="block text-xs font-bold text-neutral-300">تأكيد كلمة المرور<input name="confirmPassword" type="password" required minLength={12} className={`mt-2 ${inputClass}`} autoComplete="new-password" /></label>
           </div>
           <p className="text-[11px] leading-5 text-neutral-500">استخدم 12 حرفًا على الأقل. تغيير كلمة المرور يلغي كل الجلسات السابقة تلقائيًا.</p>
           <div className="flex justify-end"><button type="submit" disabled={isPending} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[#c9a227]/35 bg-[#c9a227]/10 px-6 text-xs font-black text-[#e5c45a] disabled:opacity-50"><Shield className="size-4" aria-hidden="true" />{isPending ? 'جارٍ التحديث…' : 'تحديث كلمة المرور'}</button></div>

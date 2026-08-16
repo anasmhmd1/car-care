@@ -171,6 +171,7 @@ function ProductEditor({ service, addons, branches, cancellationPolicies, materi
   const [addonIds, setAddonIds] = useState<string[]>(service?.addonIds ?? []);
   const [branchOverrides, setBranchOverrides] = useState<BranchOverrideDto[]>(service?.branchOverrides ?? []);
   const [materialRequirements, setMaterialRequirements] = useState<CatalogMaterialRequirementDto[]>(service?.materialRequirements ?? []);
+  const [depositType, setDepositType] = useState<string>(service?.depositType ?? 'PERCENTAGE');
   const [isUploading, setIsUploading] = useState(false);
 
   function variantFor(size: VehicleSizeCode) {
@@ -267,17 +268,17 @@ function ProductEditor({ service, addons, branches, cancellationPolicies, materi
       <section className="rounded-2xl border border-white/10 bg-white/[0.025] p-5">
         <h2 className="text-lg font-black">بيانات المنتج والمحتوى</h2>
         <div className="mt-5 grid gap-4 md:grid-cols-2">
-          <label className="text-xs font-bold text-white/70">الاسم بالعربية *<input name="nameAr" required minLength={2} defaultValue={service?.nameAr ?? ''} className={inputClass} /></label>
+          <label className="text-xs font-bold text-white/70">الاسم بالعربية<input name="nameAr" required minLength={2} defaultValue={service?.nameAr ?? ''} className={inputClass} /></label>
           <label className="text-xs font-bold text-white/70">الاسم بالإنجليزية<input name="nameEn" defaultValue={service?.nameEn ?? ''} className={inputClass} dir="ltr" /></label>
-          <label className="text-xs font-bold text-white/70">الرابط المختصر *<input name="slug" required pattern="[a-z0-9]+(?:-[a-z0-9]+)*" defaultValue={service?.slug ?? ''} className={inputClass} dir="ltr" /></label>
+          <label className="text-xs font-bold text-white/70">الرابط المختصر<input name="slug" required pattern="[a-z0-9]+(?:-[a-z0-9]+)*" defaultValue={service?.slug ?? ''} className={inputClass} dir="ltr" /></label>
           <label className="text-xs font-bold text-white/70">نوع التسعير<select name="priceType" defaultValue={service?.priceType ?? 'FIXED'} className={inputClass}><option value="FIXED">سعر ثابت</option><option value="STARTS_FROM">يبدأ من</option><option value="VARIANT_BASED">حسب حجم السيارة</option></select></label>
         </div>
-        <label className="mt-4 block text-xs font-bold text-white/70">الوصف المختصر *<textarea name="shortDescriptionAr" required minLength={5} maxLength={300} defaultValue={service?.shortDescriptionAr ?? ''} className={areaClass} /></label>
-        <label className="mt-4 block text-xs font-bold text-white/70">الوصف الكامل *<textarea name="fullDescriptionAr" required minLength={10} maxLength={5000} defaultValue={service?.fullDescriptionAr ?? ''} className={`${areaClass} min-h-40`} /></label>
+        <label className="mt-4 block text-xs font-bold text-white/70">الوصف المختصر<textarea name="shortDescriptionAr" required minLength={5} maxLength={300} defaultValue={service?.shortDescriptionAr ?? ''} className={areaClass} /></label>
+        <label className="mt-4 block text-xs font-bold text-white/70">الوصف الكامل<textarea name="fullDescriptionAr" required minLength={10} maxLength={5000} defaultValue={service?.fullDescriptionAr ?? ''} className={`${areaClass} min-h-40`} /></label>
         <div className="mt-4 grid gap-4 md:grid-cols-3">
           <label className="text-xs font-bold text-white/70">المشمول — سطر لكل عنصر<textarea name="includedItems" defaultValue={service?.includedItems.join('\n') ?? ''} className={areaClass} /></label>
           <label className="text-xs font-bold text-white/70">غير المشمول<textarea name="excludedItems" defaultValue={service?.excludedItems.join('\n') ?? ''} className={areaClass} /></label>
-          <label className="text-xs font-bold text-white/70">المزايا<textarea name="benefits" defaultValue={service?.benefits.join('\n') ?? ''} className={areaClass} /></label>
+          <label className="text-xs font-bold text-white/70">مميزات الخدمة الرئيسية (تظهر في الكتالوج وصفحة الخدمة — سطر لكل ميزة)<textarea name="benefits" placeholder="عناية متنقلة لباب بيتك&#10;مواد متخصصة فائقة الجودة&#10;توثيق دقيق قبل وبعد التنفيذ" defaultValue={service?.benefits.join('\n') ?? ''} className={areaClass} /></label>
         </div>
         <label className="mt-4 block text-xs font-bold text-white/70">تعليمات التحضير<textarea name="preparationInstructions" defaultValue={service?.preparationInstructions ?? ''} className={areaClass} /></label>
       </section>
@@ -298,7 +299,7 @@ function ProductEditor({ service, addons, branches, cancellationPolicies, materi
       <section className="rounded-2xl border border-white/10 bg-white/[0.025] p-5">
         <h2 className="text-lg font-black">السعر والمدة وقواعد التنفيذ</h2>
         <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <label className="text-xs font-bold text-white/70 sm:col-span-2 xl:col-span-4">سياسة الإلغاء *
+          <label className="text-xs font-bold text-white/70 sm:col-span-2 xl:col-span-4">سياسة الإلغاء
             <select
               name="cancellationPolicyId"
               required
@@ -320,14 +321,37 @@ function ProductEditor({ service, addons, branches, cancellationPolicies, materi
           <label className="text-xs font-bold text-white/70">المدة بالدقائق<input name="durationMinutes" type="number" min="15" required defaultValue={service?.durationMinutes ?? 60} className={inputClass} /></label>
           <label className="text-xs font-bold text-white/70">عدد الـSlots<input name="slotCount" type="number" min="1" required defaultValue={service?.slotCount ?? 1} className={inputClass} /></label>
           <label className="text-xs font-bold text-white/70">حجم الفريق المطلوب<input name="requiredTeamSize" type="number" min="1" required defaultValue={service?.requiredTeamSize ?? 2} className={inputClass} /></label>
-          <label className="text-xs font-bold text-white/70">نوع العربون<select name="depositType" defaultValue={service?.depositType ?? 'PERCENTAGE'} className={inputClass}><option value="PERCENTAGE">نسبة مئوية</option><option value="FIXED">قيمة ثابتة</option></select></label>
-          <label className="text-xs font-bold text-white/70">قيمة العربون<input name="depositValue" type="number" min="0" required defaultValue={service?.depositValue ?? 30} className={inputClass} /></label>
+          <label className="text-xs font-bold text-white/70">
+            نوع العربون
+            <select
+              name="depositType"
+              value={depositType}
+              onChange={(event) => setDepositType(event.target.value)}
+              className={inputClass}
+            >
+              <option value="PERCENTAGE">نسبة مئوية (%)</option>
+              <option value="FIXED">مبلغ ثابت (ج.م)</option>
+            </select>
+          </label>
+          <label className="text-xs font-bold text-white/70">
+            قيمة العربون {depositType === 'PERCENTAGE' ? '(كنسبة % من السعر)' : '(مبلغ ثابت بالجنيه)'}
+            <input
+              name="depositValue"
+              type="number"
+              min="0"
+              max={depositType === 'PERCENTAGE' ? 100 : 100000}
+              required
+              defaultValue={service?.depositValue ?? (depositType === 'PERCENTAGE' ? 30 : 200)}
+              placeholder={depositType === 'PERCENTAGE' ? 'مثال: 30' : 'مثال: 200'}
+              className={inputClass}
+            />
+          </label>
           <label className="text-xs font-bold text-white/70">أقل صور قبل<input name="minimumBeforePhotos" type="number" min="0" required defaultValue={service?.minimumBeforePhotos ?? 2} className={inputClass} /></label>
           <label className="text-xs font-bold text-white/70">أقل صور بعد<input name="minimumAfterPhotos" type="number" min="0" required defaultValue={service?.minimumAfterPhotos ?? 2} className={inputClass} /></label>
         </div>
         <div className="mt-5 flex flex-wrap gap-3 text-xs font-bold text-white/75">
           <label className="flex min-h-10 items-center gap-2 rounded-xl border border-white/10 px-3"><input name="requiresDeposit" type="checkbox" defaultChecked={service?.requiresDeposit ?? true} />يتطلب عربونًا</label>
-          <label className="flex min-h-10 items-center gap-2 rounded-xl border border-white/10 px-3"><input name="requiresFullPrepayment" type="checkbox" defaultChecked={service?.requiresFullPrepayment ?? false} />دفع كامل مقدمًا</label>
+          <label className="flex min-h-10 items-center gap-2 rounded-xl border border-white/10 px-3"><input name="requiresFullPrepayment" type="checkbox" defaultChecked={service?.requiresFullPrepayment ?? false} />دفع كامل مقدمًا (100%)</label>
           <label className="flex min-h-10 items-center gap-2 rounded-xl border border-white/10 px-3"><input name="active" type="checkbox" defaultChecked={service?.active ?? true} />نشطة</label>
           <label className="flex min-h-10 items-center gap-2 rounded-xl border border-white/10 px-3"><input name="bookableOnline" type="checkbox" defaultChecked={service?.bookableOnline ?? true} />حجز إلكتروني</label>
           <label className="flex min-h-10 items-center gap-2 rounded-xl border border-white/10 px-3"><input name="subscriptionEligible" type="checkbox" defaultChecked={service?.subscriptionEligible ?? true} />مشمولة بالاشتراكات</label>
@@ -442,12 +466,12 @@ function CancellationPolicyEditor({ policy }: { policy?: CatalogCancellationPoli
       {policy ? <input type="hidden" name="policyId" value={policy.id} /> : null}
       <NoticeBox notice={notice} />
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <label className="text-xs font-bold text-white/70">اسم السياسة *<input name="nameAr" required minLength={2} maxLength={120} defaultValue={policy?.nameAr ?? ''} className={inputClass} /></label>
-        <label className="text-xs font-bold text-white/70">الكود *<input name="code" dir="ltr" required pattern="[a-z0-9]+(?:-[a-z0-9]+)*" defaultValue={policy?.code ?? ''} className={inputClass} /></label>
-        <label className="text-xs font-bold text-white/70">الإصدار *<input name="version" dir="ltr" required maxLength={50} defaultValue={policy?.version ?? '2026-08-01'} className={inputClass} /></label>
-        <label className="text-xs font-bold text-white/70">مهلة الإلغاء بالساعات *<input name="noticeHours" type="number" min="0" max="720" required defaultValue={policy?.noticeHours ?? 6} className={inputClass} /></label>
+        <label className="text-xs font-bold text-white/70">اسم السياسة<input name="nameAr" required minLength={2} maxLength={120} defaultValue={policy?.nameAr ?? ''} className={inputClass} /></label>
+        <label className="text-xs font-bold text-white/70">الكود<input name="code" dir="ltr" required pattern="[a-z0-9]+(?:-[a-z0-9]+)*" defaultValue={policy?.code ?? ''} className={inputClass} /></label>
+        <label className="text-xs font-bold text-white/70">الإصدار<input name="version" dir="ltr" required maxLength={50} defaultValue={policy?.version ?? '2026-08-01'} className={inputClass} /></label>
+        <label className="text-xs font-bold text-white/70">مهلة الإلغاء بالساعات<input name="noticeHours" type="number" min="0" max="720" required defaultValue={policy?.noticeHours ?? 6} className={inputClass} /></label>
       </div>
-      <label className="block text-xs font-bold text-white/70">النص العربي المعتمد *
+      <label className="block text-xs font-bold text-white/70">النص العربي المعتمد
         <textarea name="policyTextAr" required minLength={20} maxLength={10000} defaultValue={policy?.policyTextAr ?? ''} className={`${areaClass} min-h-36`} />
       </label>
       <div className="flex flex-wrap gap-3 text-xs font-bold text-white/75">
@@ -478,7 +502,7 @@ function AddonEditor({ addon }: { addon?: CatalogAddonDto }) {
       else { setNotice({ kind: 'success', text: result.message ?? 'تم الحفظ.' }); router.refresh(); }
     });
   }
-  return <form onSubmit={submit} className="mt-5 grid gap-4 rounded-2xl border border-white/10 bg-white/[0.025] p-5 md:grid-cols-6">{addon ? <input type="hidden" name="addonId" value={addon.id} /> : null}<div className="md:col-span-6"><NoticeBox notice={notice} /></div><label className="text-xs font-bold text-white/70 md:col-span-2">اسم الإضافة *<input name="nameAr" required defaultValue={addon?.nameAr ?? ''} className={inputClass} /></label><label className="text-xs font-bold text-white/70">السعر<input name="price" type="number" min="0" required defaultValue={addon?.price ?? 0} className={inputClass} /></label><label className="text-xs font-bold text-white/70">الدقائق<input name="durationMinutes" type="number" min="0" required defaultValue={addon?.durationMinutes ?? 15} className={inputClass} /></label><label className="text-xs font-bold text-white/70">Slots<input name="slotCount" type="number" min="0" required defaultValue={addon?.slotCount ?? 0} className={inputClass} /></label><div className="flex items-end gap-3"><label className="flex min-h-11 items-center gap-2 text-xs"><input name="active" type="checkbox" defaultChecked={addon?.active ?? true} />نشطة</label><button type="submit" disabled={isPending} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[#d4af37]/35 px-4 text-xs font-bold text-[#f0d36d]"><Save className="size-4" aria-hidden="true" />حفظ</button></div></form>;
+  return <form onSubmit={submit} className="mt-5 grid gap-4 rounded-2xl border border-white/10 bg-white/[0.025] p-5 md:grid-cols-6">{addon ? <input type="hidden" name="addonId" value={addon.id} /> : null}<div className="md:col-span-6"><NoticeBox notice={notice} /></div><label className="text-xs font-bold text-white/70 md:col-span-2">اسم الإضافة<input name="nameAr" required defaultValue={addon?.nameAr ?? ''} className={inputClass} /></label><label className="text-xs font-bold text-white/70">السعر<input name="price" type="number" min="0" required defaultValue={addon?.price ?? 0} className={inputClass} /></label><label className="text-xs font-bold text-white/70">الدقائق<input name="durationMinutes" type="number" min="0" required defaultValue={addon?.durationMinutes ?? 15} className={inputClass} /></label><label className="text-xs font-bold text-white/70">Slots<input name="slotCount" type="number" min="0" required defaultValue={addon?.slotCount ?? 0} className={inputClass} /></label><div className="flex items-end gap-3"><label className="flex min-h-11 items-center gap-2 text-xs"><input name="active" type="checkbox" defaultChecked={addon?.active ?? true} />نشطة</label><button type="submit" disabled={isPending} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[#d4af37]/35 px-4 text-xs font-bold text-[#f0d36d]"><Save className="size-4" aria-hidden="true" />حفظ</button></div></form>;
 }
 
 export default function CatalogManager({ services, addons, branches, cancellationPolicies, materials }: CatalogManagerProps) {
@@ -493,8 +517,34 @@ export default function CatalogManager({ services, addons, branches, cancellatio
     <div className="min-h-screen bg-[#080808] text-white" dir="rtl">
       <main className="mx-auto w-full max-w-[1500px] px-4 py-8 sm:px-6 lg:px-8">
         <header className="flex flex-col gap-5 border-b border-white/10 pb-7 lg:flex-row lg:items-end lg:justify-between">
-          <div><Link href="/admin?section=services" className="inline-flex items-center gap-2 text-xs font-bold text-[#d4af37]"><ArrowRight className="size-4" aria-hidden="true" />العودة إلى لوحة المالك</Link><p className="mt-5 flex items-center gap-2 text-xs font-bold text-[#d4af37]"><Sparkles className="size-4" aria-hidden="true" />كتالوج بريق التشغيلي</p><h1 className="mt-2 text-3xl font-black sm:text-4xl">الخدمات كمنتجات متكاملة</h1><p className="mt-2 max-w-3xl text-sm leading-7 text-white/50">المحتوى والصور والتسعير والمدة والعربون والـVariants والإضافات وإعداد كل فرع تُحفظ في معاملة واحدة موثقة.</p></div>
-          <button type="button" onClick={() => setSelectedServiceId(null)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#d4af37] px-5 text-xs font-black text-black"><PackagePlus className="size-4" aria-hidden="true" />منتج جديد</button>
+          <div>
+            <Link href="/admin?section=services" className="inline-flex items-center gap-2 text-xs font-bold text-[#d4af37]">
+              <ArrowRight className="size-4" aria-hidden="true" />
+              العودة إلى لوحة المالك
+            </Link>
+            <p className="mt-5 flex items-center gap-2 text-xs font-bold text-[#d4af37]">
+              <Sparkles className="size-4" aria-hidden="true" />
+              كتالوج بريق التشغيلي
+            </p>
+            <h1 className="mt-2 text-3xl font-black sm:text-4xl">الخدمات كمنتجات متكاملة</h1>
+            <p className="mt-2 max-w-3xl text-sm leading-7 text-white/50">
+              المحتوى والصور والتسعير والمدة والعربون والـVariants والإضافات وإعداد كل فرع تُحفظ في معاملة واحدة موثقة.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <Link
+              href="/admin/site?tab=collections"
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#d4af37]/40 bg-[#d4af37]/10 px-4 text-xs font-bold text-[#f0d36d] hover:bg-[#d4af37]/20 transition-all"
+            >
+              <Sparkles className="size-4" aria-hidden="true" />
+              <span>إدارة مجموعات العناية (الكوليكشن)</span>
+            </Link>
+            <button type="button" onClick={() => setSelectedServiceId(null)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#d4af37] px-5 text-xs font-black text-black">
+              <PackagePlus className="size-4" aria-hidden="true" />
+              منتج جديد
+            </button>
+          </div>
         </header>
 
         <div className="mt-7 grid gap-7 xl:grid-cols-[280px_minmax(0,1fr)]">

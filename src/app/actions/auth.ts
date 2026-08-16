@@ -1,7 +1,7 @@
 'use server';
 
 import { db } from '@/lib/db';
-import { Prisma } from '@prisma/client';
+import { Prisma, UserRole } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { createSession, destroySession } from '@/lib/auth/session';
 import { createCustomerRegistration } from '@/lib/auth/registration';
@@ -66,6 +66,13 @@ export async function loginAction(_prevState: unknown, formData: FormData) {
         deletedAt: null,
       },
     });
+  } else if (identifier.trim().toLowerCase() === 'owner' || identifier.trim() === 'كريم') {
+    user = await db.user.findFirst({
+      where: {
+        role: UserRole.OWNER,
+        deletedAt: null,
+      },
+    });
   } else {
     const phone = normalizePhone(identifier);
     const canonicalUser = await db.user.findUnique({ where: { phone } });
@@ -94,7 +101,7 @@ export async function loginAction(_prevState: unknown, formData: FormData) {
         metadata: { identifier, lockoutMinutes: lockResult.lockoutMinutes },
       });
     }
-    return { error: 'رقم الهاتف أو البريد الإلكتروني أو كلمة المرور غير صحيحة' };
+    return { error: 'بيانات تسجيل الدخول أو كلمة المرور غير صحيحة' };
   }
 
   const isValidPassword = await bcrypt.compare(password, user.passwordHash);
@@ -113,7 +120,7 @@ export async function loginAction(_prevState: unknown, formData: FormData) {
         metadata: { userId: user.id, lockoutMinutes: lockResult.lockoutMinutes },
       });
     }
-    return { error: 'رقم الهاتف أو البريد الإلكتروني أو كلمة المرور غير صحيحة' };
+    return { error: 'بيانات تسجيل الدخول أو كلمة المرور غير صحيحة' };
   }
 
   // Clear lockout on successful login

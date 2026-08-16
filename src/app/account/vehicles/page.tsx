@@ -65,7 +65,7 @@ export default async function VehiclesPage({
             redirect(`/account/vehicles?kind=${error ? 'error' : 'success'}&notice=${encodeURIComponent(error || 'تم حفظ السيارة بنجاح.')}`);
           }} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-xs">
             <div className="space-y-1">
-              <label className="text-neutral-300 font-semibold block">الماركة (Make) *</label>
+              <label className="text-neutral-300 font-semibold block">الماركة (Make)</label>
               <input
                 type="text"
                 name="make"
@@ -76,7 +76,7 @@ export default async function VehiclesPage({
             </div>
 
             <div className="space-y-1">
-              <label className="text-neutral-300 font-semibold block">الموديل (Model) *</label>
+              <label className="text-neutral-300 font-semibold block">الموديل (Model)</label>
               <input
                 type="text"
                 name="model"
@@ -87,7 +87,7 @@ export default async function VehiclesPage({
             </div>
 
             <div className="space-y-1">
-              <label className="text-neutral-300 font-semibold block">سنة الصنع *</label>
+              <label className="text-neutral-300 font-semibold block">سنة الصنع</label>
               <input
                 type="text"
                 name="year"
@@ -98,7 +98,7 @@ export default async function VehiclesPage({
             </div>
 
             <div className="space-y-1">
-              <label className="text-neutral-300 font-semibold block">اللون *</label>
+              <label className="text-neutral-300 font-semibold block">اللون</label>
               <input
                 type="text"
                 name="color"
@@ -109,7 +109,7 @@ export default async function VehiclesPage({
             </div>
 
             <div className="space-y-1">
-              <label className="text-neutral-300 font-semibold block">تصنيف وحجم السيارة *</label>
+              <label className="text-neutral-300 font-semibold block">تصنيف وحجم السيارة</label>
               <select
                 name="vehicleSize"
                 required
@@ -152,7 +152,7 @@ export default async function VehiclesPage({
                 type="submit"
                 className="gold-gradient text-[#080808] font-bold px-6 py-2.5 rounded-xl text-xs shadow-md hover:brightness-110 transition-all"
               >
-                حفظ السيارة المسجلة 🚘
+                حفظ السيارة المسجلة
               </button>
             </div>
           </form>
@@ -190,7 +190,7 @@ export default async function VehiclesPage({
                           )}
                         </div>
                         <h3 className="text-lg font-bold text-white mt-2">
-                          🚗 {v.make} {v.model} ({v.year})
+                          {v.make} {v.model} ({v.year})
                         </h3>
                       </div>
                     </div>
@@ -214,11 +214,11 @@ export default async function VehiclesPage({
                       redirect(`/account/vehicles?kind=${error ? 'error' : 'success'}&notice=${encodeURIComponent(error || 'تم تحديث السيارة.')}`);
                     }} className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <input type="hidden" name="vehicleId" value={v.id} />
-                      <label className="space-y-1 text-neutral-300"><span>الماركة *</span><input name="make" required defaultValue={v.make} className="w-full rounded-lg border border-neutral-800 bg-[#141414] p-2.5 text-white focus:outline-none focus:border-[#c9a227]" /></label>
-                      <label className="space-y-1 text-neutral-300"><span>الموديل *</span><input name="model" required defaultValue={v.model} className="w-full rounded-lg border border-neutral-800 bg-[#141414] p-2.5 text-white focus:outline-none focus:border-[#c9a227]" /></label>
-                      <label className="space-y-1 text-neutral-300"><span>سنة الصنع *</span><input name="year" type="number" min={1990} max={2030} required defaultValue={v.year} className="w-full rounded-lg border border-neutral-800 bg-[#141414] p-2.5 text-white focus:outline-none focus:border-[#c9a227]" /></label>
-                      <label className="space-y-1 text-neutral-300"><span>اللون *</span><input name="color" required defaultValue={v.color} className="w-full rounded-lg border border-neutral-800 bg-[#141414] p-2.5 text-white focus:outline-none focus:border-[#c9a227]" /></label>
-                      <label className="space-y-1 text-neutral-300"><span>الحجم *</span><select name="vehicleSize" required defaultValue={v.vehicleSize} className="w-full rounded-lg border border-neutral-800 bg-[#141414] p-2.5 text-white focus:outline-none focus:border-[#c9a227]"><option value="SEDAN">سيدان / صالون</option><option value="CROSSOVER">كروس أوفر</option><option value="SUV">SUV</option><option value="LARGE_SUV">SUV كبيرة</option></select></label>
+                      <label className="space-y-1 text-neutral-300"><span>الماركة</span><input name="make" required defaultValue={v.make} className="w-full rounded-lg border border-neutral-800 bg-[#141414] p-2.5 text-white focus:outline-none focus:border-[#c9a227]" /></label>
+                      <label className="space-y-1 text-neutral-300"><span>الموديل</span><input name="model" required defaultValue={v.model} className="w-full rounded-lg border border-neutral-800 bg-[#141414] p-2.5 text-white focus:outline-none focus:border-[#c9a227]" /></label>
+                      <label className="space-y-1 text-neutral-300"><span>سنة الصنع</span><input name="year" type="number" min={1990} max={2030} required defaultValue={v.year} className="w-full rounded-lg border border-neutral-800 bg-[#141414] p-2.5 text-white focus:outline-none focus:border-[#c9a227]" /></label>
+                      <label className="space-y-1 text-neutral-300"><span>اللون</span><input name="color" required defaultValue={v.color} className="w-full rounded-lg border border-neutral-800 bg-[#141414] p-2.5 text-white focus:outline-none focus:border-[#c9a227]" /></label>
+                      <label className="space-y-1 text-neutral-300"><span>الحجم</span><select name="vehicleSize" required defaultValue={v.vehicleSize} className="w-full rounded-lg border border-neutral-800 bg-[#141414] p-2.5 text-white focus:outline-none focus:border-[#c9a227]"><option value="SEDAN">سيدان / صالون</option><option value="CROSSOVER">كروس أوفر</option><option value="SUV">SUV</option><option value="LARGE_SUV">SUV كبيرة</option></select></label>
                       <label className="space-y-1 text-neutral-300"><span>رقم اللوحة</span><input name="plateNumber" defaultValue={v.plateNumber ?? ''} className="w-full rounded-lg border border-neutral-800 bg-[#141414] p-2.5 text-white focus:outline-none focus:border-[#c9a227]" /></label>
                       <label className="space-y-1 text-neutral-300 sm:col-span-2"><span>ملاحظات للفريق</span><textarea name="notes" rows={2} defaultValue={v.notes ?? ''} className="w-full resize-y rounded-lg border border-neutral-800 bg-[#141414] p-2.5 text-white focus:outline-none focus:border-[#c9a227]" /></label>
                       <label className="flex items-center gap-2 text-neutral-300 sm:col-span-2"><input type="checkbox" name="isDefault" defaultChecked={v.isDefault} className="size-4 accent-[#c9a227]" />تعيين كسيارة افتراضية</label>
@@ -231,7 +231,7 @@ export default async function VehiclesPage({
                       href={`/services?vehicleId=${v.id}`}
                       className="font-bold text-[#e5c45a] hover:underline"
                     >
-                      حجز خدمة لهذه السيارة ⚡
+                      حجز خدمة لهذه السيارة
                     </Link>
 
                     <form action={async (formData) => {

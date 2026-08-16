@@ -13,7 +13,7 @@ import {
 import BookingWizardClient from './BookingWizardClient';
 
 export const metadata: Metadata = {
-  title: 'إتمام الحجز',
+  title: 'إتمام الحجز المباشر',
   robots: { index: false, follow: false },
 };
 
@@ -29,13 +29,10 @@ function firstSearchParam(value: string | string[] | undefined) {
 }
 
 export default async function BookServicePage({ params, searchParams }: BookingPageProps) {
-  const [{ slug }, query, user] = await Promise.all([params, searchParams, getCurrentUser()]);
+  const [{ slug }, query, user] = await Promise.all([params, searchParams, getCurrentUser().catch(() => null)]);
 
-  if (!user) {
-    redirect(`/login?callback=${encodeURIComponent(`/services/${slug}/book`)}`);
-  }
-
-  if (user.role !== UserRole.CUSTOMER) {
+  // If user is logged in as non-customer (e.g. employee or admin), redirect to services or allow testing
+  if (user && user.role !== UserRole.CUSTOMER && user.role !== UserRole.OWNER && user.role !== UserRole.SYSTEM_SUPER_ADMIN) {
     redirect('/services');
   }
 
@@ -110,6 +107,8 @@ export default async function BookServicePage({ params, searchParams }: BookingP
         compound: true,
         zone: {
           select: {
+            id: true,
+            name: true,
             branchId: true,
             branch: { select: { nameAr: true } },
           },
@@ -133,73 +132,75 @@ export default async function BookServicePage({ params, searchParams }: BookingP
         isDefault: true,
       },
     }),
-    db.customerProfile.findUnique({
-      where: { userId: user.id },
-      select: {
-        creditBalance: true,
-        vehicles: {
-          orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
+    user
+      ? db.customerProfile.findUnique({
+          where: { userId: user.id },
           select: {
-            id: true,
-            make: true,
-            model: true,
-            year: true,
-            color: true,
-            vehicleSize: true,
-            plateNumber: true,
-            isDefault: true,
-          },
-        },
-        addresses: {
-          orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
-          select: {
-            id: true,
-            governorate: true,
-            city: true,
-            district: true,
-            compound: true,
-            street: true,
-            buildingNumber: true,
-            unitNumber: true,
-            landmark: true,
-            gateInstructions: true,
-            locationUrl: true,
-            isDefault: true,
-          },
-        },
-        subscriptions: {
-          where: {
-            status: SubscriptionStatus.ACTIVE,
-            startDate: { lte: now },
-            endDate: { gt: now },
-            remainingVisits: { gt: 0 },
-          },
-          orderBy: { endDate: 'asc' },
-          select: {
-            id: true,
-            branchId: true,
-            remainingVisits: true,
-            endDate: true,
-            plan: {
+            creditBalance: true,
+            vehicles: {
+              orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
               select: {
                 id: true,
-                nameAr: true,
-                services: { select: { serviceId: true } },
-                branches: { select: { branchId: true } },
+                make: true,
+                model: true,
+                year: true,
+                color: true,
+                vehicleSize: true,
+                plateNumber: true,
+                isDefault: true,
               },
             },
-            vehicles: { select: { vehicleId: true } },
-            serviceBalances: {
+            addresses: {
+              orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
               select: {
-                serviceId: true,
+                id: true,
+                governorate: true,
+                city: true,
+                district: true,
+                compound: true,
+                street: true,
+                buildingNumber: true,
+                unitNumber: true,
+                landmark: true,
+                gateInstructions: true,
+                locationUrl: true,
+                isDefault: true,
+              },
+            },
+            subscriptions: {
+              where: {
+                status: SubscriptionStatus.ACTIVE,
+                startDate: { lte: now },
+                endDate: { gt: now },
+                remainingVisits: { gt: 0 },
+              },
+              orderBy: { endDate: 'asc' },
+              select: {
+                id: true,
+                branchId: true,
                 remainingVisits: true,
-                service: { select: { nameAr: true } },
+                endDate: true,
+                plan: {
+                  select: {
+                    id: true,
+                    nameAr: true,
+                    services: { select: { serviceId: true } },
+                    branches: { select: { branchId: true } },
+                  },
+                },
+                vehicles: { select: { vehicleId: true } },
+                serviceBalances: {
+                  select: {
+                    serviceId: true,
+                    remainingVisits: true,
+                    service: { select: { nameAr: true } },
+                  },
+                },
               },
             },
           },
-        },
-      },
-    }),
+        })
+      : null,
     db.branch.findFirst({
       where: { status: BranchStatus.ACTIVE },
       orderBy: { createdAt: 'asc' },
@@ -217,12 +218,12 @@ export default async function BookServicePage({ params, searchParams }: BookingP
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#080808] font-sans text-white">
+    <div className="flex min-h-screen flex-col bg-[#050505] font-sans text-white selection:bg-[#cea355] selection:text-black">
       <Navbar user={user} />
 
       <main id="main-content" className="mx-auto w-full max-w-4xl flex-1 px-4 pb-24 pt-32 sm:px-6 lg:px-8">
         <BookingWizardClient
-          user={toPublicUser(user)}
+          user={user ? toPublicUser(user) : null}
           service={{ ...service, cancellationPolicy }}
           coverageAreas={coverageAreas}
           paymentMethods={paymentMethods}

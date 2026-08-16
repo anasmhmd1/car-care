@@ -352,17 +352,8 @@ async function main() {
 
   const userDefinitions = [
     {
-      key: 'admin',
-      fullName: 'System Super Admin',
-      phone: '201000000000',
-      email: 'admin@bareeq.car',
-      whatsapp: null,
-      role: UserRole.SYSTEM_SUPER_ADMIN,
-      passwordHash: adminPasswordHash,
-    },
-    {
       key: 'owner',
-      fullName: 'المهندس طارق المالكي',
+      fullName: 'كريم',
       phone: '201111111111',
       email: 'bbareeq1@gmail.com',
       whatsapp: '201111111111',
