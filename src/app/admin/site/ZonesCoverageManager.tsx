@@ -31,18 +31,29 @@ export interface CoverageZoneItem {
   areas: CoverageAreaItem[];
 }
 
+interface BranchDto {
+  id: string;
+  nameAr: string;
+}
+
 interface ZonesCoverageManagerProps {
   initialZones: CoverageZoneItem[];
   defaultBranchId: string;
+  branches?: BranchDto[];
 }
 
 export default function ZonesCoverageManager({
   initialZones,
   defaultBranchId,
+  branches = [],
 }: ZonesCoverageManagerProps) {
   const router = useRouter();
   const [zones, setZones] = useState<CoverageZoneItem[]>(initialZones);
-  const [editingZoneId, setEditingZoneId] = useState<string | null>(initialZones[0]?.id ?? null);
+  const [selectedBranchId, setSelectedBranchId] = useState<string>(
+    defaultBranchId || branches[0]?.id || initialZones[0]?.branchId || ''
+  );
+  const filteredZones = zones.filter((z) => !selectedBranchId || z.branchId === selectedBranchId);
+  const [editingZoneId, setEditingZoneId] = useState<string | null>(filteredZones[0]?.id ?? null);
   const [isPending, startTransition] = useTransition();
   const [notice, setNotice] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
 
@@ -50,10 +61,11 @@ export default function ZonesCoverageManager({
   const [newCompoundInputs, setNewCompoundInputs] = useState<Record<string, string>>({});
 
   function handleAddZone() {
+    const activeBranch = selectedBranchId || defaultBranchId;
     const tempId = `temp_${Date.now()}`;
     const newZone: CoverageZoneItem = {
       id: tempId,
-      branchId: defaultBranchId,
+      branchId: activeBranch,
       name: 'نطاق تغطية جديد',
       description: 'وصف المنطقة والأحياء المدعومة...',
       areas: [
@@ -62,7 +74,7 @@ export default function ZonesCoverageManager({
     };
     setZones([newZone, ...zones]);
     setEditingZoneId(tempId);
-    setNotice({ kind: 'success', text: 'تمت إضافة نطاق جديد. قم بتعديل الاسم والأحياء ثم اضغط حفظ.' });
+    setNotice({ kind: 'success', text: 'تمت إضافة نطاق جديد للفرع المختار. قم بتعديل الاسم والأحياء ثم اضغط حفظ.' });
   }
 
   function handleUpdateZoneField(zoneId: string, field: 'name' | 'description', value: string) {
@@ -178,6 +190,43 @@ export default function ZonesCoverageManager({
         </button>
       </div>
 
+      {/* Branch Selector Tabs */}
+      {branches && branches.length > 1 && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-[#0d0d0d] border border-neutral-800">
+          <div className="flex items-center gap-2 text-xs font-bold text-neutral-300">
+            <Building2 className="w-4 h-4 text-[#cea355]" />
+            <span>الفرع الحالي لإدارة النطاقات:</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {branches.map((b) => {
+              const count = zones.filter((z) => z.branchId === b.id).length;
+              const isSelected = (selectedBranchId || defaultBranchId) === b.id;
+              return (
+                <button
+                  key={b.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedBranchId(b.id);
+                    const firstInBranch = zones.find((z) => z.branchId === b.id);
+                    setEditingZoneId(firstInBranch?.id ?? null);
+                  }}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                    isSelected
+                      ? 'gold-gradient text-black shadow-lg shadow-[#cea355]/20'
+                      : 'bg-neutral-900 border border-neutral-800 text-neutral-300 hover:text-white hover:border-neutral-700'
+                  }`}
+                >
+                  <span>{b.nameAr}</span>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${isSelected ? 'bg-black/20 text-black' : 'bg-neutral-800 text-neutral-400'}`}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Notifications */}
       {notice && (
         <div
@@ -208,10 +257,10 @@ export default function ZonesCoverageManager({
 
       {/* Zones List */}
       <div className="space-y-6">
-        {zones.length === 0 ? (
+        {filteredZones.length === 0 ? (
           <div className="p-12 text-center rounded-3xl border border-neutral-800 bg-[#0f0f0f] space-y-3">
             <MapPin className="w-10 h-10 text-neutral-600 mx-auto" />
-            <p className="text-sm font-bold text-white">لا توجد نطاقات تغطية حالياً</p>
+            <p className="text-sm font-bold text-white">لا توجد نطاقات تغطية لهذا الفرع حالياً</p>
             <p className="text-xs text-neutral-400">ابدأ بإضافة نطاقك الأول لإظهاره في صفحة مناطق التغطية وشاشة الحجز.</p>
             <button
               type="button"
@@ -219,11 +268,11 @@ export default function ZonesCoverageManager({
               className="mt-2 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl gold-gradient text-white text-xs font-bold"
             >
               <Plus className="w-4 h-4" />
-              <span>إضافة زون الآن</span>
+              <span>إضافة زون للفرع الآن</span>
             </button>
           </div>
         ) : (
-          zones.map((zone, idx) => {
+          filteredZones.map((zone, idx) => {
             const isEditing = editingZoneId === zone.id;
             return (
               <div

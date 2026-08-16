@@ -49,6 +49,7 @@ interface AdminSiteClientProps {
   initialGallery: GalleryItem[];
   initialPolicies: PoliciesContent;
   initialSocialLinks?: SocialLinks;
+  branches?: BranchContactDto[];
   activeBranch?: BranchContactDto | null;
   defaultBranchId: string;
 }
@@ -62,6 +63,7 @@ export default function AdminSiteClient({
   initialGallery,
   initialPolicies,
   initialSocialLinks = DEFAULT_SOCIAL_LINKS,
+  branches = [],
   activeBranch,
   defaultBranchId,
 }: AdminSiteClientProps) {
@@ -254,6 +256,7 @@ export default function AdminSiteClient({
           <ZonesCoverageManager
             initialZones={initialZones}
             defaultBranchId={defaultBranchId}
+            branches={branches}
           />
         )}
 

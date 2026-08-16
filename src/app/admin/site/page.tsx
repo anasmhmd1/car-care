@@ -19,7 +19,7 @@ export const dynamic = 'force-dynamic';
 export default async function AdminSiteContentPage() {
   await requireRole([UserRole.OWNER, UserRole.SYSTEM_SUPER_ADMIN]);
 
-  const [brand, services, zones, defaultBranch] = await Promise.all([
+  const [brand, services, zones, branches] = await Promise.all([
     db.brandSettings.findFirst({ select: { homepageContent: true, faqs: true } }),
     db.service.findMany({
       where: { active: true },
@@ -47,7 +47,7 @@ export default async function AdminSiteContentPage() {
       },
       orderBy: { name: 'asc' },
     }),
-    db.branch.findFirst({
+    db.branch.findMany({
       where: { status: 'ACTIVE' },
       select: {
         id: true,
@@ -77,8 +77,9 @@ export default async function AdminSiteContentPage() {
       initialGallery={gallery}
       initialPolicies={policies}
       initialSocialLinks={socialLinks}
-      activeBranch={defaultBranch}
-      defaultBranchId={defaultBranch?.id || ''}
+      branches={branches}
+      activeBranch={branches[0] ?? null}
+      defaultBranchId={branches[0]?.id || ''}
     />
   );
 }
