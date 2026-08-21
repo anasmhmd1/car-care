@@ -412,7 +412,6 @@ const sectionNav: Array<{
   { href: '/admin/reviews', label: 'تقييمات العملاء', icon: ClipboardCheck },
   { href: '/admin/site', label: 'إدارة محتوى الموقع', icon: Globe },
   { href: '/admin/setup', label: 'إعداد التشغيل', icon: Settings2 },
-  { href: '/operations/password-resets', label: 'استعادة كلمة المرور', icon: KeyRound },
   { id: 'audit', label: 'سجل التعديلات', icon: History },
 ];
 

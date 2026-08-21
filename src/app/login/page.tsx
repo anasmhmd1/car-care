@@ -7,6 +7,7 @@ import { loginAction } from '@/app/actions/auth';
 import { Phone, Lock, LogIn, UserPlus, Eye, EyeOff } from 'lucide-react';
 import BareeqLogo from '@/components/BareeqLogo';
 import SkipLink from '@/components/SkipLink';
+import PasswordResetModal from './PasswordResetModal';
 
 export default function LoginPage() {
   return (
@@ -24,6 +25,8 @@ function LoginPageWithCallback() {
 function LoginPageContent({ callback }: { callback: string | null }) {
   const [state, formAction, pending] = useActionState(loginAction, null);
   const [showPassword, setShowPassword] = useState(false);
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [phoneInput, setPhoneInput] = useState('');
   const registerHref = callback ? `/register?callback=${encodeURIComponent(callback)}` : '/register';
 
   return (
@@ -86,6 +89,8 @@ function LoginPageContent({ callback }: { callback: string | null }) {
                   name="phone"
                   required
                   placeholder="010XXXXXXXX"
+                  value={phoneInput}
+                  onChange={(e) => setPhoneInput(e.target.value)}
                   autoComplete="username tel"
                   inputMode="tel"
                   spellCheck={false}
@@ -100,6 +105,13 @@ function LoginPageContent({ callback }: { callback: string | null }) {
                 <label htmlFor="login-password" className="text-xs font-medium text-neutral-300 block">
                   كلمة المرور
                 </label>
+                <button
+                  type="button"
+                  onClick={() => setShowResetModal(true)}
+                  className="text-xs text-[#edce8b] hover:text-[#f3e4a8] hover:underline font-bold transition-colors cursor-pointer"
+                >
+                  نسيت كلمة المرور؟
+                </button>
               </div>
               <div className="relative">
                 <Lock className="w-4 h-4 text-neutral-500 group-focus-within:text-[#edce8b] absolute top-1/2 -translate-y-1/2 right-3.5 transition-colors pointer-events-none" aria-hidden="true" />
@@ -162,6 +174,13 @@ function LoginPageContent({ callback }: { callback: string | null }) {
 
         </div>
       </main>
+
+      {/* Password Reset Modal */}
+      <PasswordResetModal
+        isOpen={showResetModal}
+        onClose={() => setShowResetModal(false)}
+        initialPhone={phoneInput}
+      />
     </>
   );
 }
