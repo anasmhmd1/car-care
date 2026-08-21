@@ -11,7 +11,6 @@ import SystemGovernancePanels, {
 import { 
   reviewBranchRequestAction, 
   createOwnerAccountAction, 
-  updateBrandMaxBranchesAction, 
   toggleUserActiveStatusAction 
 } from '@/app/actions/system-admin';
 import { 
@@ -80,9 +79,6 @@ export default function SystemAdminClient({
   const [branchWhatsapp, setBranchWhatsapp] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<FeedbackMessage | null>(null);
-
-  // Brand max branches form state
-  const [maxBranchesInput, setMaxBranchesInput] = useState(brand?.maxBranches || 1);
 
   // New owner creation form state
   const [showNewOwnerModal, setShowNewOwnerModal] = useState(false);
@@ -161,22 +157,6 @@ export default function SystemAdminClient({
     }
   };
 
-  const handleUpdateMaxBranches = async () => {
-    setFeedback(null);
-    setIsSubmitting(true);
-    const fd = new FormData();
-    fd.append('maxBranches', String(maxBranchesInput));
-
-    const res = await updateBrandMaxBranchesAction(fd);
-    setIsSubmitting(false);
-
-    if (res?.error) {
-      setFeedback({ kind: 'error', message: res.error });
-    } else {
-      setFeedback({ kind: 'success', message: 'تم تحديث الحد الأقصى للفروع بنجاح' });
-    }
-  };
-
   const handleCreateOwner = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!ownerName || !ownerPhone || ownerPassword.length < 12) {
@@ -225,7 +205,6 @@ export default function SystemAdminClient({
     <div className="space-y-8">
       <nav aria-label="أقسام إدارة النظام" className="sticky top-3 z-30 overflow-x-auto rounded-2xl border border-white/10 bg-[#101010]/95 p-2 shadow-2xl backdrop-blur-xl">
         <div className="flex min-w-max gap-2 text-xs font-bold text-neutral-300">
-          <a href="#brand-settings" className="rounded-xl px-3 py-2 hover:bg-white/[0.06] hover:text-white">إعدادات البراند</a>
           <a href="#owners" className="rounded-xl px-3 py-2 hover:bg-white/[0.06] hover:text-white">الملاك</a>
           <a href="#branch-requests" className="rounded-xl px-3 py-2 hover:bg-white/[0.06] hover:text-white">طلبات الفروع</a>
           <a href="#branches" className="rounded-xl px-3 py-2 hover:bg-white/[0.06] hover:text-white">الفروع</a>
@@ -248,37 +227,6 @@ export default function SystemAdminClient({
           {feedback.message}
         </div>
       )}
-      
-      {/* Top Banner: Brand Settings & Max Branches Control */}
-      <div id="brand-settings" className="scroll-mt-24 bg-[#141414] p-8 rounded-3xl border border-[#c9a227]/30 flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div className="space-y-1">
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <Settings className="w-5 h-5 text-[#c9a227]" />
-            <span>إعدادات العلامة التجارية والحد الأقصى للفروع (Singleton max_branches)</span>
-          </h2>
-          <p className="text-xs text-neutral-400">
-            القيمة الحالية: <strong className="text-[#e5c45a]">{brand?.maxBranches || 1} فرع مسموح به</strong> (تطبق على مستوى البراند وليس المالك)
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <input
-            type="number"
-            min="1"
-            max="100"
-            value={maxBranchesInput}
-            onChange={(e) => setMaxBranchesInput(Number(e.target.value))}
-            className="w-24 bg-[#080808] border border-neutral-800 rounded-xl px-3 py-2 text-xs text-white text-center font-mono"
-          />
-          <button
-            onClick={handleUpdateMaxBranches}
-            disabled={isSubmitting}
-            className="px-5 py-2.5 rounded-xl gold-gradient text-[#080808] font-bold text-xs shadow-md"
-          >
-            تعديل max_branches
-          </button>
-        </div>
-      </div>
 
       {/* Owner Accounts Management Section (First Owner Creation & Toggle) */}
       <div id="owners" className="scroll-mt-24 bg-[#141414] p-8 rounded-3xl border border-[#c9a227]/30 space-y-6">

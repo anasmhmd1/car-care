@@ -93,9 +93,6 @@ export default async function SystemAdminPage() {
               <LayoutDashboard className="w-4 h-4" />
               <span>لوحة المالك الرئيسية</span>
             </Link>
-            <span className="px-3.5 py-1.5 rounded-full bg-[#cea355]/20 border border-[#cea355]/40 text-[#edce8b] text-xs font-bold">
-              الحد الأقصى للفروع: {brand?.maxBranches || 1}
-            </span>
             <form action={logoutAction}>
               <button
                 type="submit"
