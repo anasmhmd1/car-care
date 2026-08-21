@@ -171,17 +171,17 @@ function countForStatus<Key extends string>(
 }
 
 async function getMonthlyRevenueData(
-  selectedMonthRange: { gte: Date; lt: Date },
+  dateRange: { gte: Date; lt: Date },
   branchesRaw: Array<{ nameAr: string }>,
-  selectedMonth: string,
-  pastMonths: Array<{ key: string; label: string }>,
+  fromDate: string,
+  toDate: string,
   revenueTypeParam: 'all' | 'booking' | 'subscription' | 'refund',
   revenueQueryParam: string,
 ): Promise<MonthlyRevenueDataDto> {
   const [bookingPayments, subscriptionProofs, refunds] = await Promise.all([
     db.payment.findMany({
       where: {
-        createdAt: selectedMonthRange,
+        createdAt: dateRange,
       },
       include: {
         booking: {
@@ -197,7 +197,7 @@ async function getMonthlyRevenueData(
     db.subscriptionPaymentProof.findMany({
       where: {
         status: SubscriptionPaymentProofStatus.APPROVED,
-        reviewedAt: selectedMonthRange,
+        reviewedAt: dateRange,
       },
       include: {
         subscription: {
@@ -214,7 +214,7 @@ async function getMonthlyRevenueData(
     db.refund.findMany({
       where: {
         status: { in: [RefundStatus.REFUNDED, RefundStatus.PARTIALLY_REFUNDED] },
-        createdAt: selectedMonthRange,
+        createdAt: dateRange,
       },
       include: {
         booking: {
@@ -337,8 +337,8 @@ async function getMonthlyRevenueData(
   });
 
   return {
-    selectedMonth,
-    pastMonths,
+    from: fromDate,
+    to: toDate,
     grossRevenue: totalGrossRevenue,
     netRevenue,
     bookingRevenue: totalBookingRevenue,
@@ -352,7 +352,7 @@ async function getMonthlyRevenueData(
     transactions: filteredTx,
     filterType: revenueTypeParam,
     searchQuery: revenueQueryParam,
-    exportUrl: `/admin/revenue/export?month=${selectedMonth}`,
+    exportUrl: `/admin/revenue/export?from=${fromDate}&to=${toDate}`,
   };
 }
 
@@ -880,13 +880,13 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
       : Promise.resolve([]),
   ]);
 
-  // Monthly Revenue Queries (Only executed if user is viewing Revenue tab!)
+  // Revenue Ledger Queries (Calculated for the exact selected date range)
   const monthlyRevenueData = isRevenue
     ? await getMonthlyRevenueData(
-        selectedMonthRange,
+        reportRange,
         branchesRaw,
-        selectedMonth,
-        pastMonths,
+        reportFrom,
+        reportTo,
         revenueTypeParam,
         revenueQueryParam,
       )

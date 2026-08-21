@@ -368,8 +368,8 @@ export interface ReportsDto {
 export type OverviewTab = 'pulse' | 'revenue' | 'analytics';
 
 export interface MonthlyRevenueDataDto {
-  selectedMonth: string;
-  pastMonths: Array<{ key: string; label: string }>;
+  from: string;
+  to: string;
   grossRevenue: number;
   netRevenue: number;
   bookingRevenue: number;
@@ -752,14 +752,8 @@ function CapabilityNotice({ children }: { children: ReactNode }) {
 }
 
 function OverviewSection({
-  metrics,
-  branches,
-  operationsReviewBookings,
-  unassignedBookings,
   reports,
   monthlyRevenue,
-  onReview,
-  onAssign,
 }: {
   overviewTab?: OverviewTab;
   metrics: DashboardMetricsDto;
@@ -775,8 +769,12 @@ function OverviewSection({
     ? Math.round((reports.cancelledBookings / reports.totalBookings) * 100)
     : 0;
 
+  const completionRate = reports.totalBookings > 0
+    ? Math.round((reports.completedBookings / reports.totalBookings) * 100)
+    : 0;
+
   return (
-    <div className="space-y-12">
+    <div className="space-y-8">
       {/* Executive Command Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between border-b border-neutral-800/80 pb-5">
         <div className="min-w-0">
@@ -788,145 +786,162 @@ function OverviewSection({
             مركز قيادة بريق التنفيذي
           </h2>
           <p className="mt-1.5 max-w-3xl text-pretty text-xs sm:text-sm leading-6 text-neutral-400">
-            لوحة قيادة شاملة وموحدة لمتابعة نبض التشغيل الحي، دفتر الإيرادات وصافي الأرباح الشهرية، والتقارير والتحليلات الشاملة.
+            لوحة قيادة وتحليل مالي وتشغيلي موحدة وشاملة لكافة أنشطة العمل للفترة المحددة.
           </p>
         </div>
       </div>
 
       {/* ========================================================================= */}
-      {/* 1. نبض التشغيل الحي والمؤشرات اللحظية */}
+      {/* Unified Period Filter Bar (تحديد نطاق حساب التاريخ) */}
       {/* ========================================================================= */}
-      <section aria-labelledby="live-pulse-section" className="space-y-6">
+      <section aria-labelledby="period-filter-heading" className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-4 sm:p-5 shadow-lg space-y-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-neutral-800/60 pb-3">
+          <div className="flex items-center gap-2">
+            <Calendar className="size-4 text-[#d4af37]" />
+            <h3 id="period-filter-heading" className="text-sm font-bold text-white">تحديد نطاق تاريخ الحساب والتقارير</h3>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {monthlyRevenue?.exportUrl && (
+              <a
+                href={monthlyRevenue.exportUrl}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-bold text-emerald-300 hover:bg-emerald-500/20 transition-all"
+              >
+                <Download className="size-3.5" />
+                <span>تصدير كشف العمليات CSV</span>
+              </a>
+            )}
+            <a
+              href={`/admin/reports/export?from=${reports.from}&to=${reports.to}`}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-neutral-700 bg-neutral-800/80 px-3 py-1.5 text-xs font-bold text-neutral-200 hover:bg-neutral-700 transition-all"
+            >
+              <FileSpreadsheet className="size-3.5 text-[#d4af37]" />
+              <span>تصدير التقرير المالي CSV</span>
+            </a>
+          </div>
+        </div>
+
+        <form action="/admin" method="get" className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] items-end">
+          <input type="hidden" name="section" value="overview" />
+          {monthlyRevenue?.filterType && (
+            <input type="hidden" name="revenue_type" value={monthlyRevenue.filterType} />
+          )}
+          {monthlyRevenue?.searchQuery && (
+            <input type="hidden" name="revenue_q" value={monthlyRevenue.searchQuery} />
+          )}
+          <div>
+            <label htmlFor="report-from" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">من تاريخ</label>
+            <input id="report-from" name="from" type="date" defaultValue={reports.from} className={inputClass} />
+          </div>
+          <div>
+            <label htmlFor="report-to" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">إلى تاريخ</label>
+            <input id="report-to" name="to" type="date" defaultValue={reports.to} className={inputClass} />
+          </div>
+          <button type="submit" className={primaryButtonClass}>
+            تطبيق وحساب الفترة
+          </button>
+        </form>
+      </section>
+
+      {/* ========================================================================= */}
+      {/* 1. مؤشرات الأداء والنشاط والمالية للفترة المحددة */}
+      {/* ========================================================================= */}
+      <section aria-labelledby="kpi-metrics-heading" className="space-y-4">
         <div className="flex items-center justify-between border-b border-neutral-800/70 pb-3">
           <div className="flex items-center gap-2.5">
             <div className="flex size-8 items-center justify-center rounded-xl bg-[#d4af37]/10 text-[#d4af37] border border-[#d4af37]/20">
               <Activity className="size-4" />
             </div>
             <div>
-              <h3 id="live-pulse-section" className="text-base sm:text-lg font-black text-white">نبض التشغيل والمؤشرات الحية</h3>
-              <p className="text-xs text-neutral-400">متابعة فورية للحجوزات اليومية، طاقات الفرق، وطوابير التدخل الإداري</p>
+              <h3 id="kpi-metrics-heading" className="text-base sm:text-lg font-black text-white">مؤشرات الأداء والنشاط المالي والتشغيلي</h3>
+              <p className="text-xs text-neutral-400">الحساب التراكمي للفترة من {reports.from} إلى {reports.to}</p>
             </div>
           </div>
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-bold text-emerald-400 border border-emerald-500/20">
-            <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            تشغيل مباشر
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-[#d4af37]/10 px-3 py-1 text-xs font-bold text-[#f3e4a8] border border-[#d4af37]/25">
+            {reports.from === reports.to ? `يوم ${reports.from}` : `${reports.from} ← ${reports.to}`}
           </span>
         </div>
 
-        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-          <MetricCard label="إيراد اليوم المحصل" value={formatCurrency(metrics.revenueToday)} hint={`هذا الشهر: ${formatCurrency(metrics.revenueMonth)}`} icon={<Banknote aria-hidden="true" className="size-5" />} tone="green" />
-          <MetricCard label="المبالغ المستحقة" value={formatCurrency(metrics.pendingAmounts)} hint="أرصدة حجوزات غير منتهية" icon={<WalletCards aria-hidden="true" className="size-5" />} tone="red" />
-          <MetricCard label="حجوزات اليوم" value={formatNumber(metrics.todayBookings)} hint={`قيد التنفيذ: ${formatNumber(metrics.inProgress)}`} icon={<CalendarDays aria-hidden="true" className="size-5" />} />
-          <MetricCard label="إشغال الفرق اليوم" value={`${formatNumber(metrics.teamUtilization)}٪`} hint="الحجوزات المسندة ÷ السعة اليومية" icon={<Gauge aria-hidden="true" className="size-5" />} tone="blue" />
-          <MetricCard label="اكتملت اليوم" value={formatNumber(metrics.completedToday)} hint={`معدل إكمال الفترة: ${formatNumber(metrics.completionRate)}٪`} icon={<CheckCircle2 aria-hidden="true" className="size-5" />} tone="green" />
-          <MetricCard label="الاشتراكات النشطة" value={formatNumber(metrics.activeSubscriptions)} hint={`زيارات متبقية: ${formatNumber(metrics.visitsRemaining)}`} icon={<PackageCheck aria-hidden="true" className="size-5" />} />
-          <MetricCard label="عملاء جدد هذا الشهر" value={formatNumber(metrics.newCustomersMonth)} hint={`عملاء متكررون: ${formatNumber(metrics.repeatCustomers)}`} icon={<UserRound aria-hidden="true" className="size-5" />} tone="blue" />
-          <MetricCard label="مشكلات الجودة المفتوحة" value={formatNumber(metrics.qualityOpen)} hint="حجوزات جودة وشكاوى مفتوحة" icon={<ShieldAlert aria-hidden="true" className="size-5" />} tone="red" />
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-2xl border border-[#d4af37]/40 bg-gradient-to-br from-[#d4af37]/15 to-transparent p-5 shadow-xl sm:col-span-2 lg:col-span-1">
+            <div className="flex items-center justify-between text-xs font-bold text-[#f3e4a8]">
+              <span>صافي الإيراد والأرباح</span>
+              <Sparkles className="size-4 text-[#d4af37]" />
+            </div>
+            <p className="mt-3 text-2xl lg:text-3xl font-black text-white">{formatCurrency(reports.netCollected)}</p>
+            <p className="mt-1 text-[11px] text-neutral-400">المحصل الفعلي ناقص المبالغ المستردة</p>
+          </div>
+
+          <MetricCard
+            label="إجمالي المقبوضات"
+            value={formatCurrency(monthlyRevenue ? monthlyRevenue.grossRevenue : reports.collectedAmount)}
+            hint={monthlyRevenue ? `حجوزات: ${formatCurrency(monthlyRevenue.bookingRevenue)} · باقات: ${formatCurrency(monthlyRevenue.subscriptionRevenue)}` : 'إجمالي التدفقات الواردة'}
+            icon={<DollarSign aria-hidden="true" className="size-5" />}
+          />
+
+          <MetricCard
+            label="المحصل الفعلي (الإيراد)"
+            value={formatCurrency(reports.collectedAmount)}
+            hint="إجمالي المبالغ المسددة فعلياً"
+            icon={<Banknote aria-hidden="true" className="size-5" />}
+            tone="green"
+          />
+
+          <MetricCard
+            label="المبالغ المستحقة"
+            value={formatCurrency(reports.amountDue)}
+            hint="أرصدة حجوزات غير محصلة"
+            icon={<WalletCards aria-hidden="true" className="size-5" />}
+            tone="red"
+          />
+
+          <MetricCard
+            label="إجمالي الحجوزات"
+            value={formatNumber(reports.totalBookings)}
+            hint={`متوسط الحجز: ${formatCurrency(reports.averageBookingValue)}`}
+            icon={<CalendarDays aria-hidden="true" className="size-5" />}
+          />
+
+          <MetricCard
+            label="الحجوزات المكتملة"
+            value={formatNumber(reports.completedBookings)}
+            hint={`نسبة الإكمال: ${completionRate}٪`}
+            icon={<CheckCircle2 aria-hidden="true" className="size-5" />}
+            tone="green"
+          />
+
+          <MetricCard
+            label="الحجوزات الملغاة والمستردات"
+            value={formatNumber(reports.cancelledBookings)}
+            hint={`معدل الإلغاء: ${cancellationRate}٪ · مسترد: ${formatCurrency(reports.refundedAmount)}`}
+            icon={<ShieldAlert aria-hidden="true" className="size-5" />}
+            tone="red"
+          />
+
+          <MetricCard
+            label="الاشتراكات والعملاء الجدد"
+            value={`${formatNumber(reports.newSubscriptions)} اشتراك`}
+            hint={monthlyRevenue ? `${monthlyRevenue.subscriptionProofsCount} باقة مفعلة في الفترة` : 'النشاط التراكمي في الفترة'}
+            icon={<PackageCheck aria-hidden="true" className="size-5" />}
+            tone="blue"
+          />
         </div>
       </section>
 
       {/* ========================================================================= */}
-      {/* 2. دفتر الإيرادات وصافي الأرباح الشهرية */}
+      {/* 2. تفصيل الإيرادات ومصادر الدخل للفترة المحددة */}
       {/* ========================================================================= */}
       {monthlyRevenue && (
-        <section id="revenue-ledger-section" aria-labelledby="revenue-ledger-heading" className="space-y-6 pt-4 border-t border-neutral-800/80">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-neutral-800/70 pb-3">
-            <div className="flex items-center gap-2.5">
-              <div className="flex size-8 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                <DollarSign className="size-4" />
-              </div>
-              <div>
-                <h3 id="revenue-ledger-heading" className="text-base sm:text-lg font-black text-white">دفتر الإيرادات وصافي الأرباح الشهرية</h3>
-                <p className="text-xs text-neutral-400">سجل المتحصلات الفعلية، الإيرادات حسب وسائل الدفع، وكشف العمليات والحركات ({monthlyRevenue.selectedMonth})</p>
-              </div>
+        <section aria-labelledby="revenue-distribution-heading" className="space-y-4">
+          <div className="flex items-center gap-2.5 border-b border-neutral-800/70 pb-3">
+            <div className="flex size-8 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              <DollarSign className="size-4" />
             </div>
-            <a
-              href={monthlyRevenue.exportUrl}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2 text-xs font-bold text-emerald-300 hover:bg-emerald-500/20 transition-all self-start sm:self-auto"
-            >
-              <Download className="size-3.5" />
-              <span>تصدير كشف الإيرادات CSV</span>
-            </a>
-          </div>
-
-          {/* Month Selector Pills */}
-          <section aria-labelledby="revenue-month-select" className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 p-4 shadow-lg">
-            <div className="flex items-center justify-between gap-2 mb-3">
-              <span className="text-xs font-bold text-neutral-300 flex items-center gap-1.5">
-                <Calendar className="size-3.5 text-[#d4af37]" />
-                اختر الشهر المالي:
-              </span>
-              <span className="text-xs font-bold text-[#f3e4a8]">{monthlyRevenue.selectedMonth}</span>
-            </div>
-            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
-              {monthlyRevenue.pastMonths.map((m) => {
-                const isActive = m.key === monthlyRevenue.selectedMonth;
-                return (
-                  <Link
-                    key={m.key}
-                    href={`/admin?section=overview&month=${m.key}#revenue-ledger-section`}
-                    className={`shrink-0 rounded-xl px-3.5 py-1.5 text-xs font-bold transition-all ${
-                      isActive
-                        ? 'bg-[#d4af37] text-neutral-950 shadow-md font-black'
-                        : 'bg-neutral-900 text-neutral-400 hover:bg-neutral-800 hover:text-white border border-neutral-800'
-                    }`}
-                  >
-                    {m.label}
-                  </Link>
-                );
-              })}
-            </div>
-          </section>
-
-          {/* Revenue Summary Cards */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            <div className="rounded-2xl border border-[#d4af37]/40 bg-gradient-to-br from-[#d4af37]/15 to-transparent p-5 shadow-xl">
-              <div className="flex items-center justify-between text-xs font-bold text-[#f3e4a8]">
-                <span>صافي الإيراد والأرباح</span>
-                <Sparkles className="size-4 text-[#d4af37]" />
-              </div>
-              <p className="mt-3 text-2xl lg:text-3xl font-black text-white">{formatCurrency(monthlyRevenue.netRevenue)}</p>
-              <p className="mt-1 text-[11px] text-neutral-400">إجمالي المقبوضات ناقص الاستردادات</p>
-            </div>
-
-            <div className="rounded-2xl border border-neutral-800 bg-[#111] p-5">
-              <div className="flex items-center justify-between text-xs font-bold text-neutral-400">
-                <span>إجمالي المقبوضات</span>
-                <DollarSign className="size-4 text-neutral-400" />
-              </div>
-              <p className="mt-3 text-2xl lg:text-3xl font-black text-white">{formatCurrency(monthlyRevenue.grossRevenue)}</p>
-              <p className="mt-1 text-[11px] text-neutral-400">الحجوزات + الاشتراكات</p>
-            </div>
-
-            <div className="rounded-2xl border border-neutral-800 bg-[#111] p-5">
-              <div className="flex items-center justify-between text-xs font-bold text-emerald-400">
-                <span>إيراد الحجوزات</span>
-                <CheckCircle2 className="size-4 text-emerald-400" />
-              </div>
-              <p className="mt-3 text-2xl font-black text-white">{formatCurrency(monthlyRevenue.bookingRevenue)}</p>
-              <p className="mt-1 text-[11px] text-neutral-400">{monthlyRevenue.bookingPaymentsCount} حركة دفع حجز</p>
-            </div>
-
-            <div className="rounded-2xl border border-neutral-800 bg-[#111] p-5">
-              <div className="flex items-center justify-between text-xs font-bold text-sky-400">
-                <span>إيراد الاشتراكات</span>
-                <PackageCheck className="size-4 text-sky-400" />
-              </div>
-              <p className="mt-3 text-2xl font-black text-white">{formatCurrency(monthlyRevenue.subscriptionRevenue)}</p>
-              <p className="mt-1 text-[11px] text-neutral-400">{monthlyRevenue.subscriptionProofsCount} اشتراك مفعل</p>
-            </div>
-
-            <div className="rounded-2xl border border-neutral-800 bg-[#111] p-5">
-              <div className="flex items-center justify-between text-xs font-bold text-rose-400">
-                <span>الاستردادات المعتمدة</span>
-                <ShieldAlert className="size-4 text-rose-400" />
-              </div>
-              <p className="mt-3 text-2xl font-black text-rose-400">-{formatCurrency(monthlyRevenue.refundsTotal)}</p>
-              <p className="mt-1 text-[11px] text-neutral-400">{monthlyRevenue.refundsCount} حركة استرداد</p>
+            <div>
+              <h3 id="revenue-distribution-heading" className="text-base sm:text-lg font-black text-white">تفصيل الإيرادات ومصادر الدخل</h3>
+              <p className="text-xs text-neutral-400">توزيع المقبوضات حسب وسائل الدفع والفروع للفترة المحددة</p>
             </div>
           </div>
 
-          {/* Breakdowns: Payment Method & Branches */}
           <div className="grid gap-6 lg:grid-cols-2">
             <section aria-labelledby="method-breakdown" className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 p-5 shadow-lg">
               <h4 id="method-breakdown" className="text-sm font-bold text-white flex items-center gap-2 border-b border-neutral-800/60 pb-3 mb-4">
@@ -935,7 +950,7 @@ function OverviewSection({
               </h4>
               <div className="space-y-3">
                 {monthlyRevenue.paymentMethods.length === 0 ? (
-                  <p className="text-xs text-neutral-500 py-4 text-center">لا توجد عمليات مسجلة في هذا الشهر.</p>
+                  <p className="text-xs text-neutral-500 py-4 text-center">لا توجد مقبوضات مسجلة في هذه الفترة.</p>
                 ) : (
                   monthlyRevenue.paymentMethods.map((data) => (
                     <div key={data.key} className="rounded-xl border border-neutral-800/80 bg-neutral-950/40 p-3">
@@ -962,7 +977,7 @@ function OverviewSection({
               </h4>
               <div className="space-y-3">
                 {monthlyRevenue.branches.length === 0 ? (
-                  <p className="text-xs text-neutral-500 py-4 text-center">لا توجد عمليات مسجلة في هذا الشهر.</p>
+                  <p className="text-xs text-neutral-500 py-4 text-center">لا توجد مقبوضات مسجلة في هذه الفترة.</p>
                 ) : (
                   monthlyRevenue.branches.map((data) => (
                     <div key={data.name} className="rounded-xl border border-neutral-800/80 bg-neutral-950/40 p-3">
@@ -982,172 +997,129 @@ function OverviewSection({
               </div>
             </section>
           </div>
-
-          {/* Transactions Ledger Table */}
-          <section aria-labelledby="transactions-ledger" className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 p-5 shadow-lg space-y-4">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between border-b border-neutral-800/60 pb-3.5">
-              <div>
-                <h4 id="transactions-ledger" className="text-sm font-black text-white flex items-center gap-2">
-                  <TrendingUp className="size-4 text-[#d4af37]" />
-                  <span>سجل الحركات المالية الموثقة ({monthlyRevenue.transactions.length} حركة)</span>
-                </h4>
-                <p className="text-xs text-neutral-400 mt-1">كشف تفصيلي بالاسم ورقم الهاتف والفرع وطريقة الدفع لكل حجز واشتراك واسترداد.</p>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                {(
-                  [
-                    { type: 'all', label: 'الكل' },
-                    { type: 'booking', label: 'الحجوزات' },
-                    { type: 'subscription', label: 'الاشتراكات' },
-                    { type: 'refund', label: 'الاستردادات' },
-                  ] as const
-                ).map((tab) => {
-                  const isActive = monthlyRevenue.filterType === tab.type;
-                  return (
-                    <Link
-                      key={tab.type}
-                      href={`/admin?section=overview&month=${monthlyRevenue.selectedMonth}&revenue_type=${tab.type}${monthlyRevenue.searchQuery ? `&revenue_q=${encodeURIComponent(monthlyRevenue.searchQuery)}` : ''}#transactions-ledger`}
-                      className={`rounded-xl px-3 py-1.5 text-xs font-bold transition-all ${isActive ? 'bg-[#d4af37] text-black shadow-md' : 'bg-neutral-900 text-neutral-400 hover:bg-neutral-800 hover:text-white border border-neutral-800'}`}
-                    >
-                      {tab.label}
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Search Bar */}
-            <form action="/admin" method="get" className="flex items-center gap-2">
-              <input type="hidden" name="section" value="overview" />
-              <input type="hidden" name="month" value={monthlyRevenue.selectedMonth} />
-              <input type="hidden" name="revenue_type" value={monthlyRevenue.filterType} />
-              <div className="relative flex-1">
-                <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 size-4 text-neutral-500" />
-                <input
-                  name="revenue_q"
-                  defaultValue={monthlyRevenue.searchQuery}
-                  placeholder="ابحث باسم العميل، رقم الهاتف، رقم الحجز، أو الفرع…"
-                  className="w-full rounded-xl border border-neutral-800 bg-[#080808] py-2.5 pr-10 pl-4 text-xs text-white placeholder:text-neutral-500 focus:border-[#d4af37] focus:outline-none"
-                />
-              </div>
-              <button type="submit" className="rounded-xl bg-[#d4af37] px-4 py-2.5 text-xs font-bold text-black hover:bg-[#e0bd3a]">بحث</button>
-              {monthlyRevenue.searchQuery ? (
-                <Link
-                  href={`/admin?section=overview&month=${monthlyRevenue.selectedMonth}&revenue_type=${monthlyRevenue.filterType}#transactions-ledger`}
-                  className="rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2.5 text-xs font-bold text-neutral-300 hover:bg-neutral-800"
-                >
-                  مسح
-                </Link>
-              ) : null}
-            </form>
-
-            {/* Transactions Table */}
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[850px] border-collapse text-right text-xs">
-                <caption className="sr-only">سجل الحركات المالية الموثقة</caption>
-                <thead className="border-b border-neutral-800 text-neutral-400">
-                  <tr>
-                    <th scope="col" className="px-3 py-3 font-medium">التاريخ والوقت</th>
-                    <th scope="col" className="px-3 py-3 font-medium">النوع والبيان</th>
-                    <th scope="col" className="px-3 py-3 font-medium">العميل</th>
-                    <th scope="col" className="px-3 py-3 font-medium">الفرع</th>
-                    <th scope="col" className="px-3 py-3 font-medium">وسيلة الدفع</th>
-                    <th scope="col" className="px-3 py-3 font-medium">المرجع</th>
-                    <th scope="col" className="px-3 py-3 font-medium text-left">المبلغ</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {monthlyRevenue.transactions.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="px-3 py-10 text-center text-neutral-500">
-                        لا توجد حركات مالية مطابقة للبحث في هذا الشهر.
-                      </td>
-                    </tr>
-                  ) : (
-                    monthlyRevenue.transactions.map((tx) => {
-                      const isPositive = tx.amount > 0;
-                      return (
-                        <tr key={tx.id} className="border-b border-neutral-900 hover:bg-white/[0.02]">
-                          <td className="px-3 py-3 font-mono text-neutral-400 text-[11px]" dir="ltr">
-                            {formatDateTime(tx.date)}
-                          </td>
-                          <td className="px-3 py-3">
-                            <span className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[10px] font-bold ${tx.type === 'BOOKING' ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20' : tx.type === 'SUBSCRIPTION' ? 'bg-sky-500/10 text-sky-300 border border-sky-500/20' : 'bg-rose-500/10 text-rose-300 border border-rose-500/20'}`}>
-                              {tx.type === 'BOOKING' ? 'حجز' : tx.type === 'SUBSCRIPTION' ? 'اشتراك' : 'استرداد'}
-                            </span>
-                            <span className="mr-2 text-white font-medium">{tx.title}</span>
-                          </td>
-                          <td className="px-3 py-3">
-                            <p className="font-bold text-neutral-200">{tx.customerName}</p>
-                            <p className="font-mono text-[10px] text-neutral-500" dir="ltr">{tx.customerPhone}</p>
-                          </td>
-                          <td className="px-3 py-3 text-neutral-300">{tx.branchName}</td>
-                          <td className="px-3 py-3 text-neutral-300">{tx.paymentMethod}</td>
-                          <td className="px-3 py-3 font-mono text-neutral-400 text-[11px]" dir="ltr">{tx.reference}</td>
-                          <td className="px-3 py-3 text-left font-mono font-bold">
-                            <span className={isPositive ? 'text-emerald-400' : 'text-rose-400'}>
-                              {isPositive ? '+' : ''}{formatCurrency(tx.amount)}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </section>
         </section>
       )}
 
       {/* ========================================================================= */}
-      {/* 3. التحليلات الشاملة والتقارير المالية والتشغيلية */}
+      {/* 3. كشف وسجل الحركات المالية الموثقة للفترة المحددة */}
       {/* ========================================================================= */}
-      <section id="financial-reports-section" aria-labelledby="reports-analytics-heading" className="space-y-6 pt-4 border-t border-neutral-800/80">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-neutral-800/70 pb-3">
-          <div className="flex items-center gap-2.5">
-            <div className="flex size-8 items-center justify-center rounded-xl bg-sky-500/10 text-sky-400 border border-sky-500/20">
-              <BarChart3 className="size-4" />
-            </div>
+      {monthlyRevenue && (
+        <section id="transactions-ledger-section" aria-labelledby="transactions-ledger" className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 p-5 shadow-lg space-y-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between border-b border-neutral-800/60 pb-3.5">
             <div>
-              <h3 id="reports-analytics-heading" className="text-base sm:text-lg font-black text-white">التحليلات والتقارير الشاملة</h3>
-              <p className="text-xs text-neutral-400">مؤشرات الأداء المقارنة للخدمات والفروع والفرق وأسباب الإلغاء للفترة المحددة</p>
+              <h4 id="transactions-ledger" className="text-sm font-black text-white flex items-center gap-2">
+                <TrendingUp className="size-4 text-[#d4af37]" />
+                <span>سجل الحركات المالية الموثقة ({monthlyRevenue.transactions.length} حركة في الفترة)</span>
+              </h4>
+              <p className="text-xs text-neutral-400 mt-1">كشف تفصيلي بالاسم ورقم الهاتف والفرع وطريقة الدفع لكل حجز واشتراك واسترداد للفترة المحددة.</p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {(
+                [
+                  { type: 'all', label: 'الكل' },
+                  { type: 'booking', label: 'الحجوزات' },
+                  { type: 'subscription', label: 'الاشتراكات' },
+                  { type: 'refund', label: 'الاستردادات' },
+                ] as const
+              ).map((tab) => {
+                const isActive = monthlyRevenue.filterType === tab.type;
+                return (
+                  <Link
+                    key={tab.type}
+                    href={`/admin?section=overview&from=${reports.from}&to=${reports.to}&revenue_type=${tab.type}${monthlyRevenue.searchQuery ? `&revenue_q=${encodeURIComponent(monthlyRevenue.searchQuery)}` : ''}#transactions-ledger-section`}
+                    className={`rounded-xl px-3 py-1.5 text-xs font-bold transition-all ${isActive ? 'bg-[#d4af37] text-black shadow-md' : 'bg-neutral-900 text-neutral-400 hover:bg-neutral-800 hover:text-white border border-neutral-800'}`}
+                  >
+                    {tab.label}
+                  </Link>
+                );
+              })}
             </div>
           </div>
-        </div>
 
-        <form action="/admin" method="get" className="grid gap-3 rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-4 sm:grid-cols-[1fr_1fr_auto_auto] shadow-md items-end">
-          <input type="hidden" name="section" value="overview" />
-          <div>
-            <label htmlFor="report-from" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">من تاريخ</label>
-            <input id="report-from" name="from" type="date" defaultValue={reports.from} className={inputClass} />
-          </div>
-          <div>
-            <label htmlFor="report-to" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">إلى تاريخ</label>
-            <input id="report-to" name="to" type="date" defaultValue={reports.to} className={inputClass} />
-          </div>
-          <button type="submit" className={primaryButtonClass}>تحديث التقرير</button>
-          <a
-            href={`/admin/reports/export?from=${reports.from}&to=${reports.to}`}
-            className={secondaryButtonClass}
-          >
-            <FileSpreadsheet className="size-4" />
-            <span>تصدير CSV</span>
-          </a>
-        </form>
+          {/* Search Bar */}
+          <form action="/admin" method="get" className="flex items-center gap-2">
+            <input type="hidden" name="section" value="overview" />
+            <input type="hidden" name="from" value={reports.from} />
+            <input type="hidden" name="to" value={reports.to} />
+            <input type="hidden" name="revenue_type" value={monthlyRevenue.filterType} />
+            <div className="relative flex-1">
+              <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 size-4 text-neutral-500" />
+              <input
+                name="revenue_q"
+                defaultValue={monthlyRevenue.searchQuery}
+                placeholder="ابحث باسم العميل، رقم الهاتف، رقم الحجز، أو الفرع…"
+                className="w-full rounded-xl border border-neutral-800 bg-[#080808] py-2.5 pr-10 pl-4 text-xs text-white placeholder:text-neutral-500 focus:border-[#d4af37] focus:outline-none"
+              />
+            </div>
+            <button type="submit" className="rounded-xl bg-[#d4af37] px-4 py-2.5 text-xs font-bold text-black hover:bg-[#e0bd3a]">بحث</button>
+            {monthlyRevenue.searchQuery ? (
+              <Link
+                href={`/admin?section=overview&from=${reports.from}&to=${reports.to}&revenue_type=${monthlyRevenue.filterType}#transactions-ledger-section`}
+                className="rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2.5 text-xs font-bold text-neutral-300 hover:bg-neutral-800"
+              >
+                مسح
+              </Link>
+            ) : null}
+          </form>
 
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <MetricCard label="إجمالي الحجوزات" value={formatNumber(reports.totalBookings)} icon={<CalendarDays aria-hidden="true" className="size-5" />} />
-          <MetricCard label="الحجوزات المكتملة" value={formatNumber(reports.completedBookings)} icon={<CheckCircle2 aria-hidden="true" className="size-5" />} tone="green" />
-          <MetricCard label="الحجوزات الملغاة" value={formatNumber(reports.cancelledBookings)} hint={`معدل الإلغاء: ${cancellationRate}٪`} icon={<ShieldAlert aria-hidden="true" className="size-5" />} tone="red" />
-          <MetricCard label="المحصل الفعلي (الإيراد)" value={formatCurrency(reports.collectedAmount)} icon={<Banknote aria-hidden="true" className="size-5" />} tone="green" />
-          <MetricCard label="إجمالي المبالغ المستردة" value={formatCurrency(reports.refundedAmount)} hint="مستردة للعملاء" icon={<ShieldAlert aria-hidden="true" className="size-5" />} tone="red" />
-          <MetricCard label="صافي التحصيل والأرباح" value={formatCurrency(reports.netCollected)} hint="المحصل ناقص المسترد" icon={<Activity aria-hidden="true" className="size-5" />} tone="blue" />
-          <MetricCard label="المبالغ المستحقة" value={formatCurrency(reports.amountDue)} icon={<WalletCards aria-hidden="true" className="size-5" />} tone="red" />
-          <MetricCard label="متوسط قيمة الحجز" value={formatCurrency(reports.averageBookingValue)} icon={<Gauge aria-hidden="true" className="size-5" />} />
-        </div>
-      </section>
+          {/* Transactions Table */}
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[850px] border-collapse text-right text-xs">
+              <caption className="sr-only">سجل الحركات المالية الموثقة</caption>
+              <thead className="border-b border-neutral-800 text-neutral-400">
+                <tr>
+                  <th scope="col" className="px-3 py-3 font-medium">التاريخ والوقت</th>
+                  <th scope="col" className="px-3 py-3 font-medium">النوع والبيان</th>
+                  <th scope="col" className="px-3 py-3 font-medium">العميل</th>
+                  <th scope="col" className="px-3 py-3 font-medium">الفرع</th>
+                  <th scope="col" className="px-3 py-3 font-medium">وسيلة الدفع</th>
+                  <th scope="col" className="px-3 py-3 font-medium">المرجع</th>
+                  <th scope="col" className="px-3 py-3 font-medium text-left">المبلغ</th>
+                </tr>
+              </thead>
+              <tbody>
+                {monthlyRevenue.transactions.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-3 py-10 text-center text-neutral-500">
+                      لا توجد حركات مالية مطابقة للبحث في هذه الفترة.
+                    </td>
+                  </tr>
+                ) : (
+                  monthlyRevenue.transactions.map((tx) => {
+                    const isPositive = tx.amount > 0;
+                    return (
+                      <tr key={tx.id} className="border-b border-neutral-900 hover:bg-white/[0.02]">
+                        <td className="px-3 py-3 font-mono text-neutral-400 text-[11px]" dir="ltr">
+                          {formatDateTime(tx.date)}
+                        </td>
+                        <td className="px-3 py-3">
+                          <span className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[10px] font-bold ${tx.type === 'BOOKING' ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20' : tx.type === 'SUBSCRIPTION' ? 'bg-sky-500/10 text-sky-300 border border-sky-500/20' : 'bg-rose-500/10 text-rose-300 border border-rose-500/20'}`}>
+                            {tx.type === 'BOOKING' ? 'حجز' : tx.type === 'SUBSCRIPTION' ? 'اشتراك' : 'استرداد'}
+                          </span>
+                          <span className="mr-2 text-white font-medium">{tx.title}</span>
+                        </td>
+                        <td className="px-3 py-3">
+                          <p className="font-bold text-neutral-200">{tx.customerName}</p>
+                          <p className="font-mono text-[10px] text-neutral-500" dir="ltr">{tx.customerPhone}</p>
+                        </td>
+                        <td className="px-3 py-3 text-neutral-300">{tx.branchName}</td>
+                        <td className="px-3 py-3 text-neutral-300">{tx.paymentMethod}</td>
+                        <td className="px-3 py-3 font-mono text-neutral-400 text-[11px]" dir="ltr">{tx.reference}</td>
+                        <td className="px-3 py-3 text-left font-mono font-bold">
+                          <span className={isPositive ? 'text-emerald-400' : 'text-rose-400'}>
+                            {isPositive ? '+' : ''}{formatCurrency(tx.amount)}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
     </div>
   );
 }

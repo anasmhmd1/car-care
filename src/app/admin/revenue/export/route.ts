@@ -13,22 +13,42 @@ export async function GET(request: NextRequest): Promise<Response> {
   await requireRole([UserRole.OWNER, UserRole.SYSTEM_SUPER_ADMIN]);
 
   const searchParams = request.nextUrl.searchParams;
+  const fromParam = searchParams.get('from')?.trim();
+  const toParam = searchParams.get('to')?.trim();
   const monthParam = searchParams.get('month')?.trim(); // YYYY-MM
 
   const now = new Date();
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const selectedMonth = monthParam && /^\d{4}-\d{2}$/.test(monthParam) ? monthParam : currentMonth;
 
-  const [yearStr, monthStr] = selectedMonth.split('-');
-  const year = parseInt(yearStr, 10);
-  const month = parseInt(monthStr, 10);
-  const lastDay = new Date(year, month, 0).getDate();
+  let startDateStr: string;
+  let endDateStr: string;
+  let monthStart: Date;
+  let monthEnd: Date;
+  let reportTitle: string;
+  let fileName: string;
 
-  const startDateStr = `${selectedMonth}-01`;
-  const endDateStr = `${selectedMonth}-${String(lastDay).padStart(2, '0')}`;
+  if (fromParam && toParam && /^\d{4}-\d{2}-\d{2}$/.test(fromParam) && /^\d{4}-\d{2}-\d{2}$/.test(toParam)) {
+    startDateStr = fromParam;
+    endDateStr = toParam;
+    monthStart = localDateBoundsUtc(startDateStr, CAIRO_TIME_ZONE).start;
+    monthEnd = localDateBoundsUtc(endDateStr, CAIRO_TIME_ZONE).end;
+    reportTitle = `تقرير إيرادات وحركات بريق للفترة من ${startDateStr} إلى ${endDateStr}`;
+    fileName = `bareeq-transactions-${startDateStr}-to-${endDateStr}.csv`;
+  } else {
+    const [yearStr, monthStr] = selectedMonth.split('-');
+    const year = parseInt(yearStr, 10);
+    const month = parseInt(monthStr, 10);
+    const lastDay = new Date(year, month, 0).getDate();
 
-  const monthStart = localDateBoundsUtc(startDateStr, CAIRO_TIME_ZONE).start;
-  const monthEnd = localDateBoundsUtc(endDateStr, CAIRO_TIME_ZONE).end;
+    startDateStr = `${selectedMonth}-01`;
+    endDateStr = `${selectedMonth}-${String(lastDay).padStart(2, '0')}`;
+
+    monthStart = localDateBoundsUtc(startDateStr, CAIRO_TIME_ZONE).start;
+    monthEnd = localDateBoundsUtc(endDateStr, CAIRO_TIME_ZONE).end;
+    reportTitle = `تقرير إيرادات بريق الشهرية الشامل (${selectedMonth})`;
+    fileName = `bareeq-revenue-${selectedMonth}.csv`;
+  }
 
   const [bookingPayments, subscriptionProofs, refunds] = await Promise.all([
     db.payment.findMany({
@@ -85,8 +105,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   const netRevenue = totalGrossRevenue - totalRefunds;
 
   const rows: string[][] = [
-    ['تقرير إيرادات بريق الشهرية الشامل'],
-    [`الشهر المحدد: ${selectedMonth}`],
+    [reportTitle],
     [`الفترة: من ${startDateStr} إلى ${endDateStr}`],
     [`إجمالي إيراد الحجوزات: ${totalBookingRevenue} ج.م`],
     [`إجمالي إيراد الاشتراكات: ${totalSubscriptionRevenue} ج.م`],
@@ -150,7 +169,6 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   const csvContent = '\uFEFF' + rows.map((r) => r.map(escapeCsvCell).join(',')).join('\r\n');
-  const fileName = `bareeq-monthly-revenue-${selectedMonth}.csv`;
 
   return new Response(csvContent, {
     status: 200,
