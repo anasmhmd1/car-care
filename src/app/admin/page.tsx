@@ -161,6 +161,9 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
   if (rawSection === 'branches' || rawSection === 'teams') {
     redirect('/admin/setup');
   }
+  if (rawSection === 'payments') {
+    redirect('/operations?tab=proofs');
+  }
   if (rawSection === 'quality') {
     redirect('/operations');
   }
@@ -409,7 +412,6 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
   const isOverview = currentSection === 'overview';
   const isBookings = currentSection === 'bookings';
   const isSubscriptions = currentSection === 'subscriptions';
-  const isPayments = currentSection === 'payments';
   const isCancellations = currentSection === 'cancellations';
   const isCustomers = currentSection === 'customers';
   const isAudit = currentSection === 'audit';
@@ -417,10 +419,10 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
 
   // Overview quick cards & Bookings list
   const [pendingProofsRaw, operationsReviewRaw, unassignedRaw, bookingsRaw] = await Promise.all([
-    isPayments || isOverview
+    isOverview
       ? db.paymentProof.findMany({
           where: { status: ProofStatus.UNDER_REVIEW },
-          take: isOverview ? 5 : 30,
+          take: 5,
           orderBy: { createdAt: 'asc' },
           select: {
             id: true,
