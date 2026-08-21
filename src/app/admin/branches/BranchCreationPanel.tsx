@@ -294,34 +294,8 @@ export default function BranchCreationPanel({
                     placeholder="المحافظة، المنطقة، الشارع، والمعلم الأقرب"
                   />
                 </label>
-                <label className="block text-sm font-bold">
-                  هاتف الفرع
-                  <input
-                    name="phone"
-                    required
-                    type="tel"
-                    inputMode="tel"
-                    pattern="\+?[0-9]{10,15}"
-                    defaultValue={editingBranch?.phone ?? ''}
-                    className="mt-2 w-full rounded-xl border border-white/10 bg-[#080808] px-4 py-3 text-left font-mono text-sm text-white outline-none transition focus:border-[#d4af37]"
-                    placeholder="01012345678"
-                    dir="ltr"
-                  />
-                </label>
-                <label className="block text-sm font-bold">
-                  واتساب الفرع
-                  <input
-                    name="whatsapp"
-                    required
-                    type="tel"
-                    inputMode="tel"
-                    pattern="\+?[0-9]{10,15}"
-                    defaultValue={editingBranch?.whatsapp ?? ''}
-                    className="mt-2 w-full rounded-xl border border-white/10 bg-[#080808] px-4 py-3 text-left font-mono text-sm text-white outline-none transition focus:border-[#d4af37]"
-                    placeholder="01012345678"
-                    dir="ltr"
-                  />
-                </label>
+                <input type="hidden" name="phone" value={editingBranch?.phone ?? ''} />
+                <input type="hidden" name="whatsapp" value={editingBranch?.whatsapp ?? ''} />
 
                 {editingBranch ? (
                   <>

@@ -1368,14 +1368,7 @@ function BranchesSection({
                 </dl>
               </div>
 
-              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-neutral-800/80 pt-3.5">
-                <a
-                  href={`tel:${branch.phone}`}
-                  className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold text-[#d4af37] hover:text-[#f3e4a8] transition-colors"
-                >
-                  {branch.phone}
-                </a>
-
+              <div className="mt-4 flex flex-wrap items-center justify-end gap-3 border-t border-neutral-800/80 pt-3.5">
                 <button
                   type="button"
                   onClick={() => onEditBranch(branch)}
@@ -1392,7 +1385,6 @@ function BranchesSection({
     </div>
   );
 }
-
 
 
 
@@ -1481,20 +1473,12 @@ function OwnerActionDialog({
               </div>
 
               <div>
-                <label htmlFor="edit-branch-address" className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-neutral-400">العنوان التفصيلي</label>
-                <textarea id="edit-branch-address" name="address" required defaultValue={modal.branch.address} minLength={5} maxLength={500} rows={2} className={inputClass} />
+                <label htmlFor="edit-branch-address" className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-neutral-400">العنوان / النطاق التشغيلي</label>
+                <textarea id="edit-branch-address" name="address" required defaultValue={modal.branch.address} minLength={3} maxLength={500} rows={2} className={inputClass} />
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <label htmlFor="edit-branch-phone" className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-neutral-400">هاتف الفرع</label>
-                  <input id="edit-branch-phone" name="phone" required type="tel" defaultValue={modal.branch.phone} dir="ltr" className={`${inputClass} font-mono`} />
-                </div>
-                <div>
-                  <label htmlFor="edit-branch-whatsapp" className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-neutral-400">واتساب الفرع</label>
-                  <input id="edit-branch-whatsapp" name="whatsapp" required type="tel" defaultValue={modal.branch.whatsapp} dir="ltr" className={`${inputClass} font-mono`} />
-                </div>
-              </div>
+              <input type="hidden" name="phone" value={modal.branch.phone ?? ''} />
+              <input type="hidden" name="whatsapp" value={modal.branch.whatsapp ?? ''} />
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>

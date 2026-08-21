@@ -743,16 +743,10 @@ function BranchIdentityForm({ branch, tools }: {
               <option value="UTC" />
             </datalist>
           </label>
-          <label className="text-xs font-bold text-white/65">
-            الهاتف
-            <input name="phone" dir="ltr" required minLength={8} maxLength={20} defaultValue={branch.phone} className={inputClass} />
-          </label>
-          <label className="text-xs font-bold text-white/65">
-            واتساب
-            <input name="whatsapp" dir="ltr" required minLength={8} maxLength={20} defaultValue={branch.whatsapp} className={inputClass} />
-          </label>
-          <label className="text-xs font-bold text-white/65 sm:col-span-2">
-            العنوان
+          <input type="hidden" name="phone" value={branch.phone} />
+          <input type="hidden" name="whatsapp" value={branch.whatsapp} />
+          <label className="text-xs font-bold text-white/65 sm:col-span-2 xl:col-span-4">
+            العنوان / النطاق التشغيلي
             <input name="address" required minLength={3} maxLength={500} defaultValue={branch.address} className={inputClass} />
           </label>
         </div>

@@ -48,13 +48,13 @@ export default async function ContactPage() {
               </p>
             </div>
 
-            {branch ? <a
+            {branch?.phone ? <a
               href={phoneHref(branch.phone)}
               className="w-full text-center gold-gradient text-[#080808] font-bold px-6 py-3.5 rounded-xl text-xs sm:text-sm shadow-md hover:brightness-110 transition-[filter,transform] flex items-center justify-center gap-2"
             >
               <Phone className="w-4 h-4" aria-hidden="true" />
               <span>اتصل بنا الآن: {branch.phone}</span>
-            </a> : <p className="rounded-xl border border-neutral-800 bg-[#080808] p-3 text-center text-sm text-neutral-500">لا يوجد رقم فرع نشط متاح حاليًا.</p>}
+            </a> : <p className="rounded-xl border border-neutral-800 bg-[#080808] p-3 text-center text-sm text-neutral-500">لا يوجد رقم اتصال موحد متاح حاليًا.</p>}
           </div>
 
           {/* WhatsApp Direct Card */}
@@ -69,7 +69,7 @@ export default async function ContactPage() {
               </p>
             </div>
 
-            {branch ? <a
+            {branch?.whatsapp ? <a
               href={whatsappHref(branch.whatsapp, 'مرحبًا فريق بريق، أرغب في الاستفسار عن الخدمات')}
               target="_blank"
               rel="noopener noreferrer"
@@ -77,7 +77,7 @@ export default async function ContactPage() {
             >
               <MessageSquare className="w-4 h-4 text-emerald-400" aria-hidden="true" />
               <span>محادثة WhatsApp فورية</span>
-            </a> : <p className="rounded-xl border border-neutral-800 bg-[#080808] p-3 text-center text-sm text-neutral-500">لا يوجد رقم واتساب لفرع نشط حاليًا.</p>}
+            </a> : <p className="rounded-xl border border-neutral-800 bg-[#080808] p-3 text-center text-sm text-neutral-500">لا يوجد رقم واتساب موحد متاح حاليًا.</p>}
           </div>
         </div>
 

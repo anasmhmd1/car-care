@@ -163,8 +163,8 @@ const branchIdentitySchema = z.object({
     .transform((value) => value.toUpperCase())
     .pipe(z.string().regex(/^[A-Z0-9][A-Z0-9_-]*$/, 'كود الفرع يقبل الحروف الإنجليزية والأرقام والشرطة فقط.')),
   address: z.string().trim().min(3, 'عنوان الفرع مطلوب.').max(500),
-  phone: phoneSchema,
-  whatsapp: phoneSchema,
+  phone: z.string().trim().optional().default(''),
+  whatsapp: z.string().trim().optional().default(''),
   timezone: z.string().trim().min(3).max(100).refine(validTimeZone, 'المنطقة الزمنية غير صالحة.'),
   changeReason: z.string().trim().min(5, 'اكتب سبب التعديل من 5 أحرف على الأقل.').max(500),
 });
@@ -1265,8 +1265,8 @@ export async function saveBranchIdentityAction(formData: FormData): Promise<Setu
     nameEn: optionalString(formData.get('nameEn')),
     code: formData.get('code'),
     address: formData.get('address'),
-    phone: formData.get('phone'),
-    whatsapp: formData.get('whatsapp'),
+    phone: optionalString(formData.get('phone')) ?? '',
+    whatsapp: optionalString(formData.get('whatsapp')) ?? '',
     timezone: formData.get('timezone'),
     changeReason: formData.get('changeReason'),
   });

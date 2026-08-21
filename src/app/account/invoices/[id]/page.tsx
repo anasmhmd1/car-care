@@ -52,8 +52,8 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
             <p className="mt-2 font-mono text-sm font-bold text-[#80651e]" dir="ltr">{invoice.invoiceNumber}</p>
           </div>
           <div className="rounded-2xl bg-[#f5eedb] px-4 py-3 text-right text-xs leading-6">
-            <p className="font-black">{invoice.branch.nameAr}</p>
-            <p>{invoice.branch.address}</p><p dir="ltr">{invoice.branch.phone}</p>
+            <p className="font-black">بريق للعناية بالسيارات</p>
+            <p className="text-neutral-600">نطاق تشغيل: {invoice.branch.nameAr}</p>
           </div>
         </header>
 

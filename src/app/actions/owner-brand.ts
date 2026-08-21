@@ -11,10 +11,7 @@ import {
   type HomepageContent,
 } from '@/lib/homepage-content';
 
-const branchPhoneSchema = z.string().trim().regex(
-  /^\+?\d{10,15}$/,
-  'رقم الهاتف يجب أن يحتوي من 10 إلى 15 رقمًا.',
-);
+const branchPhoneSchema = z.string().trim().optional().default('');
 
 const createBranchSchema = z.object({
   nameAr: z.string().trim().min(2, 'اسم الفرع مطلوب.').max(120),
@@ -23,7 +20,7 @@ const createBranchSchema = z.object({
     /^[A-Z0-9-]{3,24}$/,
     'كود الفرع يقبل حروفًا إنجليزية وأرقامًا وشرطات فقط.',
   ),
-  address: z.string().trim().min(5, 'العنوان التفصيلي للفرع مطلوب.').max(500),
+  address: z.string().trim().min(3, 'العنوان أو النطاق التشغيلي للفرع مطلوب.').max(500),
   phone: branchPhoneSchema,
   whatsapp: branchPhoneSchema,
   dailyBookingLimit: z.coerce.number().int().min(1).max(500),
@@ -57,7 +54,7 @@ const updateBranchSchema = z.object({
     /^[A-Z0-9-]{3,24}$/,
     'كود الفرع يقبل حروفًا إنجليزية وأرقامًا وشرطات فقط.',
   ),
-  address: z.string().trim().min(5, 'العنوان التفصيلي للفرع مطلوب.').max(500),
+  address: z.string().trim().min(3, 'العنوان أو النطاق التشغيلي للفرع مطلوب.').max(500),
   phone: branchPhoneSchema,
   whatsapp: branchPhoneSchema,
   dailyBookingLimit: z.coerce.number().int().min(1).max(500),
