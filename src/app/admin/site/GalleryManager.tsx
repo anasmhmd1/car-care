@@ -297,40 +297,30 @@ export default function GalleryManager({ initialGallery }: GalleryManagerProps) 
                       />
                     </div>
 
-                    {/* Image Upload / URL Input */}
+                    {/* Image Upload */}
                     <div>
-                      <div className="flex items-center justify-between mb-1.5">
-                        <label className="block text-[11px] font-bold text-neutral-300">
-                          صورة المعرض
-                        </label>
-                        <label className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#cea355]/40 bg-[#cea355]/15 text-[#edce8b] text-[11px] font-bold transition hover:bg-[#cea355]/25 cursor-pointer ${uploadingId === item.id ? 'opacity-60 pointer-events-none' : ''}`}>
-                          {uploadingId === item.id ? (
-                            <>
-                              <LoaderCircle className="size-3.5 animate-spin text-[#cea355]" />
-                              <span>جاري الرفع...</span>
-                            </>
-                          ) : (
-                            <>
-                              <ImagePlus className="size-3.5 text-[#cea355]" />
-                              <span>رفع صورة من جهازك</span>
-                            </>
-                          )}
-                          <input
-                            type="file"
-                            accept="image/jpeg,image/png,image/webp,image/svg+xml"
-                            className="hidden"
-                            onChange={(e) => void handleUploadGalleryImage(item.id, e.target.files?.[0] ?? null)}
-                          />
-                        </label>
-                      </div>
-                      <input
-                        type="text"
-                        value={item.image}
-                        onChange={(e) => handleUpdateField(item.id, 'image', e.target.value)}
-                        placeholder="/images/bareeq_hero_car.png أو رابط الصورة المرفوعة"
-                        dir="ltr"
-                        className="w-full rounded-xl bg-[#0a0a0a] border border-neutral-700 px-3 py-2 text-xs text-white placeholder:text-neutral-600 focus:border-[#cea355] focus:outline-none font-mono"
-                      />
+                      <label className="block text-[11px] font-bold text-neutral-300 mb-1.5">
+                        صورة المعرض
+                      </label>
+                      <label className={`w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl border border-[#cea355]/40 bg-[#cea355]/10 hover:bg-[#cea355]/20 text-[#edce8b] text-xs font-bold transition-all cursor-pointer ${uploadingId === item.id ? 'opacity-60 pointer-events-none' : ''}`}>
+                        {uploadingId === item.id ? (
+                          <>
+                            <LoaderCircle className="size-4 animate-spin text-[#cea355]" />
+                            <span>جارٍ رفع الصورة من جهازك...</span>
+                          </>
+                        ) : (
+                          <>
+                            <ImagePlus className="size-4 text-[#cea355]" />
+                            <span>رفع واستبدال الصورة من جهازك</span>
+                          </>
+                        )}
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp,image/svg+xml"
+                          className="hidden"
+                          onChange={(e) => void handleUploadGalleryImage(item.id, e.target.files?.[0] ?? null)}
+                        />
+                      </label>
                     </div>
 
                     {/* Alt Text (SEO) */}

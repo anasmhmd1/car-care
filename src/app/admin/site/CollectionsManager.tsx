@@ -425,16 +425,6 @@ export default function CollectionsManager({
                           );
                         })}
                       </div>
-
-                      <div className="pt-1">
-                        <input
-                          type="text"
-                          value={col.image}
-                          onChange={(e) => handleUpdateField(col.id, 'image', e.target.value)}
-                          className="w-full bg-[#080808] border border-neutral-800 rounded-xl p-3 text-xs text-neutral-300 font-mono focus:outline-none focus:border-[#cea355]"
-                          placeholder="مسار مخصص للصورة أو رابط صورة مرفوعة"
-                        />
-                      </div>
                     </div>
 
                     {/* Services Selector for this Collection */}

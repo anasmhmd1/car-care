@@ -304,21 +304,22 @@ function ProductEditor({
           <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/50">
             <Image src={coverImage} alt="معاينة صورة غلاف الخدمة" width={800} height={450} unoptimized className="aspect-video h-full w-full object-cover" />
           </div>
-          <div className="space-y-3">
-            <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-[#d4af37]/30 bg-[#d4af37]/10 px-4 text-xs font-bold text-[#f0d36d] focus-within:ring-2 focus-within:ring-[#d4af37]">
-              <ImagePlus className="size-4" aria-hidden="true" />
-              {isUploading ? 'جارٍ الرفع…' : 'رفع صورة الغلاف'}
-              <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" disabled={isUploading} onChange={(event) => void uploadImages(event.target.files, 'cover')} />
-            </label>
-            <label className="block text-xs font-bold text-white/70">
-              أو رابط HTTPS / مسار محلي
-              <input value={coverImage} onChange={(event) => setCoverImage(event.target.value)} className={inputClass} dir="ltr" />
-            </label>
-            <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-white/15 px-4 text-xs font-bold text-white/75 focus-within:ring-2 focus-within:ring-[#d4af37]">
-              <Plus className="size-4" aria-hidden="true" />
-              رفع صور المعرض
-              <input type="file" multiple accept="image/jpeg,image/png,image/webp" className="sr-only" disabled={isUploading} onChange={(event) => void uploadImages(event.target.files, 'gallery')} />
-            </label>
+          <div className="flex flex-col justify-center space-y-3">
+            <div className="flex flex-wrap gap-3">
+              <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-[#d4af37]/30 bg-[#d4af37]/10 px-5 text-xs font-bold text-[#f0d36d] hover:bg-[#d4af37]/20 transition-all focus-within:ring-2 focus-within:ring-[#d4af37]">
+                <ImagePlus className="size-4" aria-hidden="true" />
+                {isUploading ? 'جارٍ الرفع…' : 'رفع صورة الغلاف من الجهاز'}
+                <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" disabled={isUploading} onChange={(event) => void uploadImages(event.target.files, 'cover')} />
+              </label>
+              <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-white/15 px-5 text-xs font-bold text-white/75 hover:border-white/30 transition-all focus-within:ring-2 focus-within:ring-[#d4af37]">
+                <Plus className="size-4" aria-hidden="true" />
+                {isUploading ? 'جارٍ الرفع…' : 'رفع صور المعرض (سلايدر)'}
+                <input type="file" multiple accept="image/jpeg,image/png,image/webp" className="sr-only" disabled={isUploading} onChange={(event) => void uploadImages(event.target.files, 'gallery')} />
+              </label>
+            </div>
+            <p className="text-[11px] text-white/45">
+              اختر ملف الصورة مباشرة من جهازك (JPG, PNG, WebP) ليتم ضغطها ورفعها تلقائيًا بأعلى جودة.
+            </p>
           </div>
         </div>
         {galleryImages.length ? (
