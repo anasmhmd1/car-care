@@ -190,36 +190,35 @@ export default function SubscriptionPlanManager({
 
   return (
     <section aria-labelledby="subscription-plans-heading" className="space-y-5">
-      <div className="overflow-hidden rounded-3xl border border-[#d4af37]/20 bg-[radial-gradient(circle_at_top_right,rgba(212,175,55,0.12),transparent_42%),#101010]">
-        <div className="grid gap-6 p-5 sm:p-7 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+      <div className="flex flex-col gap-3 rounded-2xl border border-[#cea355]/30 bg-gradient-to-r from-[#cea355]/[0.08] via-neutral-950/40 to-[#cea355]/[0.04] p-4 sm:flex-row sm:items-center sm:justify-between shadow-lg">
+        <div className="flex items-center gap-3">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#cea355]/20 border border-[#cea355]/40 text-[#edce8b]">
+            <Sparkles className="size-5" />
+          </div>
           <div>
-            <p className="flex items-center gap-2 text-[11px] font-black tracking-[0.14em] text-[#e4c762]">
-              <Sparkles className="size-4" aria-hidden="true" />
-              كتالوج الزيارات الدورية
-            </p>
-            <h2 id="subscription-plans-heading" className="mt-3 max-w-2xl text-2xl font-black leading-tight text-white sm:text-3xl">
-              صمّم ما يشتريه العميل وما يحق له حجزه
+            <h2 id="subscription-plans-heading" className="text-base font-black text-white">
+              باقات وخطط الاشتراك ({plans.length})
             </h2>
-            <p className="mt-3 max-w-3xl text-sm leading-7 text-white/50">
-              كل خطة تربط السعر والمدة والزيارات بالسيارات والخدمات والفروع المسموح بها. تعطيل الخطة يوقف البيع الجديد فقط ويحافظ على سجلات العملاء الحالية.
+            <p className="text-xs leading-5 text-neutral-400">
+              إدارة باقات الزيارات الدورية وتحديد الخدمات والزيارات والسيارات المشمولة.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => openEditor(null)}
-            disabled={isPending || !services.some((service) => service.subscriptionEligible) || branches.length === 0}
-            className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#d4af37] px-5 text-sm font-black text-[#151007] shadow-[0_14px_36px_rgba(212,175,55,0.16)] transition hover:bg-[#e4c762] focus:outline-none focus:ring-2 focus:ring-[#f5dc86] focus:ring-offset-2 focus:ring-offset-[#101010] disabled:cursor-not-allowed disabled:opacity-45"
-          >
-            <CirclePlus className="size-5" aria-hidden="true" />
-            إضافة خطة جديدة
-          </button>
         </div>
-        {(!services.some((service) => service.subscriptionEligible) || branches.length === 0) ? (
-          <p className="border-t border-amber-400/15 bg-amber-400/[0.06] px-5 py-3 text-xs leading-6 text-amber-200 sm:px-7">
-            يلزم تسجيل خدمة مؤهلة للاشتراك وفرع واحد على الأقل قبل إنشاء خطة.
-          </p>
-        ) : null}
+        <button
+          type="button"
+          onClick={() => openEditor(null)}
+          disabled={isPending || !services.some((service) => service.subscriptionEligible) || branches.length === 0}
+          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#cea355] px-4 text-xs font-black text-neutral-950 shadow-md transition hover:bg-[#edce8b] focus:outline-none focus:ring-2 focus:ring-[#edce8b] disabled:cursor-not-allowed disabled:opacity-45 shrink-0"
+        >
+          <CirclePlus className="size-4" aria-hidden="true" />
+          إضافة خطة جديدة
+        </button>
       </div>
+      {(!services.some((service) => service.subscriptionEligible) || branches.length === 0) ? (
+        <p className="rounded-xl border border-amber-400/20 bg-amber-400/[0.08] px-4 py-2.5 text-xs text-amber-200">
+          يلزم تسجيل خدمة مؤهلة للاشتراك وفرع واحد على الأقل قبل إنشاء خطة.
+        </p>
+      ) : null}
 
       {feedback ? (
         <p
