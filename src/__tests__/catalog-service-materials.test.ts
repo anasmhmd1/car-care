@@ -39,7 +39,7 @@ describe('catalog service material requirements', () => {
 
   it('saves requirements through the same product transaction and sends them from ProductEditor', () => {
     const catalogAction = readFileSync(resolve(process.cwd(), 'src/app/actions/catalog.ts'), 'utf8');
-    const catalogEditor = readFileSync(resolve(process.cwd(), 'src/app/admin/catalog/CatalogManager.tsx'), 'utf8');
+    const catalogEditor = readFileSync(resolve(process.cwd(), 'src/app/admin/site/ServicesManager.tsx'), 'utf8');
 
     expect(catalogAction).toContain('parseCatalogMaterialRequirementsPayload(');
     expect(catalogAction).toContain("formData.get('materialRequirements')");

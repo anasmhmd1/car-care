@@ -1,8 +1,9 @@
 'use client';
 
 import type { FormEvent, ReactNode } from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import {
@@ -15,21 +16,24 @@ import {
   Building2,
   CalendarDays,
   CheckCircle2,
-  ChevronDown,
   ClipboardCheck,
   Clock,
   Crown,
   DollarSign,
   ExternalLink,
+  Eye,
   FileSearch,
   Gauge,
   Globe,
   History,
+  KeyRound,
   LayoutDashboard,
   LoaderCircle,
   LogOut,
   Menu,
   PackageCheck,
+  Pencil,
+  Plus,
   Search,
   Settings2,
   ShieldAlert,
@@ -39,7 +43,6 @@ import {
   Users,
   UserRound,
   WalletCards,
-  Wrench,
   X,
 } from 'lucide-react';
 import BareeqLogo from '@/components/BareeqLogo';
@@ -48,27 +51,31 @@ import {
   reviewBookingAction,
   reviewPaymentProofAction,
 } from '@/app/actions/operations';
-import { requestNewBranchAction } from '@/app/actions/owner';
+import { updateBranchAction } from '@/app/actions/owner-brand';
 import {
   approveRefundAction,
   reviewCancellationAction,
 } from '@/app/actions/cancellation';
 import { logoutAction } from '@/app/actions/auth';
+import { toggleServiceStatusAction } from '@/app/actions/catalog';
+import { type ManagedSubscription } from './subscriptions/SubscriptionManagementPanel';
 
 const CustomerManagementPanel = dynamic(() => import('./CustomerManagementPanel'), {
   loading: () => <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-6 text-sm text-white/55">جارٍ تحميل إدارة العملاء…</div>,
 });
 
+const SubscriptionManagementPanel = dynamic(() => import('./subscriptions/SubscriptionManagementPanel'), {
+  loading: () => <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-6 text-sm text-white/55">جارٍ تحميل اشتراكات العملاء…</div>,
+});
+
 export type OwnerSection =
   | 'overview'
   | 'bookings'
+  | 'subscriptions'
   | 'payments'
   | 'cancellations'
-  | 'quality'
   | 'teams'
   | 'branches'
-  | 'services'
-  | 'subscriptions'
   | 'customers'
   | 'reports'
   | 'audit';
@@ -167,10 +174,10 @@ export interface RefundDto {
 
 export interface QualityBookingDto {
   booking: BookingSummaryDto;
-  beforePhotos: number;
-  afterPhotos: number;
-  minimumBeforePhotos: number;
-  minimumAfterPhotos: number;
+  beforePhotos?: number;
+  afterPhotos?: number;
+  minimumBeforePhotos?: number;
+  minimumAfterPhotos?: number;
 }
 
 export interface ComplaintDto {
@@ -201,6 +208,7 @@ export interface TeamDto {
 export interface BranchDto {
   id: string;
   nameAr: string;
+  nameEn?: string | null;
   code: string;
   address: string;
   phone: string;
@@ -218,14 +226,16 @@ export interface BranchDto {
 export interface ServiceDto {
   id: string;
   nameAr: string;
+  nameEn?: string | null;
   slug: string;
+  coverImage?: string | null;
   basePrice: number;
+  priceType?: string;
   durationMinutes: number;
+  requiredTeamSize?: number;
   active: boolean;
   bookableOnline: boolean;
   subscriptionEligible: boolean;
-  variantCount: number;
-  addonCount: number;
   bookingCount: number;
 }
 
@@ -378,17 +388,15 @@ export interface OwnerCommandCenterProps {
   unassignedBookings: BookingSummaryDto[];
   cancellationRequests: CancellationRequestDto[];
   pendingRefunds: RefundDto[];
-  qualityBookings: QualityBookingDto[];
-  complaints: ComplaintDto[];
+  qualityBookings?: QualityBookingDto[];
+  complaints?: ComplaintDto[];
   bookings: BookingSummaryDto[];
+  managedSubscriptions?: ManagedSubscription[];
   teams: TeamDto[];
   branches: BranchDto[];
-  services: ServiceDto[];
-  plans: PlanDto[];
-  subscriptions: SubscriptionDto[];
   customers: CustomerDto[];
   auditLogs: AuditLogDto[];
-  branchRequests: BranchRequestDto[];
+  branchRequests?: BranchRequestDto[];
   reports: ReportsDto;
 }
 
@@ -409,36 +417,30 @@ type ModalState =
   | { type: 'assignment'; booking: BookingSummaryDto }
   | { type: 'cancellation'; request: CancellationRequestDto }
   | { type: 'refund-approval'; refund: RefundDto }
-  | { type: 'branch-request' }
+  | { type: 'edit-branch'; branch: BranchDto }
   | null;
 
 const sectionNav: Array<{
-  id: OwnerSection;
+  id?: OwnerSection;
+  href?: string;
   label: string;
   icon: typeof LayoutDashboard;
 }> = [
   { id: 'overview', label: 'الرئيسية', icon: LayoutDashboard },
   { id: 'bookings', label: 'الحجوزات', icon: CalendarDays },
+  { id: 'subscriptions', label: 'اشتراكات العملاء', icon: PackageCheck },
   { id: 'payments', label: 'مراجعة المدفوعات', icon: WalletCards },
   { id: 'cancellations', label: 'الإلغاء والاسترداد', icon: ShieldAlert },
-  { id: 'quality', label: 'الجودة والشكاوى', icon: ClipboardCheck },
   { id: 'teams', label: 'فرق التشغيل', icon: Users },
-  { id: 'branches', label: 'الفروع والتغطية', icon: Building2 },
-  { id: 'services', label: 'الخدمات', icon: Sparkles },
-  { id: 'subscriptions', label: 'الاشتراكات', icon: PackageCheck },
   { id: 'customers', label: 'العملاء', icon: UserRound },
   { id: 'reports', label: 'التقارير', icon: BarChart3 },
-  { id: 'audit', label: 'سجل التعديلات', icon: History },
-];
-
-const adminToolsNav = [
-  { href: '/admin/reports', label: 'التقارير والإيرادات', icon: BarChart3 },
-  { href: '/admin/calendar', label: 'تقويم التشغيل', icon: CalendarDays },
+  { href: '/admin/reports', label: 'الإيرادات', icon: DollarSign },
+  { href: '/admin/site', label: 'إدارة محتوى الموقع والتغطية والسياسات', icon: Globe },
   { href: '/admin/setup', label: 'إعداد التشغيل والمواعيد', icon: Settings2 },
-  { href: '/admin/site', label: 'محتوى الموقع والمعرض', icon: FileSearch },
   { href: '/admin/reviews', label: 'تقييمات العملاء', icon: ClipboardCheck },
   { href: '/operations/resources', label: 'الموارد التشغيلية', icon: Boxes },
-  { href: '/operations/password-resets', label: 'استعادة كلمات المرور', icon: ShieldAlert },
+  { href: '/operations/password-resets', label: 'استعادة كلمات المرور', icon: KeyRound },
+  { id: 'audit', label: 'سجل التعديلات', icon: History },
 ];
 
 const bookingStatusLabels: Record<string, string> = {
@@ -994,9 +996,9 @@ function QualitySection({
   return (
     <div className="space-y-6">
       <SectionHeader eyebrow="الجودة والشكاوى" title="مراجعة جودة التنفيذ" description="الحجوزات المنتظرة والشكاوى المفتوحة كما هي مسجلة في قاعدة البيانات." />
-      <div className="flex flex-col gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.05] p-4 sm:flex-row sm:items-center sm:justify-between"><p className="text-xs sm:text-sm leading-6 text-neutral-300">قرارات الجودة والشكاوى تعمل من مركز التشغيل، بينما نشر صور قبل/بعد وتجارب العملاء يتطلب موافقة العميل ثم اعتماد المالك.</p><div className="flex flex-wrap gap-2"><Link href="/operations" className={`${secondaryButtonClass} shrink-0`}><ClipboardCheck aria-hidden="true" className="size-4" /> مركز الجودة</Link><Link href="/admin/gallery" className={`${secondaryButtonClass} shrink-0`}><Sparkles aria-hidden="true" className="size-4" /> مراجعة المعرض</Link><Link href="/admin/reviews" className={`${secondaryButtonClass} shrink-0`}><ClipboardCheck aria-hidden="true" className="size-4" /> تقييمات العملاء</Link></div></div>
+      <div className="flex flex-col gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.05] p-4 sm:flex-row sm:items-center sm:justify-between"><p className="text-xs sm:text-sm leading-6 text-neutral-300">قرارات الجودة والشكاوى تُدار من مركز التشغيل، بينما نشر تقييمات وتجارب العملاء متاح لاعتماد المالك.</p><div className="flex flex-wrap gap-2"><Link href="/operations" className={`${secondaryButtonClass} shrink-0`}><ClipboardCheck aria-hidden="true" className="size-4" /> مركز الجودة</Link><Link href="/admin/reviews" className={`${secondaryButtonClass} shrink-0`}><ClipboardCheck aria-hidden="true" className="size-4" /> تقييمات العملاء</Link></div></div>
       <div className="grid gap-6 xl:grid-cols-2">
-        <section aria-labelledby="quality-waiting-title" className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-lg"><h3 id="quality-waiting-title" className="mb-4 text-base font-bold text-white border-b border-neutral-800/60 pb-3">بانتظار مراجعة الجودة</h3>{bookings.length === 0 ? <EmptyState title="لا توجد مراجعات منتظرة" description="لا توجد حجوزات في حالة QUALITY_REVIEW حاليًا." /> : <div className="space-y-3">{bookings.map((item) => <article key={item.booking.id} className="rounded-xl border border-neutral-800/80 bg-neutral-950/40 p-4"><div className="flex items-center justify-between gap-3"><p dir="ltr" translate="no" className="font-mono font-bold text-white">{item.booking.bookingNumber}</p><StatusBadge status="QUALITY_REVIEW" label="مراجعة جودة" /></div><p className="mt-2 text-xs sm:text-sm text-neutral-400">{item.booking.serviceName} · {item.booking.assignedTeamName ?? 'بلا فريق'}</p><div className="mt-3 grid grid-cols-2 gap-3 text-xs sm:text-sm"><div className="rounded-lg bg-neutral-900 border border-neutral-800 p-3"><p className="text-neutral-500 text-xs">صور قبل الخدمة</p><p className="mt-1 font-bold tabular-nums text-white">{formatNumber(item.beforePhotos)} / {formatNumber(item.minimumBeforePhotos)}</p></div><div className="rounded-lg bg-neutral-900 border border-neutral-800 p-3"><p className="text-neutral-500 text-xs">صور بعد الخدمة</p><p className="mt-1 font-bold tabular-nums text-white">{formatNumber(item.afterPhotos)} / {formatNumber(item.minimumAfterPhotos)}</p></div></div></article>)}</div>}</section>
+        <section aria-labelledby="quality-waiting-title" className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-lg"><h3 id="quality-waiting-title" className="mb-4 text-base font-bold text-white border-b border-neutral-800/60 pb-3">بانتظار مراجعة الجودة</h3>{bookings.length === 0 ? <EmptyState title="لا توجد مراجعات منتظرة" description="لا توجد حجوزات في حالة QUALITY_REVIEW حاليًا." /> : <div className="space-y-3">{bookings.map((item) => <article key={item.booking.id} className="rounded-xl border border-neutral-800/80 bg-neutral-950/40 p-4"><div className="flex items-center justify-between gap-3"><p dir="ltr" translate="no" className="font-mono font-bold text-white">{item.booking.bookingNumber}</p><StatusBadge status="QUALITY_REVIEW" label="مراجعة جودة" /></div><p className="mt-2 text-xs sm:text-sm text-neutral-400">{item.booking.serviceName} · {item.booking.assignedTeamName ?? 'بلا فريق'}</p><div className="mt-3 flex items-center justify-between rounded-lg bg-neutral-900 border border-neutral-800 p-3 text-xs sm:text-sm"><span className="text-neutral-400">العميل: <strong className="text-white">{item.booking.customerName}</strong></span><span className="text-neutral-400">الفرع: <strong className="text-white">{item.booking.branchName}</strong></span></div></article>)}</div>}</section>
         <section aria-labelledby="open-complaints-title" className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-lg"><h3 id="open-complaints-title" className="mb-4 text-base font-bold text-white border-b border-neutral-800/60 pb-3">الشكاوى المفتوحة</h3>{complaints.length === 0 ? <EmptyState title="لا توجد شكاوى مفتوحة" description="لا توجد شكاوى OPEN أو UNDER_REVIEW أو ACTION_REQUIRED." /> : <div className="space-y-3">{complaints.map((complaint) => <article key={complaint.id} className="rounded-xl border border-neutral-800/80 bg-neutral-950/40 p-4"><div className="flex flex-wrap items-center gap-2"><StatusBadge status={complaint.status} /><StatusBadge status={complaint.priority} label={`أولوية ${complaint.priority}`} /></div><p className="mt-2.5 font-bold text-sm text-white">{complaint.type}</p><p className="mt-1.5 line-clamp-3 break-words text-xs sm:text-sm leading-6 text-neutral-300">{complaint.description}</p><p className="mt-2.5 text-xs text-neutral-500">{complaint.customerName} · <span dir="ltr" translate="no" className="font-mono">{complaint.bookingNumber}</span> · {formatDateTime(complaint.createdAt)}</p></article>)}</div>}</section>
       </div>
     </div>
@@ -1017,31 +1019,305 @@ function TeamsSection({ teams }: { teams: TeamDto[] }) {
 
 function BranchesSection({
   branches,
-  requests,
-  maxBranches,
-  onRequest,
+  onEditBranch,
 }: {
   branches: BranchDto[];
-  requests: BranchRequestDto[];
-  maxBranches: number;
-  onRequest: () => void;
+  onEditBranch: (branch: BranchDto) => void;
 }) {
   return (
     <div className="space-y-6">
-      <SectionHeader eyebrow="الفروع والتغطية" title="هيكل التشغيل" description={`الحد الحالي للبراند: ${formatNumber(maxBranches)} فرع. يمكنك إضافة فرع مباشرة ضمن الحد، ثم استكمال الفرق والتغطية من مركز الإعداد.`} action={<div className="flex flex-wrap gap-2"><Link href="/admin/branches" className={primaryButtonClass}>إضافة فرع مباشرة</Link><button type="button" onClick={onRequest} className={secondaryButtonClass}>طلب مراجعة زيادة الحد</button></div>} />
-      {branches.length === 0 ? <EmptyState title="لا توجد فروع" description="أضف فرعًا مباشرة ضمن الحد المسموح، ثم جهّز مناطق التغطية وفريق التشغيل." /> : <div className="grid gap-4 xl:grid-cols-2">{branches.map((branch) => <article key={branch.id} className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-lg"><div className="flex items-start justify-between gap-4"><div><h3 className="text-base font-bold text-white">{branch.nameAr}</h3><p dir="ltr" translate="no" className="mt-0.5 font-mono text-xs text-neutral-500">{branch.code}</p></div><StatusBadge status={branch.status} /></div><p className="mt-3 break-words text-xs sm:text-sm leading-6 text-neutral-400">{branch.address}</p><dl className="mt-4 grid grid-cols-2 gap-3 text-xs sm:text-sm rounded-xl bg-neutral-950/40 border border-neutral-800/60 p-3.5"><div><dt className="text-neutral-500 text-[11px]">فرق التشغيل</dt><dd className="mt-1 font-bold tabular-nums text-white">{formatNumber(branch.teamCount)}</dd></div><div><dt className="text-neutral-500 text-[11px]">زونات التغطية</dt><dd className="mt-1 font-bold tabular-nums text-white">{formatNumber(branch.zoneCount)}</dd></div><div><dt className="text-neutral-500 text-[11px]">حجوزات اليوم</dt><dd className="mt-1 font-bold tabular-nums text-white">{formatNumber(branch.todayBookings)} / {formatNumber(branch.dailyBookingLimit)}</dd></div><div><dt className="text-neutral-500 text-[11px]">وسائل دفع نشطة</dt><dd className="mt-1 font-bold tabular-nums text-white">{formatNumber(branch.activePaymentMethodCount)}</dd></div><div><dt className="text-neutral-500 text-[11px]">التوزيع</dt><dd className="mt-1 text-neutral-300 font-medium">{branch.assignmentMode === 'AUTOMATIC' ? 'تلقائي' : 'يدوي'}</dd></div><div><dt className="text-neutral-500 text-[11px]">التوقيت</dt><dd dir="ltr" className="mt-1 text-neutral-400 font-mono">{branch.timezone}</dd></div></dl><a href={`tel:${branch.phone}`} className="mt-4 inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold text-[#d4af37] hover:text-[#f3e4a8] transition-colors">{branch.phone}</a></article>)}</div>}
+      <SectionHeader
+        eyebrow="الفروع والتغطية"
+        title="هيكل التشغيل والفروع"
+        description="إدارة وتعديل بيانات الفروع وسعات التشغيل، أو إضافة فرع جديد مباشرة للمنظومة."
+        action={
+          <Link href="/admin/branches" className={primaryButtonClass}>
+            <Plus className="size-4" aria-hidden="true" />
+            <span>إضافة فرع جديد</span>
+          </Link>
+        }
+      />
+      {branches.length === 0 ? (
+        <EmptyState
+          title="لا توجد فروع"
+          description="أضف فرعًا جديدًا مباشرة، ثم جهّز مناطق التغطية وفريق التشغيل من مركز الإعداد."
+        />
+      ) : (
+        <div className="grid gap-4 xl:grid-cols-2">
+          {branches.map((branch) => (
+            <article
+              key={branch.id}
+              className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-lg flex flex-col justify-between"
+            >
+              <div>
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h3 className="text-base font-bold text-white">{branch.nameAr}</h3>
+                    <p dir="ltr" translate="no" className="mt-0.5 font-mono text-xs text-neutral-500">
+                      {branch.code}
+                    </p>
+                  </div>
+                  <StatusBadge status={branch.status} />
+                </div>
+                <p className="mt-3 break-words text-xs sm:text-sm leading-6 text-neutral-400">
+                  {branch.address}
+                </p>
+                <dl className="mt-4 grid grid-cols-2 gap-3 text-xs sm:text-sm rounded-xl bg-neutral-950/40 border border-neutral-800/60 p-3.5">
+                  <div>
+                    <dt className="text-neutral-500 text-[11px]">فرق التشغيل</dt>
+                    <dd className="mt-1 font-bold tabular-nums text-white">{formatNumber(branch.teamCount)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-neutral-500 text-[11px]">زونات التغطية</dt>
+                    <dd className="mt-1 font-bold tabular-nums text-white">{formatNumber(branch.zoneCount)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-neutral-500 text-[11px]">حجوزات اليوم</dt>
+                    <dd className="mt-1 font-bold tabular-nums text-white">
+                      {formatNumber(branch.todayBookings)} / {formatNumber(branch.dailyBookingLimit)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-neutral-500 text-[11px]">وسائل دفع نشطة</dt>
+                    <dd className="mt-1 font-bold tabular-nums text-white">{formatNumber(branch.activePaymentMethodCount)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-neutral-500 text-[11px]">التوزيع</dt>
+                    <dd className="mt-1 text-neutral-300 font-medium">{branch.assignmentMode === 'AUTOMATIC' ? 'تلقائي' : 'يدوي'}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-neutral-500 text-[11px]">التوقيت</dt>
+                    <dd dir="ltr" className="mt-1 text-neutral-400 font-mono">{branch.timezone}</dd>
+                  </div>
+                </dl>
+              </div>
 
-      <section aria-labelledby="branch-requests-title" className="mt-8 rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-lg"><h3 id="branch-requests-title" className="text-base font-bold text-white border-b border-neutral-800/60 pb-3 mb-4">طلبات الفروع السابقة</h3>{requests.length === 0 ? <EmptyState title="لا توجد طلبات" description="لم يتم إرسال طلبات إضافة فروع من هذا الحساب." /> : <div className="space-y-3">{requests.map((request) => <article key={request.id} className="rounded-xl border border-neutral-800/80 bg-neutral-950/40 p-4"><div className="flex flex-wrap items-center justify-between gap-3"><p className="font-semibold text-white text-sm">{request.branchName}</p><StatusBadge status={request.status} /></div><p className="mt-2 break-words text-xs sm:text-sm text-neutral-400">{request.reason}</p><p className="mt-2 text-xs text-neutral-500">{formatDateTime(request.createdAt)}</p>{request.rejectionReason ? <p className={`mt-2 text-xs sm:text-sm ${request.status === 'NEEDS_INFORMATION' ? 'text-amber-200' : 'text-rose-300'}`}>{request.status === 'NEEDS_INFORMATION' ? 'المعلومات المطلوبة: ' : 'سبب الرفض: '}{request.rejectionReason}</p> : null}</article>)}</div>}</section>
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-neutral-800/80 pt-3.5">
+                <a
+                  href={`tel:${branch.phone}`}
+                  className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold text-[#d4af37] hover:text-[#f3e4a8] transition-colors"
+                >
+                  {branch.phone}
+                </a>
+
+                <button
+                  type="button"
+                  onClick={() => onEditBranch(branch)}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-[#d4af37]/40 bg-[#d4af37]/10 px-3.5 py-1.5 text-xs font-bold text-[#f3e4a8] hover:bg-[#d4af37]/20 transition-all"
+                >
+                  <Pencil className="size-3.5 text-[#d4af37]" />
+                  <span>تعديل بيانات الفرع</span>
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
     </div>
+  );
+}
+
+function ServiceStatusToggle({ serviceId, initialActive }: { serviceId: string; initialActive: boolean }) {
+  const router = useRouter();
+  const [active, setActive] = useState(initialActive);
+  const [isPending, startTransition] = useTransition();
+
+  const handleToggle = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    startTransition(async () => {
+      const formData = new FormData();
+      formData.set('serviceId', serviceId);
+      const res = await toggleServiceStatusAction(formData);
+      if (res.success && typeof res.active === 'boolean') {
+        setActive(res.active);
+        router.refresh();
+      }
+    });
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleToggle}
+      disabled={isPending}
+      title={active ? 'إيقاف الخدمة مؤقتًا' : 'تفعيل الخدمة'}
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold transition-all shadow-sm ${
+        active
+          ? 'border border-emerald-500/40 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 hover:border-emerald-400'
+          : 'border border-neutral-700 bg-neutral-800/80 text-neutral-400 hover:bg-neutral-700 hover:text-neutral-200'
+      } disabled:opacity-50`}
+    >
+      <span className={`size-2 rounded-full ${active ? 'bg-emerald-400 animate-pulse' : 'bg-neutral-500'}`} />
+      <span>{isPending ? 'جاري الحفظ…' : active ? 'نشطة' : 'متوقفة'}</span>
+    </button>
   );
 }
 
 function ServicesSection({ services }: { services: ServiceDto[] }) {
   return (
     <div className="space-y-6">
-      <SectionHeader eyebrow="كتالوج الخدمات" title="الخدمات المنشورة" description="الأسعار والمدد وحالة الحجز الإلكتروني والـVariants والإضافات المسجلة فعليًا." />
-      <div className="flex flex-col gap-3 rounded-2xl border border-[#d4af37]/30 bg-[#d4af37]/[0.06] p-4 sm:flex-row sm:items-center sm:justify-between"><p className="text-xs sm:text-sm leading-6 text-neutral-300">إدارة المحتوى والصور والتسعير والـVariants والإضافات وإعدادات الفروع متاحة كوحدة ذرية موثقة.</p><Link href="/admin/catalog" className={`${primaryButtonClass} shrink-0`}><PackageCheck aria-hidden="true" className="size-4" /> فتح مدير الكتالوج</Link></div>
-      {services.length === 0 ? <EmptyState title="لا توجد خدمات" description="لا توجد خدمات مسجلة في الكتالوج حتى الآن." /> : <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{services.map((service) => <article key={service.id} className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-lg"><div className="flex items-start justify-between gap-3"><h3 className="min-w-0 truncate text-base font-bold text-white">{service.nameAr}</h3><StatusBadge status={service.active ? 'ACTIVE' : 'DISABLED'} label={service.active ? 'نشطة' : 'متوقفة'} /></div><p dir="ltr" translate="no" className="mt-0.5 truncate text-xs text-neutral-500 font-mono">/{service.slug}</p><p className="mt-4 text-2xl font-black tabular-nums text-[#f3e4a8]">{formatCurrency(service.basePrice)}</p><dl className="mt-3 grid grid-cols-2 gap-3 text-xs sm:text-sm rounded-xl bg-neutral-950/40 border border-neutral-800/60 p-3"><div><dt className="text-neutral-500 text-[11px]">المدة المقدرة</dt><dd className="mt-1 text-neutral-200 font-medium">{formatNumber(service.durationMinutes)} دقيقة</dd></div><div><dt className="text-neutral-500 text-[11px]">عدد الحجوزات</dt><dd className="mt-1 tabular-nums font-bold text-white">{formatNumber(service.bookingCount)}</dd></div><div><dt className="text-neutral-500 text-[11px]">الأحجام والخيارات</dt><dd className="mt-1 tabular-nums text-neutral-300">{formatNumber(service.variantCount)}</dd></div><div><dt className="text-neutral-500 text-[11px]">الإضافات</dt><dd className="mt-1 tabular-nums text-neutral-300">{formatNumber(service.addonCount)}</dd></div></dl><div className="mt-4 flex flex-wrap gap-2"><StatusBadge status={service.bookableOnline ? 'ACTIVE' : 'DISABLED'} label={service.bookableOnline ? 'حجز إلكتروني' : 'غير متاحة للحجز'} /><StatusBadge status={service.subscriptionEligible ? 'ACTIVE' : 'DISABLED'} label={service.subscriptionEligible ? 'ضمن الاشتراكات' : 'خارج الاشتراكات'} /></div><Link href={`/services/${service.slug}`} className="mt-4 inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold text-[#d4af37] hover:text-[#f3e4a8] transition-colors">عرض صفحة الخدمة <ArrowLeft aria-hidden="true" className="size-3.5" /></Link></article>)}</div>}
+      <SectionHeader
+        eyebrow="كتالوج الخدمات"
+        title="الخدمات والمنتجات"
+        description="إدارة الأسعار، المدد، صور الغلاف والمعرض، وتجهيزات ومستلزمات التنفيذ."
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href="/admin/site?tab=services&new=1"
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#d4af37] to-[#f0d879] px-4 py-2 text-xs font-black text-black shadow-lg shadow-[#d4af37]/20 hover:brightness-110 transition-all"
+            >
+              <Plus className="size-4" aria-hidden="true" />
+              <span>إضافة خدمة جديدة</span>
+            </Link>
+            <Link
+              href="/admin/site?tab=services"
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-neutral-700 bg-neutral-900/80 px-4 py-2 text-xs font-bold text-neutral-200 hover:border-[#d4af37]/50 hover:text-white transition-all"
+            >
+              <Settings2 className="size-4 text-[#d4af37]" aria-hidden="true" />
+              <span>إدارة وتعديل الخدمات</span>
+            </Link>
+            <Link
+              href="/admin/site?tab=collections"
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#d4af37]/30 bg-[#d4af37]/10 px-4 py-2 text-xs font-bold text-[#f0d36d] hover:bg-[#d4af37]/20 transition-all"
+            >
+              <Sparkles className="size-4" aria-hidden="true" />
+              <span>مجموعات العناية</span>
+            </Link>
+          </div>
+        }
+      />
+
+      <div className="flex flex-col gap-3 rounded-2xl border border-[#d4af37]/30 bg-gradient-to-r from-[#d4af37]/[0.08] via-neutral-950/40 to-[#d4af37]/[0.04] p-4 sm:flex-row sm:items-center sm:justify-between shadow-lg">
+        <div className="flex items-center gap-3">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#d4af37]/20 border border-[#d4af37]/40 text-[#f0d36d]">
+            <Pencil className="size-5" />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-white">تعديل فوري وشامل لجميع الخدمات</p>
+            <p className="text-xs leading-5 text-neutral-400">
+              اضغط على &quot;تعديل الخدمة&quot; لأي خدمة لتعديل أسعارها وتفاصيلها ومواد التنفيذ وصور المعرض فورياً.
+            </p>
+          </div>
+        </div>
+        <Link href="/admin/site?tab=services" className={`${secondaryButtonClass} shrink-0 text-xs`}>
+          <PackageCheck aria-hidden="true" className="size-4" /> فتح كل الخدمات
+        </Link>
+      </div>
+
+      {services.length === 0 ? (
+        <EmptyState
+          title="لا توجد خدمات"
+          description="لا توجد خدمات مسجلة في الكتالوج حتى الآن. أضف أول خدمة لبدء استقبال الحجوزات."
+        />
+      ) : (
+        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+          {services.map((service) => (
+            <article
+              key={service.id}
+              className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-xl transition-all duration-300 hover:border-[#d4af37]/50 hover:shadow-2xl hover:shadow-[#d4af37]/5"
+            >
+              <div>
+                {/* Header: Name + Active Toggle */}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h3 className="truncate text-base font-black text-white group-hover:text-[#f3e4a8] transition-colors">
+                      {service.nameAr}
+                    </h3>
+                    <div className="mt-0.5 flex items-center gap-2">
+                      <p dir="ltr" translate="no" className="truncate text-[11px] text-neutral-500 font-mono">
+                        /{service.slug}
+                      </p>
+                      {service.nameEn ? (
+                        <span dir="ltr" className="text-[10px] text-neutral-400 font-medium truncate">
+                          · {service.nameEn}
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                  <ServiceStatusToggle serviceId={service.id} initialActive={service.active} />
+                </div>
+
+                {/* Price and Thumbnail Section */}
+                <div className="mt-4 flex items-center justify-between gap-3 rounded-xl bg-neutral-950/60 border border-neutral-800/80 p-3.5">
+                  <div className="min-w-0">
+                    <span className="text-[11px] font-medium text-neutral-400">
+                      {service.priceType === 'STARTS_FROM' ? 'يبدأ من' : 'السعر الأساسي'}
+                    </span>
+                    <p className="text-2xl font-black tabular-nums text-[#f3e4a8]">
+                      {formatCurrency(service.basePrice)}
+                    </p>
+                  </div>
+                  {service.coverImage ? (
+                    <div className="relative size-14 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-neutral-900 shadow-inner">
+                      <Image
+                        src={service.coverImage}
+                        alt={service.nameAr}
+                        fill
+                        unoptimized
+                        className="object-cover"
+                      />
+                    </div>
+                  ) : null}
+                </div>
+
+                {/* Stats Grid */}
+                <dl className="mt-3.5 grid grid-cols-2 gap-2 text-xs">
+                  <div className="rounded-xl bg-neutral-950/40 border border-neutral-800/60 p-2.5">
+                    <dt className="text-neutral-500 text-[10px] font-medium">المدة المقدرة</dt>
+                    <dd className="mt-0.5 text-neutral-200 font-bold tabular-nums">
+                      {formatNumber(service.durationMinutes)} دقيقة
+                    </dd>
+                  </div>
+                  <div className="rounded-xl bg-neutral-950/40 border border-neutral-800/60 p-2.5">
+                    <dt className="text-neutral-500 text-[10px] font-medium">عدد الحجوزات</dt>
+                    <dd className="mt-0.5 tabular-nums font-bold text-white">
+                      {formatNumber(service.bookingCount)} حجز
+                    </dd>
+                  </div>
+                </dl>
+
+                {/* Badges */}
+                <div className="mt-3.5 flex flex-wrap gap-2">
+                  <StatusBadge
+                    status={service.bookableOnline ? 'ACTIVE' : 'DISABLED'}
+                    label={service.bookableOnline ? 'حجز إلكتروني' : 'غير متاحة للحجز'}
+                  />
+                  <StatusBadge
+                    status={service.subscriptionEligible ? 'ACTIVE' : 'DISABLED'}
+                    label={service.subscriptionEligible ? 'ضمن الاشتراكات' : 'خارج الاشتراكات'}
+                  />
+                  {service.requiredTeamSize ? (
+                    <span className="rounded-lg bg-neutral-900 border border-neutral-800 px-2 py-0.5 text-[10px] font-medium text-neutral-400">
+                      فريق: {service.requiredTeamSize} فنيين
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+
+              {/* Action Buttons Row */}
+              <div className="mt-5 flex items-center gap-2 border-t border-neutral-800/80 pt-4">
+                <Link
+                  href={`/admin/site?tab=services&serviceId=${service.id}`}
+                  className="flex-1 inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl bg-[#d4af37] px-3 py-2 text-xs font-black text-black shadow-md hover:bg-[#e5c45a] transition-all"
+                >
+                  <Pencil className="size-3.5" aria-hidden="true" />
+                  <span>تعديل الخدمة</span>
+                </Link>
+                <Link
+                  href={`/services/${service.slug}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-neutral-700 bg-neutral-900/90 px-3 py-2 text-xs font-bold text-neutral-300 hover:border-neutral-500 hover:text-white transition-all"
+                >
+                  <Eye className="size-3.5 text-neutral-400" aria-hidden="true" />
+                  <span>معاينة</span>
+                </Link>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -1170,14 +1446,14 @@ function OwnerActionDialog({
           ? 'تأكيد قرار طلب الإلغاء'
           : modal.type === 'refund-approval'
             ? 'اعتماد الاسترداد المسجل'
-            : 'طلب إضافة فرع';
+            : 'تعديل بيانات الفرع';
   const eligibleTeams = modal.type === 'assignment'
     ? teams.filter((team) => team.active && team.branchId === modal.booking.branchId)
     : [];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto overscroll-contain bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
-      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="owner-action-title" tabIndex={-1} className="w-full max-w-xl rounded-3xl border border-neutral-800 bg-[#0f0f13] p-5 shadow-2xl focus-visible:ring-2 focus-visible:ring-[#d4af37] sm:p-7">
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="owner-action-title" tabIndex={-1} className="w-full max-w-xl rounded-3xl border border-neutral-800 bg-[#0f0f13] p-5 shadow-2xl focus-visible:ring-2 focus-visible:ring-[#d4af37] sm:p-7 max-h-[90vh] overflow-y-auto">
         <div className="flex items-start justify-between gap-4 border-b border-neutral-800/80 pb-4">
           <div>
             <span className="inline-flex items-center gap-1 text-xs font-bold text-[#d4af37]">
@@ -1198,7 +1474,66 @@ function OwnerActionDialog({
           {modal.type === 'assignment' ? <><input type="hidden" name="bookingId" value={modal.booking.id} /><div className="rounded-xl bg-neutral-950/60 border border-neutral-800 p-4 text-xs sm:text-sm"><p dir="ltr" translate="no" className="font-mono font-bold text-white text-base">{modal.booking.bookingNumber}</p><p className="mt-1.5 text-neutral-400">{modal.booking.branchName} · {formatDateTime(modal.booking.startAt)}</p></div>{eligibleTeams.length ? <><div><label htmlFor="assignment-team" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">الفريق المستهدف</label><select id="assignment-team" name="teamId" required defaultValue="" className={inputClass}><option value="" className="bg-[#111]">اختر فريقًا من نفس الفرع</option>{eligibleTeams.map((team) => <option key={team.id} value={team.id} className="bg-[#111]">{team.name} — الحمل: {team.todayBookingCount}/{team.dailyCapacity}</option>)}</select></div><div><label htmlFor="assignment-reason" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">سبب الإسناد اليدوي</label><textarea id="assignment-reason" name="reason" required minLength={3} maxLength={500} rows={3} autoComplete="off" className={inputClass} /></div></> : <CapabilityNotice>لا يوجد فريق نشط في نفس الفرع يمكن اختياره.</CapabilityNotice>}</> : null}
           {modal.type === 'cancellation' ? <><input type="hidden" name="cancellationId" value={modal.request.id} /><div className="rounded-xl bg-neutral-950/60 border border-neutral-800 p-4 text-xs sm:text-sm"><p dir="ltr" translate="no" className="font-mono font-bold text-white text-base">{modal.request.booking.bookingNumber}</p><p className="mt-1 text-neutral-400">المدفوع: <span className="text-[#f3e4a8] font-bold">{formatCurrency(modal.request.booking.amountPaid)}</span> · تفضيل العميل: {modal.request.preferredAction}</p><p className="mt-2 break-words text-neutral-300">{modal.request.reason}</p></div><div><label htmlFor="cancellation-decision" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">القرار</label><select id="cancellation-decision" name="decision" required value={cancellationDecision} onChange={(event) => { onCancellationDecision(event.target.value as CancellationDecision | ''); onCancellationResolution(''); }} className={inputClass}><option value="" className="bg-[#111]">اختر القرار</option><option value="APPROVE" className="bg-[#111]">اعتماد الطلب</option><option value="REJECT" className="bg-[#111]">رفض الطلب واستعادة حالة الحجز</option></select></div>{cancellationDecision === 'APPROVE' ? <><div><label htmlFor="cancellation-resolution" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">نوع الحل المالي</label><select id="cancellation-resolution" name="resolutionType" required value={cancellationResolution} onChange={(event) => onCancellationResolution(event.target.value as CancellationResolution | '')} className={inputClass}><option value="" className="bg-[#111]">اختر نوع الحل</option><option value="REFUND_FULL" className="bg-[#111]">استرداد كامل</option><option value="REFUND_PARTIAL" className="bg-[#111]">استرداد جزئي</option><option value="NO_REFUND" className="bg-[#111]">إلغاء دون استرداد</option><option value="KEEP_DEPOSIT" className="bg-[#111]">الاحتفاظ بالعربون</option><option value="ESCALATE" className="bg-[#111]">تصعيد للمراجعة</option></select></div><div><label htmlFor="cancellation-party" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">الطرف المسؤول</label><select id="cancellation-party" name="responsibleParty" required defaultValue="" className={inputClass}><option value="" className="bg-[#111]">اختر الطرف</option><option value="CUSTOMER" className="bg-[#111]">العميل</option><option value="TEAM" className="bg-[#111]">الفريق</option><option value="BRANCH" className="bg-[#111]">الفرع</option><option value="ACCESS" className="bg-[#111]">تعذر الوصول</option><option value="FORCE_MAJEURE" className="bg-[#111]">ظرف قهري</option></select></div>{cancellationResolution === 'REFUND_PARTIAL' ? <div><label htmlFor="approved-refund-amount" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">مبلغ الاسترداد الجزئي</label><input id="approved-refund-amount" name="approvedRefundAmount" type="number" min={1} max={modal.request.booking.amountPaid} step={1} inputMode="numeric" required className={inputClass} /></div> : null}</> : null}<div><label htmlFor="cancellation-notes" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">ملاحظات القرار</label><textarea id="cancellation-notes" name="resolutionNotes" required minLength={3} maxLength={1000} rows={3} autoComplete="off" className={inputClass} /></div></> : null}
           {modal.type === 'refund-approval' ? <><input type="hidden" name="refundId" value={modal.refund.id} /><div className="rounded-xl bg-neutral-950/60 border border-neutral-800 p-4 text-xs sm:text-sm"><p dir="ltr" translate="no" className="font-mono font-bold text-white text-base">{modal.refund.booking.bookingNumber}</p><p className="mt-2 text-2xl font-black tabular-nums text-[#f3e4a8]">{formatCurrency(modal.refund.amount)}</p><p className="mt-1 text-neutral-400">{modal.refund.refundMethod}{modal.refund.referenceNumber ? ` · ${modal.refund.referenceNumber}` : ''}</p></div><div><label htmlFor="refund-approval-reason" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">سبب الاعتماد</label><textarea id="refund-approval-reason" name="reason" required minLength={3} maxLength={1000} rows={3} autoComplete="off" className={inputClass} /></div></> : null}
-          {modal.type === 'branch-request' ? <><div><label htmlFor="branch-request-name" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">اسم الفرع المقترح</label><input id="branch-request-name" name="branchName" required minLength={2} maxLength={120} autoComplete="organization" className={inputClass} /></div><div><label htmlFor="branch-request-reason" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">سبب الإضافة</label><textarea id="branch-request-reason" name="reason" required minLength={3} maxLength={1000} rows={3} autoComplete="off" className={inputClass} /></div></> : null}
+          {modal.type === 'edit-branch' ? (
+            <>
+              <input type="hidden" name="branchId" value={modal.branch.id} />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="edit-branch-name-ar" className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-neutral-400">اسم الفرع بالعربية</label>
+                  <input id="edit-branch-name-ar" name="nameAr" required defaultValue={modal.branch.nameAr} minLength={2} maxLength={120} className={inputClass} />
+                </div>
+                <div>
+                  <label htmlFor="edit-branch-name-en" className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-neutral-400">الاسم بالإنجليزية (اختياري)</label>
+                  <input id="edit-branch-name-en" name="nameEn" defaultValue={modal.branch.nameEn ?? ''} maxLength={120} dir="ltr" className={inputClass} />
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="edit-branch-code" className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-neutral-400">كود الفرع</label>
+                  <input id="edit-branch-code" name="code" required defaultValue={modal.branch.code} minLength={3} maxLength={24} dir="ltr" pattern="[A-Za-z0-9-]{3,24}" className={`${inputClass} font-mono uppercase`} />
+                </div>
+                <div>
+                  <label htmlFor="edit-branch-daily-limit" className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-neutral-400">الطاقة اليومية (حجز/يوم)</label>
+                  <input id="edit-branch-daily-limit" name="dailyBookingLimit" type="number" required min={1} max={500} defaultValue={modal.branch.dailyBookingLimit} className={inputClass} />
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="edit-branch-address" className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-neutral-400">العنوان التفصيلي</label>
+                <textarea id="edit-branch-address" name="address" required defaultValue={modal.branch.address} minLength={5} maxLength={500} rows={2} className={inputClass} />
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="edit-branch-phone" className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-neutral-400">هاتف الفرع</label>
+                  <input id="edit-branch-phone" name="phone" required type="tel" defaultValue={modal.branch.phone} dir="ltr" className={`${inputClass} font-mono`} />
+                </div>
+                <div>
+                  <label htmlFor="edit-branch-whatsapp" className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-neutral-400">واتساب الفرع</label>
+                  <input id="edit-branch-whatsapp" name="whatsapp" required type="tel" defaultValue={modal.branch.whatsapp} dir="ltr" className={`${inputClass} font-mono`} />
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="edit-branch-assignment" className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-neutral-400">نمط توزيع الحجوزات</label>
+                  <select id="edit-branch-assignment" name="assignmentMode" defaultValue={modal.branch.assignmentMode} className={inputClass}>
+                    <option value="MANUAL" className="bg-[#111]">يدوي (بواسطة مدير التشغيل)</option>
+                    <option value="AUTOMATIC" className="bg-[#111]">تلقائي (توزيع آلي)</option>
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="edit-branch-status" className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-neutral-400">حالة الفرع</label>
+                  <select id="edit-branch-status" name="status" defaultValue={modal.branch.status} className={inputClass}>
+                    <option value="ACTIVE" className="bg-[#111]">نشط (Active)</option>
+                    <option value="PAUSED" className="bg-[#111]">متوقف مؤقتاً (Paused)</option>
+                    <option value="DISABLED" className="bg-[#111]">معطل (Disabled)</option>
+                  </select>
+                </div>
+              </div>
+            </>
+          ) : null}
           <div className="flex flex-col-reverse gap-3 border-t border-neutral-800/80 pt-4 sm:flex-row sm:justify-end">
             <button type="button" onClick={onClose} disabled={pending} className={secondaryButtonClass}>إلغاء</button>
             <button type="submit" disabled={pending || (modal.type === 'assignment' && eligibleTeams.length === 0)} aria-busy={pending} className={primaryButtonClass}>
@@ -1227,11 +1562,9 @@ export default function OwnerCommandCenter(props: OwnerCommandCenterProps) {
     qualityBookings,
     complaints,
     bookings,
+    managedSubscriptions = [],
     teams,
     branches,
-    services,
-    plans,
-    subscriptions,
     customers,
     auditLogs,
     branchRequests,
@@ -1240,7 +1573,6 @@ export default function OwnerCommandCenter(props: OwnerCommandCenterProps) {
   const router = useRouter();
   const [modal, setModal] = useState<ModalState>(null);
   const [pending, setPending] = useState(false);
-  const [adminToolsOpen, setAdminToolsOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [actionError, setActionError] = useState('');
   const [feedback, setFeedback] = useState('');
@@ -1300,7 +1632,7 @@ export default function OwnerCommandCenter(props: OwnerCommandCenterProps) {
               ? await reviewCancellationAction(formData)
               : modal.type === 'refund-approval'
                 ? await approveRefundAction(formData)
-                : await requestNewBranchAction(formData);
+                : await updateBranchAction(formData);
       if ('error' in result && result.error) {
         setActionError(result.error);
         return;
@@ -1316,7 +1648,7 @@ export default function OwnerCommandCenter(props: OwnerCommandCenterProps) {
                 ? 'تم حفظ قرار طلب الإلغاء.'
                 : modal.type === 'refund-approval'
                   ? 'تم اعتماد الاسترداد المسجل.'
-                  : 'تم إرسال طلب الفرع إلى مدير النظام.',
+                  : 'تم تحديث بيانات الفرع بنجاح.',
       );
       setModal(null);
       router.refresh();
@@ -1332,26 +1664,38 @@ export default function OwnerCommandCenter(props: OwnerCommandCenterProps) {
     case 'bookings':
       sectionContent = <BookingsSection bookings={bookings} filters={filters} onReview={(booking) => openModal({ type: 'booking-review', booking })} onAssign={(booking) => openModal({ type: 'assignment', booking })} />;
       break;
+    case 'subscriptions':
+      sectionContent = (
+        <div className="space-y-6">
+          <SectionHeader
+            eyebrow="الاشتراكات الفعلية"
+            title="اشتراكات العملاء والتفعيل"
+            description="متابعة وتفعيل اشتراكات العملاء، تجميد أو تمديد الاشتراك وتعديل رصيد الزيارات."
+            action={
+              <Link
+                href="/admin/site?tab=subscriptions"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#d4af37]/30 bg-[#d4af37]/10 px-4 py-2 text-xs font-bold text-[#f0d36d] hover:bg-[#d4af37]/20 transition-all"
+              >
+                <Sparkles className="size-4" aria-hidden="true" />
+                <span>إدارة وتصميم باقات الاشتراك</span>
+              </Link>
+            }
+          />
+          <SubscriptionManagementPanel subscriptions={managedSubscriptions} />
+        </div>
+      );
+      break;
     case 'payments':
       sectionContent = <PaymentsSection proofs={pendingProofs} onReview={(proof) => openModal({ type: 'payment', proof })} />;
       break;
     case 'cancellations':
       sectionContent = <CancellationsSection requests={cancellationRequests} refunds={pendingRefunds} onReviewRequest={(request) => openModal({ type: 'cancellation', request })} onApproveRefund={(refund) => openModal({ type: 'refund-approval', refund })} />;
       break;
-    case 'quality':
-      sectionContent = <QualitySection bookings={qualityBookings} complaints={complaints} />;
-      break;
     case 'teams':
       sectionContent = <TeamsSection teams={teams} />;
       break;
     case 'branches':
-      sectionContent = <BranchesSection branches={branches} requests={branchRequests} maxBranches={brand.maxBranches} onRequest={() => openModal({ type: 'branch-request' })} />;
-      break;
-    case 'services':
-      sectionContent = <ServicesSection services={services} />;
-      break;
-    case 'subscriptions':
-      sectionContent = <SubscriptionsSection plans={plans} subscriptions={subscriptions} />;
+      sectionContent = <BranchesSection branches={branches} onEditBranch={(branch) => openModal({ type: 'edit-branch', branch })} />;
       break;
     case 'customers':
       sectionContent = <CustomerManagementPanel customers={customers} query={customerQuery} />;
@@ -1458,18 +1802,18 @@ export default function OwnerCommandCenter(props: OwnerCommandCenterProps) {
               <nav className="mt-4 flex flex-col gap-1.5" aria-label="أقسام لوحة المالك">
                 {sectionNav.map((item) => {
                   const Icon = item.icon;
-                  const active = currentSection === item.id;
+                  const active = item.id ? currentSection === item.id : false;
+                  const linkHref = item.href ?? `/admin?section=${item.id}`;
 
                   let badgeCount = 0;
                   if (item.id === 'payments') badgeCount = metrics.pendingProofs;
                   else if (item.id === 'bookings') badgeCount = metrics.operationsReview + metrics.unassignedBookings;
                   else if (item.id === 'cancellations') badgeCount = metrics.pendingCancellations + metrics.pendingRefunds;
-                  else if (item.id === 'quality') badgeCount = metrics.qualityOpen;
 
                   return (
                     <Link
-                      key={item.id}
-                      href={`/admin?section=${item.id}`}
+                      key={item.label}
+                      href={linkHref}
                       onClick={() => setMobileMenuOpen(false)}
                       className={`inline-flex min-h-11 items-center justify-between gap-3 rounded-xl px-3.5 text-xs font-bold transition-all ${
                         active
@@ -1490,40 +1834,6 @@ export default function OwnerCommandCenter(props: OwnerCommandCenterProps) {
                   );
                 })}
               </nav>
-
-              {/* Admin Tools Accordion in Drawer */}
-              <div className="pt-2 mt-2 border-t border-neutral-800">
-                <button
-                  type="button"
-                  onClick={() => setAdminToolsOpen((prev) => !prev)}
-                  className="flex w-full items-center justify-between gap-2 rounded-xl px-3.5 py-2.5 text-xs font-bold text-[#f3e4a8] hover:bg-neutral-800/60 transition-all"
-                >
-                  <span className="flex items-center gap-2">
-                    <Wrench className="size-4 text-[#d4af37]" />
-                    <span>أدوات الإدارة</span>
-                  </span>
-                  <ChevronDown className={`size-4 transition-transform duration-200 text-[#d4af37] ${adminToolsOpen ? 'rotate-180' : ''}`} />
-                </button>
-
-                {adminToolsOpen ? (
-                  <div className="mt-1 space-y-0.5 pr-2">
-                    {adminToolsNav.map((tool) => {
-                      const ToolIcon = tool.icon;
-                      return (
-                        <Link
-                          key={tool.href}
-                          href={tool.href}
-                          onClick={() => setMobileMenuOpen(false)}
-                          className="flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium text-neutral-300 hover:text-white hover:bg-white/[0.06] transition-all"
-                        >
-                          <ToolIcon className="size-3.5 text-neutral-400" />
-                          <span>{tool.label}</span>
-                        </Link>
-                      );
-                    })}
-                  </div>
-                ) : null}
-              </div>
             </div>
 
             {/* Bottom Actions in Drawer */}
@@ -1557,18 +1867,18 @@ export default function OwnerCommandCenter(props: OwnerCommandCenterProps) {
           <nav className="rounded-2xl border border-neutral-800/80 bg-[#0e0e12]/90 backdrop-blur-xl p-2.5 shadow-xl space-y-1">
             {sectionNav.map((item) => {
               const Icon = item.icon;
-              const active = currentSection === item.id;
+              const active = item.id ? currentSection === item.id : false;
+              const linkHref = item.href ?? `/admin?section=${item.id}`;
 
               let badgeCount = 0;
               if (item.id === 'payments') badgeCount = metrics.pendingProofs;
               else if (item.id === 'bookings') badgeCount = metrics.operationsReview + metrics.unassignedBookings;
               else if (item.id === 'cancellations') badgeCount = metrics.pendingCancellations + metrics.pendingRefunds;
-              else if (item.id === 'quality') badgeCount = metrics.qualityOpen;
 
               return (
                 <Link
-                  key={item.id}
-                  href={`/admin?section=${item.id}`}
+                  key={item.label}
+                  href={linkHref}
                   aria-current={active ? 'page' : undefined}
                   className={`flex items-center justify-between gap-3 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-semibold transition-all duration-200 ${
                     active
@@ -1594,39 +1904,6 @@ export default function OwnerCommandCenter(props: OwnerCommandCenterProps) {
                 </Link>
               );
             })}
-
-            {/* أدوات الإدارة المتقدمة داخل القائمة الجانبية */}
-            <div className="pt-2 mt-2 border-t border-neutral-800/80">
-              <button
-                type="button"
-                onClick={() => setAdminToolsOpen((prev) => !prev)}
-                className="flex w-full items-center justify-between gap-2 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-bold text-[#f3e4a8] hover:bg-neutral-800/60 transition-all"
-              >
-                <span className="flex items-center gap-2.5">
-                  <Wrench className="size-4 text-[#d4af37]" />
-                  <span>أدوات الإدارة</span>
-                </span>
-                <ChevronDown className={`size-4 transition-transform duration-200 text-[#d4af37] ${adminToolsOpen ? 'rotate-180' : ''}`} />
-              </button>
-
-              {adminToolsOpen ? (
-                <div className="mt-1 space-y-0.5 pr-2">
-                  {adminToolsNav.map((tool) => {
-                    const ToolIcon = tool.icon;
-                    return (
-                      <Link
-                        key={tool.href}
-                        href={tool.href}
-                        className="flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium text-neutral-300 hover:text-white hover:bg-white/[0.06] transition-all"
-                      >
-                        <ToolIcon className="size-3.5 text-neutral-400" />
-                        <span>{tool.label}</span>
-                      </Link>
-                    );
-                  })}
-                </div>
-              ) : null}
-            </div>
 
             {/* حوكمة النظام وتسجيل الخروج في أسفل القائمة الجانبية */}
             <div className="pt-2 mt-2 border-t border-neutral-800/80 space-y-1">

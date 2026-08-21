@@ -3,7 +3,6 @@
 import { useMemo, useState, useTransition } from 'react';
 import {
   AlertTriangle,
-  Camera,
   Car,
   Boxes,
   CheckCircle2,
@@ -20,11 +19,9 @@ import {
   recordTechnicianNoteAction,
   toggleChecklistItemAction,
   updateTechnicianTaskStatusAction,
-  uploadTechnicianPhotoAction,
 } from '@/app/actions/technician';
 import { advancePostServiceAction } from '@/app/actions/quality';
 import { phoneHref, whatsappHref } from '@/lib/contact-links';
-import { prepareImageForUpload } from '@/lib/client/image-upload';
 
 type WorkflowStatus =
   | 'ASSIGNED'
@@ -36,7 +33,6 @@ type WorkflowStatus =
   | 'SERVICE_COMPLETED'
   | 'DELIVERED';
 
-type PhotoType = 'BEFORE_SERVICE' | 'EXISTING_DAMAGE' | 'DURING_SERVICE' | 'AFTER_SERVICE';
 type NoteType = 'PROBLEM' | 'EXTRA_TIME' | 'ADDON_REQUEST';
 
 interface ChecklistItem {
@@ -113,18 +109,11 @@ const WORKFLOW_STEPS: Array<{
 }> = [
   { from: 'ASSIGNED', to: 'TEAM_ACKNOWLEDGED', label: 'تأكيد استلام المهمة', helper: 'راجع بيانات العميل والموقع أولًا' },
   { from: 'TEAM_ACKNOWLEDGED', to: 'ON_THE_WAY', label: 'بدء التحرك', helper: 'سجّل انطلاق الفريق نحو العميل' },
-  { from: 'ON_THE_WAY', to: 'ARRIVED', label: 'تأكيد الوصول', helper: 'ابدأ فحص الوصول وتوثيق السيارة' },
-  { from: 'ARRIVED', to: 'IN_SERVICE', label: 'بدء الخدمة', helper: 'يتطلب فحص الوصول وصور ما قبل الخدمة' },
-  { from: 'IN_SERVICE', to: 'QUALITY_REVIEW', label: 'إرسال لمراجعة الجودة', helper: 'يتطلب إكمال القوائم وصور ما بعد الخدمة' },
+  { from: 'ON_THE_WAY', to: 'ARRIVED', label: 'تأكيد الوصول', helper: 'ابدأ فحص الوصول واستكمال قوائم التحضير' },
+  { from: 'ARRIVED', to: 'IN_SERVICE', label: 'بدء الخدمة', helper: 'يتطلب استكمال قوائم التحضير وفحص الوصول' },
+  { from: 'IN_SERVICE', to: 'QUALITY_REVIEW', label: 'إرسال لمراجعة الجودة', helper: 'يتطلب إكمال كافة قوائم التنفيذ المحددة' },
   { from: 'SERVICE_COMPLETED', to: 'DELIVERED', label: 'تأكيد تسليم الخدمة', helper: 'استخدمه بعد اعتماد الجودة وتسليم السيارة للعميل' },
 ];
-
-const PHOTO_CONFIG: Record<PhotoType, { label: string; category: string }> = {
-  BEFORE_SERVICE: { label: 'قبل الخدمة', category: 'before-photos' },
-  EXISTING_DAMAGE: { label: 'تلف سابق', category: 'existing-damage' },
-  DURING_SERVICE: { label: 'أثناء الخدمة', category: 'during-photos' },
-  AFTER_SERVICE: { label: 'بعد الخدمة', category: 'after-photos' },
-};
 
 const STAGE_LABELS: Record<string, string> = {
   BOOKING_REVIEW: 'مراجعة الحجز',
@@ -188,13 +177,10 @@ function formatAddressSnapshot(snapshot: unknown): string {
 
 export default function TechnicianTaskClient({ employee, bookings }: Props) {
   const [selectedTaskId, setSelectedTaskId] = useState(bookings[0]?.id ?? '');
-  const [photoType, setPhotoType] = useState<PhotoType>('BEFORE_SERVICE');
-  const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [activeNoteType, setActiveNoteType] = useState<NoteType | null>(null);
   const [noteText, setNoteText] = useState('');
   const [activeChecklistEvidence, setActiveChecklistEvidence] = useState<ActiveChecklistEvidence | null>(null);
   const [checklistNote, setChecklistNote] = useState('');
-  const [checklistPhoto, setChecklistPhoto] = useState<File | null>(null);
   const [feedback, setFeedback] = useState<{ kind: 'success' | 'error'; message: string } | null>(null);
   const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>(() => initialChecklistState(bookings));
   const [taskStatuses, setTaskStatuses] = useState<Record<string, string>>(() =>
@@ -208,14 +194,6 @@ export default function TechnicianTaskClient({ employee, bookings }: Props) {
   );
   const currentStatus = selectedTask ? (taskStatuses[selectedTask.id] ?? selectedTask.bookingStatus) : '';
   const hasMaterialBlocker = Boolean(selectedTask?.requiredMaterials.some((material) => material.required && !material.ready));
-  const allowedPhotoTypes: PhotoType[] = currentStatus === 'ARRIVED'
-    ? ['BEFORE_SERVICE', 'EXISTING_DAMAGE']
-    : currentStatus === 'IN_SERVICE'
-      ? ['DURING_SERVICE', 'AFTER_SERVICE']
-      : [];
-  const effectivePhotoType = allowedPhotoTypes.includes(photoType)
-    ? photoType
-    : allowedPhotoTypes[0] ?? photoType;
 
   const setResult = (result: { error?: string; success?: boolean }, successMessage: string) => {
     setFeedback(result.error
@@ -237,40 +215,11 @@ export default function TechnicianTaskClient({ employee, bookings }: Props) {
     });
   };
 
-  const handleUploadPhoto = () => {
-    if (!selectedTask || !photoFile) {
-      setFeedback({ kind: 'error', message: 'اختر صورة من الجهاز أولًا.' });
-      return;
-    }
-
-    startTransition(async () => {
-      const preparedPhoto = await prepareImageForUpload(photoFile);
-      const uploadData = new FormData();
-      uploadData.set('file', preparedPhoto);
-      uploadData.set('bookingId', selectedTask.id);
-      uploadData.set('category', PHOTO_CONFIG[effectivePhotoType].category);
-      const response = await fetch('/api/upload', { method: 'POST', body: uploadData });
-      const uploaded = await response.json() as { error?: string; bookingFileId?: string };
-      if (!response.ok || !uploaded.bookingFileId) {
-        setFeedback({ kind: 'error', message: uploaded.error ?? 'تعذر رفع الصورة.' });
-        return;
-      }
-
-      const confirmData = new FormData();
-      confirmData.set('bookingId', selectedTask.id);
-      confirmData.set('bookingFileId', uploaded.bookingFileId);
-      const result = await uploadTechnicianPhotoAction(confirmData);
-      setResult(result, `تم توثيق صورة ${PHOTO_CONFIG[effectivePhotoType].label}.`);
-      if (!result.error) setPhotoFile(null);
-    });
-  };
-
   const handleToggleChecklist = (item: ChecklistItem, stage: string) => {
     if (!selectedTask) return;
-    if (item.requiresPhoto || item.requiresNote) {
+    if (item.requiresNote) {
       setActiveChecklistEvidence({ item, stage });
       setChecklistNote('');
-      setChecklistPhoto(null);
       return;
     }
 
@@ -290,51 +239,24 @@ export default function TechnicianTaskClient({ employee, bookings }: Props) {
 
   const handleSubmitChecklistEvidence = () => {
     if (!selectedTask || !activeChecklistEvidence) return;
-    const { item, stage } = activeChecklistEvidence;
-    if (item.requiresPhoto && !checklistPhoto) {
-      setFeedback({ kind: 'error', message: 'اختر الصورة المطلوبة لعنصر الفحص.' });
-      return;
-    }
+    const { item } = activeChecklistEvidence;
     if (item.requiresNote && checklistNote.trim().length < 3) {
       setFeedback({ kind: 'error', message: 'اكتب ملاحظة واضحة لعنصر الفحص.' });
       return;
     }
 
     startTransition(async () => {
-      let photoFileId: string | undefined;
-      if (checklistPhoto) {
-        const preparedChecklistPhoto = await prepareImageForUpload(checklistPhoto);
-        const category = stage === 'ARRIVAL_INSPECTION'
-          ? 'before-photos'
-          : stage === 'CLOSING'
-            ? 'after-photos'
-            : 'during-photos';
-        const uploadData = new FormData();
-        uploadData.set('file', preparedChecklistPhoto);
-        uploadData.set('bookingId', selectedTask.id);
-        uploadData.set('category', category);
-        const response = await fetch('/api/upload', { method: 'POST', body: uploadData });
-        const uploaded = await response.json() as { error?: string; bookingFileId?: string };
-        if (!response.ok || !uploaded.bookingFileId) {
-          setFeedback({ kind: 'error', message: uploaded.error ?? 'تعذر رفع صورة عنصر الفحص.' });
-          return;
-        }
-        photoFileId = uploaded.bookingFileId;
-      }
-
       const formData = new FormData();
       formData.set('bookingId', selectedTask.id);
       formData.set('itemId', item.id);
       formData.set('isChecked', 'true');
       if (checklistNote.trim()) formData.set('note', checklistNote.trim());
-      if (photoFileId) formData.set('photoFileId', photoFileId);
       const result = await toggleChecklistItemAction(formData);
-      setResult(result, 'تم حفظ دليل عنصر الفحص واعتماده.');
+      setResult(result, 'تم حفظ ملاحظة عنصر الفحص واعتماده.');
       if (!result.error) {
         setCheckedItems((current) => ({ ...current, [`${selectedTask.id}:${item.id}`]: true }));
         setActiveChecklistEvidence(null);
         setChecklistNote('');
-        setChecklistPhoto(null);
       }
     });
   };
@@ -503,7 +425,7 @@ export default function TechnicianTaskClient({ employee, bookings }: Props) {
         <section className="space-y-4 border-t border-neutral-800 pt-5" aria-labelledby="checklist-heading">
           <div>
             <h3 id="checklist-heading" className="text-sm font-black text-white">قوائم التنفيذ</h3>
-            <p className="mt-1 text-[11px] text-neutral-400">العناصر مأخوذة من قالب الخدمة، وليست قائمة نموذجية.</p>
+            <p className="mt-1 text-[11px] text-neutral-400">العناصر مأخوذة من قالب الخدمة المحدد من الإدارة.</p>
           </div>
           {selectedTask.service.checklistTemplates.length ? selectedTask.service.checklistTemplates.map((template) => {
             const stageEditable = canEditChecklistStage(template.stage, currentStatus);
@@ -530,7 +452,7 @@ export default function TechnicianTaskClient({ employee, bookings }: Props) {
                     <span>
                       <span className={`block text-xs font-medium ${isChecked ? 'text-neutral-500 line-through' : 'text-neutral-200'}`}>{item.labelAr}</span>
                       {item.descriptionAr ? <span className="mt-1 block text-[10px] text-neutral-500">{item.descriptionAr}</span> : null}
-                      {item.requiresPhoto || item.requiresNote ? <span className="mt-1 block text-[10px] text-amber-300">{item.requiresPhoto ? 'يتطلب صورة' : ''}{item.requiresPhoto && item.requiresNote ? ' · ' : ''}{item.requiresNote ? 'يتطلب ملاحظة' : ''}</span> : null}
+                      {item.requiresNote ? <span className="mt-1 block text-[10px] text-amber-300">يتطلب ملاحظة</span> : null}
                     </span>
                   </button>
                 );
@@ -543,7 +465,7 @@ export default function TechnicianTaskClient({ employee, bookings }: Props) {
           {activeChecklistEvidence ? (
             <div className="space-y-3 rounded-2xl border border-[#c9a227]/40 bg-[#080808] p-4" role="group" aria-labelledby="checklist-evidence-title">
               <div>
-                <h4 id="checklist-evidence-title" className="text-xs font-black text-white">استكمال دليل عنصر الفحص</h4>
+                <h4 id="checklist-evidence-title" className="text-xs font-black text-white">تسجيل ملاحظة عنصر الفحص</h4>
                 <p className="mt-1 text-[11px] text-neutral-400">{activeChecklistEvidence.item.labelAr}</p>
               </div>
               {activeChecklistEvidence.item.requiresNote ? (
@@ -552,39 +474,12 @@ export default function TechnicianTaskClient({ employee, bookings }: Props) {
                   <textarea id="checklist-note" value={checklistNote} onChange={(event) => setChecklistNote(event.target.value)} maxLength={1000} className="min-h-20 w-full rounded-xl border border-neutral-800 bg-[#141414] p-3 text-xs text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e5c45a]" />
                 </div>
               ) : null}
-              {activeChecklistEvidence.item.requiresPhoto ? (
-                <label className="flex cursor-pointer items-center rounded-xl border border-dashed border-neutral-700 bg-[#141414] px-3 py-3 text-xs text-neutral-300 focus-within:ring-2 focus-within:ring-[#e5c45a]">
-                  <Camera className="ml-2 h-4 w-4 text-[#e5c45a]" aria-hidden="true" />
-                  <span className="truncate">{checklistPhoto?.name ?? 'اختر صورة الدليل'}</span>
-                  <input data-testid="checklist-evidence-file" className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setChecklistPhoto(event.target.files?.[0] ?? null)} />
-                </label>
-              ) : null}
               <div className="flex gap-2">
                 <button data-testid="checklist-evidence-submit" type="button" disabled={isPending} onClick={handleSubmitChecklistEvidence} className="rounded-xl bg-[#e5c45a] px-5 py-2.5 text-xs font-black text-[#080808] disabled:opacity-45">حفظ واعتماد</button>
                 <button type="button" onClick={() => setActiveChecklistEvidence(null)} className="rounded-xl border border-neutral-700 px-5 py-2.5 text-xs font-bold text-neutral-300">إلغاء</button>
               </div>
             </div>
           ) : null}
-        </section>
-
-        <section className="space-y-3 border-t border-neutral-800 pt-5" aria-labelledby="photos-heading">
-          <div>
-            <h3 id="photos-heading" className="text-sm font-black text-white">توثيق الصور</h3>
-            <p className="mt-1 text-[11px] text-neutral-400">JPG أو PNG أو WEBP بحد أقصى 10MB. تُحفظ الملفات بشكل خاص.</p>
-          </div>
-          <div className="grid gap-2 sm:grid-cols-[180px_1fr_auto]">
-            <label className="sr-only" htmlFor="photo-type">نوع الصورة</label>
-            <select id="photo-type" value={effectivePhotoType} disabled={!allowedPhotoTypes.length} onChange={(event) => setPhotoType(event.target.value as PhotoType)} className="rounded-xl border border-neutral-800 bg-[#080808] p-3 text-xs text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e5c45a] disabled:opacity-45">
-              {allowedPhotoTypes.map((value) => <option key={value} value={value}>{PHOTO_CONFIG[value].label}</option>)}
-            </select>
-            <label className="flex cursor-pointer items-center rounded-xl border border-dashed border-neutral-700 bg-[#080808] px-3 py-2 text-xs text-neutral-300 focus-within:ring-2 focus-within:ring-[#e5c45a]">
-              <Camera className="ml-2 h-4 w-4 text-[#e5c45a]" aria-hidden="true" />
-              <span className="truncate">{photoFile?.name ?? 'اختر صورة من الجهاز'}</span>
-              <input data-testid="technician-photo-file" className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" disabled={!allowedPhotoTypes.length} onChange={(event) => setPhotoFile(event.target.files?.[0] ?? null)} />
-            </label>
-            <button data-testid="technician-photo-submit" type="button" disabled={isPending || !photoFile || !allowedPhotoTypes.length} onClick={handleUploadPhoto} className="rounded-xl bg-[#e5c45a] px-5 py-3 text-xs font-black text-[#080808] disabled:opacity-45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">رفع وتوثيق</button>
-          </div>
-          {!allowedPhotoTypes.length ? <p className="text-[11px] text-neutral-500">صور ما قبل الخدمة تُفتح عند ARRIVED، وصور التنفيذ وما بعده تُفتح عند IN_SERVICE.</p> : null}
         </section>
 
         <section className="space-y-3 border-t border-neutral-800 pt-5" aria-labelledby="notes-heading">

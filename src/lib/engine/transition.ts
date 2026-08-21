@@ -109,7 +109,6 @@ export async function transitionBookingStatus(
       const result = resultByItemId.get(item.id);
       return Boolean(
         result?.isChecked &&
-        (!item.requiresPhoto || result.photoUrl) &&
         (!item.requiresNote || result.note?.trim()),
       );
     });
@@ -120,9 +119,6 @@ export async function transitionBookingStatus(
     const completedStageSet = new Set(completedChecklistStages);
     if (EXECUTION_CHECKLIST_STAGES.some((stage) => !completedStageSet.has(stage))) {
       bypassedGuards.push('REQUIRED_CHECKLIST_STAGES');
-    }
-    if (afterPhotoCount < booking.service.minimumAfterPhotos) {
-      bypassedGuards.push('MINIMUM_AFTER_PHOTOS');
     }
   }
   if (

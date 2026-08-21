@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { redirect } from 'next/navigation';
 import {
   BookingStatus,
   ComplaintStatus,
@@ -19,6 +20,7 @@ import OwnerCommandCenter, {
   type BookingSummaryDto,
   type OwnerSection,
 } from './OwnerCommandCenter';
+import type { ManagedSubscription } from './subscriptions/SubscriptionManagementPanel';
 
 export const metadata: Metadata = {
   title: 'لوحة المالك',
@@ -35,13 +37,11 @@ const CAIRO_TIME_ZONE = 'Africa/Cairo';
 const VALID_SECTIONS = new Set<OwnerSection>([
   'overview',
   'bookings',
+  'subscriptions',
   'payments',
   'cancellations',
-  'quality',
   'teams',
   'branches',
-  'services',
-  'subscriptions',
   'customers',
   'reports',
   'audit',
@@ -155,8 +155,22 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
   const todayBounds = localDateBoundsUtc(today, CAIRO_TIME_ZONE);
   const monthBounds = localDateBoundsUtc(monthStartDate, CAIRO_TIME_ZONE);
 
-  const sectionParam = firstParam(query.section) as OwnerSection | undefined;
-  const currentSection = sectionParam && VALID_SECTIONS.has(sectionParam) ? sectionParam : 'overview';
+  const rawSection = firstParam(query.section);
+  if (rawSection === 'services') {
+    redirect('/admin/site?tab=services');
+  }
+  if (rawSection === 'branches') {
+    redirect('/admin/setup');
+  }
+  if (rawSection === 'quality') {
+    redirect('/operations');
+  }
+  if (rawSection === 'revenue') {
+    redirect('/admin/reports');
+  }
+  const currentSection = rawSection && VALID_SECTIONS.has(rawSection as OwnerSection)
+    ? (rawSection as OwnerSection)
+    : 'overview';
   const bookingQuery = (firstParam(query.q) ?? '').trim().slice(0, 100);
   const customerQuery = (firstParam(query.customer_q) ?? '').trim().slice(0, 100);
   const normalizedCustomerPhoneQuery = normalizePhone(customerQuery);
@@ -215,6 +229,7 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
       select: {
         id: true,
         nameAr: true,
+        nameEn: true,
         code: true,
         address: true,
         phone: true,
@@ -394,11 +409,9 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
   // Section-Aware Data Fetching: Only fetch heavy arrays when the active section requires them!
   const isOverview = currentSection === 'overview';
   const isBookings = currentSection === 'bookings';
+  const isSubscriptions = currentSection === 'subscriptions';
   const isPayments = currentSection === 'payments';
   const isCancellations = currentSection === 'cancellations';
-  const isQuality = currentSection === 'quality';
-  const isServices = currentSection === 'services';
-  const isSubscriptions = currentSection === 'subscriptions';
   const isCustomers = currentSection === 'customers';
   const isAudit = currentSection === 'audit';
   const isBranches = currentSection === 'branches';
@@ -465,8 +478,8 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
       : Promise.resolve([]),
   ]);
 
-  // Cancellations, Quality & Complaints
-  const [cancellationsRaw, refundsRaw, qualityRaw, complaintsRaw] = await Promise.all([
+  // Cancellations
+  const [cancellationsRaw, refundsRaw] = await Promise.all([
     isCancellations
       ? db.cancellationRequest.findMany({
           where: {
@@ -505,119 +518,69 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
           },
         })
       : Promise.resolve([]),
-    isQuality
-      ? db.booking.findMany({
-          where: { deletedAt: null, bookingStatus: BookingStatus.QUALITY_REVIEW },
-          take: 30,
-          orderBy: { startAt: 'asc' },
-          select: {
-            ...bookingSummarySelect,
-            service: {
-              select: {
-                nameAr: true,
-                minimumBeforePhotos: true,
-                minimumAfterPhotos: true,
-              },
-            },
-            files: {
-              where: { fileType: { in: [FileType.BEFORE_SERVICE, FileType.AFTER_SERVICE] } },
-              select: { fileType: true },
-            },
-          },
-        })
-      : Promise.resolve([]),
-    isQuality
-      ? db.complaint.findMany({
-          where: {
-            status: {
-              in: [
-                ComplaintStatus.OPEN,
-                ComplaintStatus.UNDER_REVIEW,
-                ComplaintStatus.ACTION_REQUIRED,
-              ],
-            },
-          },
-          take: 30,
-          orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }],
-          select: {
-            id: true,
-            type: true,
-            description: true,
-            priority: true,
-            status: true,
-            createdAt: true,
-            booking: { select: { bookingNumber: true } },
-            customer: { select: { user: { select: { fullName: true } } } },
-          },
-        })
-      : Promise.resolve([]),
   ]);
 
-  // Catalog, Subscriptions, Customers, Audit, and Branches
+  // Reports, Subscriptions, Customers, and Audit
   const [
     servicesRaw,
-    plansRaw,
-    activeSubscriptionsByPlan,
     subscriptionsRaw,
     customersRaw,
     auditLogsRaw,
-    branchRequestsRaw,
   ] = await Promise.all([
-    isServices || isReports
+    isReports
       ? db.service.findMany({
-          orderBy: [{ active: 'desc' }, { createdAt: 'desc' }],
-          select: {
-            id: true,
-            nameAr: true,
-            slug: true,
-            basePrice: true,
-            durationMinutes: true,
-            active: true,
-            bookableOnline: true,
-            subscriptionEligible: true,
-            _count: { select: { variants: true, addonLinks: true, bookings: true } },
-          },
-        })
-      : Promise.resolve([]),
-    isSubscriptions
-      ? db.subscriptionPlan.findMany({
-          orderBy: [{ active: 'desc' }, { createdAt: 'desc' }],
-          select: {
-            id: true,
-            nameAr: true,
-            descriptionAr: true,
-            price: true,
-            validityDays: true,
-            visitCount: true,
-            allowedVehicleCount: true,
-            active: true,
-            _count: { select: { subscriptions: true } },
-          },
-        })
-      : Promise.resolve([]),
-    isSubscriptions
-      ? db.customerSubscription.groupBy({
-          by: ['planId'],
-          where: { status: SubscriptionStatus.ACTIVE },
-          _count: { _all: true },
+          select: { id: true, nameAr: true },
         })
       : Promise.resolve([]),
     isSubscriptions
       ? db.customerSubscription.findMany({
-          take: 50,
           orderBy: { createdAt: 'desc' },
+          take: 100,
           select: {
             id: true,
             status: true,
-            startDate: true,
-            endDate: true,
+            purchasePrice: true,
             totalVisits: true,
             usedVisits: true,
             remainingVisits: true,
-            customer: { select: { user: { select: { fullName: true, phone: true } } } },
-            plan: { select: { nameAr: true } },
+            endDate: true,
+            customer: {
+              select: {
+                user: { select: { fullName: true, phone: true } },
+              },
+            },
+            plan: {
+              select: {
+                nameAr: true,
+                price: true,
+                freezeAllowed: true,
+                maxFreezeDays: true,
+              },
+            },
             branch: { select: { nameAr: true } },
-            _count: { select: { vehicles: true } },
+            serviceBalances: {
+              select: {
+                serviceId: true,
+                totalVisits: true,
+                remainingVisits: true,
+                service: { select: { nameAr: true } },
+              },
+              orderBy: { createdAt: 'asc' },
+            },
+            paymentProofs: {
+              orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+              take: 1,
+              select: {
+                id: true,
+                proofFileUrl: true,
+                amountSubmitted: true,
+                referenceNumber: true,
+                status: true,
+                reviewNotes: true,
+                createdAt: true,
+                paymentMethod: { select: { name: true } },
+              },
+            },
           },
         })
       : Promise.resolve([]),
@@ -696,22 +659,6 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
             reason: true,
             createdAt: true,
             actor: { select: { fullName: true } },
-          },
-        })
-      : Promise.resolve([]),
-    isBranches
-      ? db.branchRequest.findMany({
-          where: { ownerId: owner.id },
-          take: 20,
-          orderBy: { createdAt: 'desc' },
-          select: {
-            id: true,
-            branchName: true,
-            reason: true,
-            status: true,
-            rejectionReason: true,
-            createdAt: true,
-            reviewedAt: true,
           },
         })
       : Promise.resolve([]),
@@ -811,6 +758,7 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
   const branches = branchesRaw.map((branch) => ({
     id: branch.id,
     nameAr: branch.nameAr,
+    nameEn: branch.nameEn,
     code: branch.code,
     address: branch.address,
     phone: branch.phone,
@@ -847,9 +795,6 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
   const serviceNames = new Map(servicesRaw.map((service) => [service.id, service.nameAr]));
   const branchNames = new Map(branchesRaw.map((branch) => [branch.id, branch.nameAr]));
   const teamNames = new Map(teamsRaw.map((team) => [team.id, team.name]));
-  const activeSubscriptionsMap = new Map(
-    activeSubscriptionsByPlan.map((item) => [item.planId, item._count._all]),
-  );
 
   const reportTotalBookings = reportStatusGroups.reduce((total, group) => total + group._count._all, 0);
   const completedInRange = reportStatusGroups
@@ -913,6 +858,40 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
     visitsRemaining: activeVisitTotals._sum.remainingVisits ?? 0,
   };
 
+  const managedSubscriptions: ManagedSubscription[] = subscriptionsRaw.map((sub) => ({
+    id: sub.id,
+    customerName: sub.customer.user.fullName,
+    customerPhone: sub.customer.user.phone,
+    planName: sub.plan.nameAr,
+    expectedPrice: sub.plan.price,
+    branchName: sub.branch.nameAr,
+    status: sub.status,
+    totalVisits: sub.totalVisits,
+    usedVisits: sub.usedVisits,
+    remainingVisits: sub.remainingVisits,
+    endDate: sub.endDate.toISOString(),
+    freezeAllowed: sub.plan.freezeAllowed,
+    maxFreezeDays: sub.plan.maxFreezeDays,
+    serviceBalances: sub.serviceBalances.map((sb) => ({
+      serviceId: sb.serviceId,
+      nameAr: sb.service.nameAr,
+      totalVisits: sb.totalVisits,
+      remainingVisits: sb.remainingVisits,
+    })),
+    paymentProof: sub.paymentProofs[0]
+      ? {
+          id: sub.paymentProofs[0].id,
+          proofFileUrl: sub.paymentProofs[0].proofFileUrl,
+          amountSubmitted: sub.paymentProofs[0].amountSubmitted,
+          referenceNumber: sub.paymentProofs[0].referenceNumber,
+          status: sub.paymentProofs[0].status,
+          reviewNotes: sub.paymentProofs[0].reviewNotes,
+          createdAt: sub.paymentProofs[0].createdAt.toISOString(),
+          paymentMethod: { name: sub.paymentProofs[0].paymentMethod.name },
+        }
+      : null,
+  }));
+
   return (
     <OwnerCommandCenter
       owner={{
@@ -966,65 +945,10 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
         createdAt: refund.createdAt.toISOString(),
         booking: toBookingDto(refund.booking),
       }))}
-      qualityBookings={qualityRaw.map((booking) => ({
-        booking: toBookingDto(booking),
-        beforePhotos: booking.files.filter((file) => file.fileType === FileType.BEFORE_SERVICE).length,
-        afterPhotos: booking.files.filter((file) => file.fileType === FileType.AFTER_SERVICE).length,
-        minimumBeforePhotos: booking.service.minimumBeforePhotos,
-        minimumAfterPhotos: booking.service.minimumAfterPhotos,
-      }))}
-      complaints={complaintsRaw.map((complaint) => ({
-        id: complaint.id,
-        type: complaint.type,
-        description: complaint.description,
-        priority: complaint.priority,
-        status: complaint.status,
-        createdAt: complaint.createdAt.toISOString(),
-        bookingNumber: complaint.booking.bookingNumber,
-        customerName: complaint.customer.user.fullName,
-      }))}
       bookings={bookingsRaw.map(toBookingDto)}
+      managedSubscriptions={managedSubscriptions}
       teams={teams}
       branches={branches}
-      services={servicesRaw.map((service) => ({
-        id: service.id,
-        nameAr: service.nameAr,
-        slug: service.slug,
-        basePrice: service.basePrice,
-        durationMinutes: service.durationMinutes,
-        active: service.active,
-        bookableOnline: service.bookableOnline,
-        subscriptionEligible: service.subscriptionEligible,
-        variantCount: service._count.variants,
-        addonCount: service._count.addonLinks,
-        bookingCount: service._count.bookings,
-      }))}
-      plans={plansRaw.map((plan) => ({
-        id: plan.id,
-        nameAr: plan.nameAr,
-        descriptionAr: plan.descriptionAr,
-        price: plan.price,
-        validityDays: plan.validityDays,
-        visitCount: plan.visitCount,
-        allowedVehicleCount: plan.allowedVehicleCount,
-        active: plan.active,
-        subscriptionCount: plan._count.subscriptions,
-        activeSubscriptionCount: activeSubscriptionsMap.get(plan.id) ?? 0,
-      }))}
-      subscriptions={subscriptionsRaw.map((subscription) => ({
-        id: subscription.id,
-        status: subscription.status,
-        startDate: subscription.startDate.toISOString(),
-        endDate: subscription.endDate.toISOString(),
-        totalVisits: subscription.totalVisits,
-        usedVisits: subscription.usedVisits,
-        remainingVisits: subscription.remainingVisits,
-        customerName: subscription.customer.user.fullName,
-        customerPhone: subscription.customer.user.phone,
-        planName: subscription.plan.nameAr,
-        branchName: subscription.branch.nameAr,
-        vehicleCount: subscription._count.vehicles,
-      }))}
       customers={customersRaw.map((customer) => ({
         id: customer.id,
         fullName: customer.user.fullName,
@@ -1078,15 +1002,6 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
         actorRole: log.actorRole,
         reason: log.reason,
         createdAt: log.createdAt.toISOString(),
-      }))}
-      branchRequests={branchRequestsRaw.map((request) => ({
-        id: request.id,
-        branchName: request.branchName,
-        reason: request.reason,
-        status: request.status,
-        rejectionReason: request.rejectionReason,
-        createdAt: request.createdAt.toISOString(),
-        reviewedAt: request.reviewedAt?.toISOString() ?? null,
       }))}
       reports={{
         from: reportFrom,

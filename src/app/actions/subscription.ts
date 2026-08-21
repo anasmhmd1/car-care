@@ -97,6 +97,7 @@ function revalidateSubscriptionPaths(subscriptionId?: string): void {
   revalidatePath('/account');
   revalidatePath('/account/subscriptions');
   revalidatePath('/admin/subscriptions');
+  revalidatePath('/admin/site');
   if (subscriptionId) revalidatePath(`/account/subscriptions/${subscriptionId}`);
 }
 

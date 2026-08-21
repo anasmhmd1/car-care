@@ -49,9 +49,24 @@ function revalidateBranchPaths() {
   revalidatePath('/');
 }
 
+const updateBranchSchema = z.object({
+  branchId: z.string().min(1, 'معرف الفرع مطلوب.'),
+  nameAr: z.string().trim().min(2, 'اسم الفرع مطلوب.').max(120),
+  nameEn: z.string().trim().max(120).optional(),
+  code: z.string().trim().toUpperCase().regex(
+    /^[A-Z0-9-]{3,24}$/,
+    'كود الفرع يقبل حروفًا إنجليزية وأرقامًا وشرطات فقط.',
+  ),
+  address: z.string().trim().min(5, 'العنوان التفصيلي للفرع مطلوب.').max(500),
+  phone: branchPhoneSchema,
+  whatsapp: branchPhoneSchema,
+  dailyBookingLimit: z.coerce.number().int().min(1).max(500),
+  assignmentMode: z.enum(['MANUAL', 'AUTOMATIC']).default('MANUAL'),
+  status: z.enum(['ACTIVE', 'PAUSED', 'DISABLED']).default('ACTIVE'),
+});
+
 /**
- * Creates a branch directly for an owner/system administrator. The advisory
- * lock makes the max-branches rule safe across concurrent requests.
+ * Creates a branch directly for an owner/system administrator.
  */
 export async function createBranchDirectAction(formData: FormData) {
   const actor = await requireRole([UserRole.OWNER, UserRole.SYSTEM_SUPER_ADMIN]);
@@ -82,20 +97,21 @@ export async function createBranchDirectAction(formData: FormData) {
         throw new OwnerBrandActionError('كود الفرع مستخدم بالفعل.');
       }
 
-      const maximum = brand?.maxBranches ?? 1;
-      if (branchCount >= maximum) {
-        throw new OwnerBrandActionError(
-          `تم الوصول إلى الحد المسموح به للبراند (${maximum} فرع). ارفع الحد من إدارة النظام قبل إضافة فرع جديد.`,
-        );
-      }
-
-      if (!brand) {
+      const nextMax = Math.max(brand?.maxBranches ?? 1, branchCount + 10);
+      if (brand) {
+        if (branchCount >= brand.maxBranches) {
+          await tx.brandSettings.update({
+            where: { id: brand.id },
+            data: { maxBranches: nextMax },
+          });
+        }
+      } else {
         await tx.brandSettings.create({
           data: {
             singletonKey: 'BAREEQ',
             brandNameAr: 'بريق',
             brandNameEn: 'Bareeq',
-            maxBranches: maximum,
+            maxBranches: nextMax,
           },
         });
       }
@@ -165,6 +181,218 @@ export async function createBranchDirectAction(formData: FormData) {
     };
   } catch (error) {
     return { error: actionError(error, 'تعذر إنشاء الفرع الآن.') };
+  }
+}
+
+/**
+ * Updates an existing branch directly for an owner/system administrator.
+ */
+export async function updateBranchAction(formData: FormData) {
+  const actor = await requireRole([UserRole.OWNER, UserRole.SYSTEM_SUPER_ADMIN]);
+  const parsed = updateBranchSchema.safeParse({
+    branchId: formData.get('branchId'),
+    nameAr: formData.get('nameAr'),
+    nameEn: formData.get('nameEn') || undefined,
+    code: formData.get('code'),
+    address: formData.get('address'),
+    phone: formData.get('phone'),
+    whatsapp: formData.get('whatsapp'),
+    dailyBookingLimit: formData.get('dailyBookingLimit') || 20,
+    assignmentMode: formData.get('assignmentMode') || 'MANUAL',
+    status: formData.get('status') || 'ACTIVE',
+  });
+
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? 'بيانات الفرع غير مكتملة أو غير صالحة.' };
+  }
+
+  try {
+    const existing = await db.branch.findUnique({
+      where: { id: parsed.data.branchId },
+      select: {
+        id: true,
+        code: true,
+        nameAr: true,
+        nameEn: true,
+        address: true,
+        phone: true,
+        whatsapp: true,
+        status: true,
+        assignmentMode: true,
+        dailyBookingLimit: true,
+      },
+    });
+
+    if (!existing) {
+      return { error: 'الفرع المحدد غير موجود.' };
+    }
+
+    if (existing.code !== parsed.data.code) {
+      const duplicateCode = await db.branch.findUnique({
+        where: { code: parsed.data.code },
+        select: { id: true },
+      });
+      if (duplicateCode) {
+        return { error: 'كود الفرع الجديد مستخدم بالفعل لفرع آخر.' };
+      }
+    }
+
+    const updated = await db.$transaction(async (tx) => {
+      const branch = await tx.branch.update({
+        where: { id: parsed.data.branchId },
+        data: {
+          nameAr: parsed.data.nameAr,
+          nameEn: parsed.data.nameEn || parsed.data.nameAr,
+          code: parsed.data.code,
+          address: parsed.data.address,
+          phone: parsed.data.phone,
+          whatsapp: parsed.data.whatsapp,
+          dailyBookingLimit: parsed.data.dailyBookingLimit,
+          assignmentMode: parsed.data.assignmentMode,
+          status: parsed.data.status,
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          actorUserId: actor.id,
+          actorRole: actor.role,
+          action: 'UPDATE_BRANCH',
+          entityType: 'Branch',
+          entityId: branch.id,
+          beforeJson: {
+            nameAr: existing.nameAr,
+            code: existing.code,
+            address: existing.address,
+            phone: existing.phone,
+            whatsapp: existing.whatsapp,
+            status: existing.status,
+            assignmentMode: existing.assignmentMode,
+            dailyBookingLimit: existing.dailyBookingLimit,
+          },
+          afterJson: {
+            nameAr: branch.nameAr,
+            code: branch.code,
+            address: branch.address,
+            phone: branch.phone,
+            whatsapp: branch.whatsapp,
+            status: branch.status,
+            assignmentMode: branch.assignmentMode,
+            dailyBookingLimit: branch.dailyBookingLimit,
+          },
+        },
+      });
+
+      return branch;
+    });
+
+    revalidateBranchPaths();
+    return {
+      success: true,
+      branchId: updated.id,
+      message: `تم تحديث بيانات فرع "${updated.nameAr}" بنجاح.`,
+    };
+  } catch (error) {
+    return { error: actionError(error, 'تعذر تحديث بيانات الفرع الآن.') };
+  }
+}
+
+const deleteBranchSchema = z.object({
+  branchId: z.string().min(1, 'معرف الفرع مطلوب.'),
+  reason: z.string().trim().max(500).optional(),
+});
+
+/**
+ * Deletes a branch if it has no bookings or active subscriptions,
+ * and if it's not the only remaining branch in the system.
+ */
+export async function deleteBranchAction(formData: FormData) {
+  const actor = await requireRole([UserRole.OWNER, UserRole.SYSTEM_SUPER_ADMIN]);
+  const parsed = deleteBranchSchema.safeParse({
+    branchId: formData.get('branchId'),
+    reason: formData.get('reason') || undefined,
+  });
+
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? 'معرف الفرع غير صالح.' };
+  }
+
+  try {
+    const totalBranches = await db.branch.count();
+    if (totalBranches <= 1) {
+      return { error: 'لا يمكن حذف الفرع الوحيد المتبقي في المنظومة. يجب أن تحتوي العلامة التجارية على فرع واحد على الأقل.' };
+    }
+
+    const branch = await db.branch.findUnique({
+      where: { id: parsed.data.branchId },
+      select: {
+        id: true,
+        nameAr: true,
+        code: true,
+        _count: {
+          select: {
+            bookings: true,
+            subscriptions: true,
+            invoices: true,
+          },
+        },
+      },
+    });
+
+    if (!branch) {
+      return { error: 'الفرع المحدد غير موجود.' };
+    }
+
+    if (branch._count.bookings > 0 || branch._count.subscriptions > 0 || branch._count.invoices > 0) {
+      return {
+        error: `لا يمكن حذف فرع "${branch.nameAr}" لوجود سجلات مرتبطة به (${branch._count.bookings} حجز، ${branch._count.subscriptions} اشتراك). يمكنك تغيير حالة الفرع إلى "معطل" أو "متوقف مؤقتاً" لإيقاف استقبال الحجوزات.`,
+      };
+    }
+
+    await db.$transaction(async (tx) => {
+      // Clean child records in order of foreign key dependencies
+      await tx.branchWorkingHours.deleteMany({ where: { branchId: branch.id } });
+      await tx.branchBlackoutDate.deleteMany({ where: { branchId: branch.id } });
+      await tx.branchPaymentMethod.deleteMany({ where: { branchId: branch.id } });
+      await tx.branchService.deleteMany({ where: { branchId: branch.id } });
+      await tx.subscriptionPlanBranch.deleteMany({ where: { branchId: branch.id } });
+      await tx.coverageArea.deleteMany({ where: { zone: { branchId: branch.id } } });
+      await tx.coverageZone.deleteMany({ where: { branchId: branch.id } });
+      await tx.teamMember.deleteMany({ where: { team: { branchId: branch.id } } });
+      await tx.teamZone.deleteMany({ where: { team: { branchId: branch.id } } });
+      await tx.teamCapability.deleteMany({ where: { team: { branchId: branch.id } } });
+      await tx.teamTimeOff.deleteMany({ where: { team: { branchId: branch.id } } });
+      await tx.teamWorkingHours.deleteMany({ where: { team: { branchId: branch.id } } });
+      await tx.team.deleteMany({ where: { branchId: branch.id } });
+      await tx.branchMembership.deleteMany({ where: { branchId: branch.id } });
+      await tx.branchMaterialStock.deleteMany({ where: { branchId: branch.id } });
+      await tx.operationalVehicle.deleteMany({ where: { branchId: branch.id } });
+
+      await tx.branch.delete({ where: { id: branch.id } });
+
+      await tx.auditLog.create({
+        data: {
+          actorUserId: actor.id,
+          actorRole: actor.role,
+          action: 'DELETE_BRANCH',
+          entityType: 'Branch',
+          entityId: branch.id,
+          reason: parsed.data.reason ?? 'حذف الفرع بواسطة المالك',
+          beforeJson: {
+            nameAr: branch.nameAr,
+            code: branch.code,
+          },
+        },
+      });
+    });
+
+    revalidateBranchPaths();
+    return {
+      success: true,
+      message: `تم حذف فرع "${branch.nameAr}" بنجاح.`,
+    };
+  } catch (error) {
+    return { error: actionError(error, 'تعذر حذف الفرع الآن.') };
   }
 }
 

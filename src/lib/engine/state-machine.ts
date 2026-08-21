@@ -296,18 +296,12 @@ export function validateStatusTransition(
     if (!completedStages.has(ChecklistStage.TEAM_PREPARATION) || !completedStages.has(ChecklistStage.ARRIVAL_INSPECTION)) {
       return { allowed: false, code: 'CHECKLIST_INCOMPLETE', message: 'أكمل قوائم التحضير وفحص الوصول قبل بدء الخدمة.' };
     }
-    if ((evidence.beforePhotoCount ?? 0) < (evidence.minimumBeforePhotos ?? 0)) {
-      return { allowed: false, code: 'BEFORE_PHOTOS_REQUIRED', message: 'صور ما قبل الخدمة المطلوبة غير مكتملة.' };
-    }
   }
 
   if (toStatus === BookingStatus.QUALITY_REVIEW && !evidence.managerOverride) {
     const missingExecutionStage = EXECUTION_CHECKLIST_STAGES.some((stage) => !completedStages.has(stage));
     if (missingExecutionStage) {
       return { allowed: false, code: 'CHECKLIST_INCOMPLETE', message: 'لا يمكن إرسال الحجز للجودة قبل إكمال قوائم التنفيذ.' };
-    }
-    if ((evidence.afterPhotoCount ?? 0) < (evidence.minimumAfterPhotos ?? 0)) {
-      return { allowed: false, code: 'AFTER_PHOTOS_REQUIRED', message: 'صور ما بعد الخدمة المطلوبة غير مكتملة.' };
     }
   }
 

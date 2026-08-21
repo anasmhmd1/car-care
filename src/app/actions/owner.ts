@@ -519,6 +519,7 @@ function revalidateSubscriptionPlanPaths(): void {
   revalidatePath('/');
   revalidatePath('/admin');
   revalidatePath('/admin/subscriptions');
+  revalidatePath('/admin/site');
   revalidatePath('/plans');
   revalidatePath('/account');
   revalidatePath('/account/subscriptions');

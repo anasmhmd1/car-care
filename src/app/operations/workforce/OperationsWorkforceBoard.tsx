@@ -257,11 +257,13 @@ function ConfirmationDialog({
 
 function EmployeeSection({
   branch,
+  branches,
   employees,
   actorRole,
   tools,
 }: {
   branch: OperationsWorkforceBranchDto;
+  branches: OperationsWorkforceBranchDto[];
   employees: OperationsWorkforceEmployeeDto[];
   actorRole: ActorRoleCode;
   tools: SectionTools;
@@ -307,6 +309,11 @@ function EmployeeSection({
                   <span className="rounded-full bg-white/[0.055] px-2 py-1">
                     {employee.teamId ? 'مرتبط بفريق' : 'دون فريق'}
                   </span>
+                  {employee.role === 'OPERATIONS_MANAGER' && employee.branchIds.length > 1 && (
+                    <span className="rounded-full bg-[#d4af37]/15 text-[#f0d879] border border-[#d4af37]/30 px-2 py-1">
+                      {employee.branchIds.length} فروع
+                    </span>
+                  )}
                 </div>
               </button>
             ))}
@@ -317,6 +324,7 @@ function EmployeeSection({
       <EmployeeForm
         key={selected?.id ?? 'new'}
         branch={branch}
+        branches={branches}
         employee={selected}
         actorRole={actorRole}
         tools={tools}
@@ -327,22 +335,26 @@ function EmployeeSection({
 
 function EmployeeForm({
   branch,
+  branches,
   employee,
   actorRole,
   tools,
 }: {
   branch: OperationsWorkforceBranchDto;
+  branches: OperationsWorkforceBranchDto[];
   employee?: OperationsWorkforceEmployeeDto;
   actorRole: ActorRoleCode;
   tools: SectionTools;
 }) {
   const canManageManagers = actorRole !== 'OPERATIONS_MANAGER';
+  const [role, setRole] = useState<'EMPLOYEE' | 'OPERATIONS_MANAGER'>(employee?.role ?? 'EMPLOYEE');
+
   return (
     <Panel
       title={employee ? 'تعديل حساب ' + employee.fullName : 'إنشاء حساب للقوى العاملة'}
       description={canManageManagers
-        ? 'يمكن للمالك والنظام تحديد Employee أو Operations Manager.'
-        : 'هذه المساحة تتيح لمدير التشغيل إدارة حسابات Employee فقط.'}
+        ? 'يمكن للمالك والنظام تحديد موظف تنفيذ أو مدير تشغيل وإسناد أكثر من فرع للمدير.'
+        : 'هذه المساحة تتيح لمدير التشغيل إدارة حسابات موظفي التنفيذ فقط.'}
     >
       <form onSubmit={(event) => tools.execute(saveOperationsEmployeeAction, formDataFrom(event))} className="space-y-5">
         {employee ? <input type="hidden" name="employeeId" value={employee.id} /> : null}
@@ -355,7 +367,12 @@ function EmployeeForm({
           <label className="text-xs font-bold text-white/65">
             الدور
             {canManageManagers ? (
-              <select name="role" defaultValue={employee?.role ?? 'EMPLOYEE'} className={inputClass}>
+              <select
+                name="role"
+                value={role}
+                onChange={(e) => setRole(e.target.value as 'EMPLOYEE' | 'OPERATIONS_MANAGER')}
+                className={inputClass}
+              >
                 <option value="EMPLOYEE">موظف تنفيذ</option>
                 <option value="OPERATIONS_MANAGER">مدير تشغيل</option>
               </select>
@@ -383,6 +400,44 @@ function EmployeeForm({
             <input name="temporaryPassword" type="password" required={!employee} minLength={employee ? undefined : 12} maxLength={128} autoComplete="new-password" className={inputClass} />
           </label>
         </div>
+
+        {canManageManagers && role === 'OPERATIONS_MANAGER' && branches.length > 1 && (
+          <div className="rounded-xl border border-[#d4af37]/30 bg-[#d4af37]/[0.05] p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-black text-[#f0d879]">الفروع المسموح لمدير التشغيل بإدارتها</p>
+                <p className="mt-0.5 text-[11px] text-white/50">
+                  حدد الفروع التي يمتلك هذا المدير صلاحية الإشراف عليها ومتابعة حجوزاتها وفرقها:
+                </p>
+              </div>
+              <span className="rounded-md bg-[#d4af37]/20 border border-[#d4af37]/40 px-2 py-0.5 text-[10px] font-bold text-[#f0d879]">
+                إدارة متعددة الفروع
+              </span>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {branches.map((b) => {
+                const isChecked = employee ? employee.branchIds.includes(b.id) : b.id === branch.id;
+                return (
+                  <label
+                    key={b.id}
+                    className="flex items-center gap-2.5 rounded-lg border border-white/10 bg-black/40 px-3 py-2.5 text-xs font-bold text-white/90 hover:bg-black/60 hover:border-[#d4af37]/40 transition cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      name="branchIds"
+                      value={b.id}
+                      defaultChecked={isChecked}
+                      className="size-4 rounded accent-[#d4af37]"
+                    />
+                    <span>{b.nameAr}</span>
+                    <span className="text-[10px] font-mono text-white/40">({b.code})</span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-xl border border-white/10 bg-black/30 p-3 text-sm text-white/75">
           <input type="checkbox" name="active" value="true" defaultChecked={employee?.active ?? true} className="mt-0.5 size-4 accent-[#d4af37]" />
           <input type="hidden" name="active" value="false" />
@@ -928,7 +983,7 @@ export default function OperationsWorkforceBoard({
   } else if (section === 'availability') {
     content = <AvailabilitySection key={branch.id} branch={branch} employees={branchEmployees} tools={tools} />;
   } else if (canManageEmployeeAccounts) {
-    content = <EmployeeSection key={branch.id} branch={branch} employees={branchEmployees} actorRole={actor.role} tools={tools} />;
+    content = <EmployeeSection key={branch.id} branch={branch} branches={branches} employees={branchEmployees} actorRole={actor.role} tools={tools} />;
   } else {
     content = (
       <EmptyState

@@ -160,41 +160,6 @@ export default async function BookingDetailPage({ params }: BookingDetailProps) 
           </div>
         )}
 
-        {/* Photos Evidence Section (Before / After) */}
-        {(beforeFiles.length > 0 || afterFiles.length > 0) && (
-          <div className="p-6 rounded-2xl bg-[#141414] border border-[#c9a227]/20 space-y-4">
-            <h3 className="font-bold text-sm text-white flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-[#c9a227]" />
-              <span>صور توثيق الخدمة (قبل وبعد)</span>
-            </h3>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <span className="text-xs font-bold text-neutral-400 block mb-2">صور قبل التنفيذ ({beforeFiles.length})</span>
-                <div className="grid grid-cols-2 gap-2">
-                  {beforeFiles.map((file) => (
-                    <Image key={file.id} src={file.fileUrl} alt="صورة السيارة قبل تنفيذ الخدمة" width={480} height={320} unoptimized className="w-full h-32 object-cover rounded-xl border border-neutral-800" />
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <span className="text-xs font-bold text-[#e5c45a] block mb-2">صور بعد التنفيذ ({afterFiles.length})</span>
-                <div className="grid grid-cols-2 gap-2">
-                  {afterFiles.map((file) => (
-                    <Image key={file.id} src={file.fileUrl} alt="صورة السيارة بعد تنفيذ الخدمة" width={480} height={320} unoptimized className="w-full h-32 object-cover rounded-xl border border-[#c9a227]/30" />
-                  ))}
-                </div>
-              </div>
-            </div>
-            <GalleryConsentForm
-              bookingId={booking.id}
-              fileCount={beforeFiles.length + afterFiles.length}
-              hasConsent={[...beforeFiles, ...afterFiles].every((file) => Boolean(file.customerGalleryConsentAt))}
-            />
-          </div>
-        )}
-
         {/* Simple Receipt Section */}
         <div className="p-6 rounded-2xl bg-[#141414] border border-neutral-800 space-y-4">
           <h3 className="font-bold text-sm text-white flex items-center gap-2">

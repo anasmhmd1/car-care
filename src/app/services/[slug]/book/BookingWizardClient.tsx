@@ -593,12 +593,8 @@ export default function BookingWizardClient({
     [selectedArea?.zone.branchId, paymentMethods],
   );
 
-  const variant = service.variants.find((item) => item.vehicleSize === vehicleSize);
-  const basePrice = variant?.price ?? service.basePrice;
-  const addonsPrice = selectedAddonIds.reduce((total, addonId) => {
-    const link = service.addonLinks.find((item) => item.addon.id === addonId);
-    return total + (link?.addon.price ?? 0);
-  }, 0);
+  const basePrice = service.basePrice;
+  const addonsPrice = 0;
   const subscriptionApplies = Boolean(
     selectedSubscription &&
       !subscriptionIssue(
@@ -799,21 +795,6 @@ export default function BookingWizardClient({
     if (selectedVehicleId !== 'new') return true;
     if (!vehicleMake.trim()) {
       showError('اكتب ماركة السيارة.', 'vehicle-make');
-      return false;
-    }
-    if (!vehicleModel.trim()) {
-      showError('اكتب موديل السيارة.', 'vehicle-model');
-      return false;
-    }
-    const yearNumber = Number(vehicleYear);
-    const currentYear = new Date().getFullYear();
-    if (
-      !vehicleYear.trim() ||
-      Number.isNaN(yearNumber) ||
-      yearNumber < 1990 ||
-      yearNumber > currentYear + 1
-    ) {
-      showError(`سنة الموديل يجب أن تكون بين 1990 و ${currentYear + 1}.`, 'vehicle-year');
       return false;
     }
     if (!vehicleColor.trim()) {
@@ -1265,26 +1246,6 @@ export default function BookingWizardClient({
                   <div>
                     <label htmlFor="vehicle-make" className={labelClass}>الماركة (مثل: مرسيدس، بي إم دبليو، تويوتا)</label>
                     <input id="vehicle-make" value={vehicleMake} onChange={(e) => setVehicleMake(e.target.value)} maxLength={100} className={inputClass} placeholder="الماركة" />
-                  </div>
-                  <div>
-                    <label htmlFor="vehicle-model" className={labelClass}>الموديل (مثل: C200، X5، كورولا)</label>
-                    <input id="vehicle-model" value={vehicleModel} onChange={(e) => setVehicleModel(e.target.value)} maxLength={100} className={inputClass} placeholder="الموديل" />
-                  </div>
-                  <div>
-                    <label htmlFor="vehicle-year" className={labelClass}>سنة الموديل</label>
-                    <select
-                      id="vehicle-year"
-                      value={vehicleYear}
-                      onChange={(e) => setVehicleYear(e.target.value)}
-                      className={inputClass}
-                    >
-                      <option value="" disabled className="bg-neutral-900 text-white">اختر سنة الموديل</option>
-                      {modelYears.map((y) => (
-                        <option key={y} value={String(y)} className="bg-neutral-900 text-white">
-                          {y}
-                        </option>
-                      ))}
-                    </select>
                   </div>
                   <div>
                     <label htmlFor="vehicle-color" className={labelClass}>لون السيارة</label>
@@ -1746,7 +1707,7 @@ export default function BookingWizardClient({
               </div>
               <div className="grid gap-2 py-4 sm:grid-cols-[140px_1fr]">
                 <span className="font-bold text-white">السيارة</span>
-                <span className="font-bold text-white">{vehicleMake} {vehicleModel} · {vehicleYear} · {vehicleColor}</span>
+                <span className="font-bold text-white">{vehicleMake} · {vehicleColor}{plateNumber ? ` · ${plateNumber}` : ''}</span>
               </div>
               <div className="grid gap-2 py-4 sm:grid-cols-[140px_1fr]">
                 <span className="font-bold text-white">الموقع</span>

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import {
+  Car,
   Layers,
   FileText,
   HelpCircle,
@@ -11,6 +12,7 @@ import {
   Compass,
   Images,
   FileCheck2,
+  PackageCheck,
   Share2,
 } from 'lucide-react';
 import CollectionsManager from './CollectionsManager';
@@ -19,6 +21,17 @@ import PoliciesManager from './PoliciesManager';
 import SiteContentManager from './SiteContentManager';
 import SocialContactManager from './SocialContactManager';
 import ZonesCoverageManager, { type CoverageZoneItem } from './ZonesCoverageManager';
+import ServicesManager, {
+  type CatalogMaterialDto,
+  type SiteServiceDto,
+} from './ServicesManager';
+import SubscriptionsManager from './SubscriptionsManager';
+import {
+  type SubscriptionPlanAdminItem,
+  type SubscriptionPlanBranchOption,
+  type SubscriptionPlanServiceOption,
+} from '../subscriptions/SubscriptionPlanManager';
+import { type ManagedSubscription } from '../subscriptions/SubscriptionManagementPanel';
 import { type ServiceCollection } from '@/lib/service-collections';
 import { type FaqItem, type HomepageContent } from '@/lib/homepage-content';
 import { type GalleryItem } from '@/lib/gallery-items';
@@ -40,9 +53,26 @@ interface BranchContactDto {
   whatsapp: string;
 }
 
+export type TabKey =
+  | 'services'
+  | 'subscriptions'
+  | 'collections'
+  | 'gallery'
+  | 'policies'
+  | 'social'
+  | 'zones'
+  | 'content'
+  | 'faqs';
+
 interface AdminSiteClientProps {
   initialCollections: ServiceCollection[];
   availableServices: ServiceOption[];
+  fullServices?: SiteServiceDto[];
+  materials?: CatalogMaterialDto[];
+  plans?: SubscriptionPlanAdminItem[];
+  subscriptions?: ManagedSubscription[];
+  subscriptionServices?: SubscriptionPlanServiceOption[];
+  subscriptionBranches?: SubscriptionPlanBranchOption[];
   initialContent: HomepageContent;
   initialFaqs: FaqItem[];
   initialZones: CoverageZoneItem[];
@@ -52,11 +82,20 @@ interface AdminSiteClientProps {
   branches?: BranchContactDto[];
   activeBranch?: BranchContactDto | null;
   defaultBranchId: string;
+  initialTab?: string;
+  initialServiceId?: string;
+  isNewService?: boolean;
 }
 
 export default function AdminSiteClient({
   initialCollections,
   availableServices,
+  fullServices = [],
+  materials = [],
+  plans = [],
+  subscriptions = [],
+  subscriptionServices = [],
+  subscriptionBranches = [],
   initialContent,
   initialFaqs,
   initialZones,
@@ -66,15 +105,34 @@ export default function AdminSiteClient({
   branches = [],
   activeBranch,
   defaultBranchId,
+  initialTab,
+  initialServiceId,
+  isNewService,
 }: AdminSiteClientProps) {
-  const [activeTab, setActiveTab] = useState<
-    'collections' | 'gallery' | 'policies' | 'social' | 'zones' | 'content' | 'faqs'
-  >('collections');
+  const [activeTab, setActiveTab] = useState<TabKey>(() => {
+    const validTabs: TabKey[] = [
+      'services',
+      'subscriptions',
+      'collections',
+      'gallery',
+      'policies',
+      'social',
+      'zones',
+      'content',
+      'faqs',
+    ];
+    if (initialTab && validTabs.includes(initialTab as TabKey)) {
+      return initialTab as TabKey;
+    }
+    return 'services';
+  });
 
   return (
-    <main className="min-h-screen bg-[#050505] px-4 py-10 text-white sm:px-6 lg:px-8 font-sans selection:bg-[#cea355] selection:text-black" dir="rtl">
+    <main
+      className="min-h-screen bg-[#050505] px-4 py-10 text-white sm:px-6 lg:px-8 font-sans selection:bg-[#cea355] selection:text-black"
+      dir="rtl"
+    >
       <div className="mx-auto max-w-6xl space-y-8">
-        
         {/* Header */}
         <header className="flex flex-col gap-5 border-b border-neutral-800 pb-6 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -84,7 +142,7 @@ export default function AdminSiteClient({
             </div>
             <h1 className="mt-2 text-3xl font-black text-white">إدارة محتوى الموقع والتغطية والسياسات</h1>
             <p className="mt-2 max-w-3xl text-sm leading-relaxed text-neutral-300">
-              تحكم كامل في مجموعات الخدمات، معرض الصور، روابط السوشيال والتواصل، شروط الاستخدام والخصوصية، ونطاقات التغطية.
+              تحكم كامل في الخدمات والمنتجات، باقات الاشتراكات، مجموعات الخدمات، معرض الصور، روابط السوشيال والتواصل، شروط الاستخدام والخصوصية، ونطاقات التغطية.
             </p>
           </div>
 
@@ -109,48 +167,97 @@ export default function AdminSiteClient({
 
         {/* Navigation Tabs */}
         <div className="flex items-center gap-2 border-b border-neutral-800/80 pb-3 overflow-x-auto">
+          {/* Tab: Services */}
+          <button
+            type="button"
+            onClick={() => setActiveTab('services')}
+            className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-xs font-black transition-all shrink-0 cursor-pointer ${
+              activeTab === 'services'
+                ? 'gold-gradient text-black shadow-lg shadow-[#cea355]/20'
+                : 'bg-[#121212] text-neutral-300 hover:text-white hover:bg-[#1a1a1a] border border-neutral-800'
+            }`}
+          >
+            <Car className="w-4 h-4" />
+            <span>إدارة وتعديل الخدمات</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[10px] ${
+                activeTab === 'services' ? 'bg-black/30 text-black font-black' : 'bg-[#1a1a1a] text-[#edce8b]'
+              }`}
+            >
+              {fullServices.length}
+            </span>
+          </button>
+
+          {/* Tab: Subscriptions */}
+          <button
+            type="button"
+            onClick={() => setActiveTab('subscriptions')}
+            className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-xs font-black transition-all shrink-0 cursor-pointer ${
+              activeTab === 'subscriptions'
+                ? 'gold-gradient text-black shadow-lg shadow-[#cea355]/20'
+                : 'bg-[#121212] text-neutral-300 hover:text-white hover:bg-[#1a1a1a] border border-neutral-800'
+            }`}
+          >
+            <PackageCheck className="w-4 h-4" />
+            <span>باقات الاشتراكات</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[10px] ${
+                activeTab === 'subscriptions' ? 'bg-black/30 text-black font-black' : 'bg-[#1a1a1a] text-[#edce8b]'
+              }`}
+            >
+              {plans.length}
+            </span>
+          </button>
+
+          {/* Tab: Collections */}
           <button
             type="button"
             onClick={() => setActiveTab('collections')}
             className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-xs font-black transition-all shrink-0 cursor-pointer ${
               activeTab === 'collections'
-                ? 'gold-gradient text-white shadow-lg shadow-[#cea355]/20'
+                ? 'gold-gradient text-black shadow-lg shadow-[#cea355]/20'
                 : 'bg-[#121212] text-neutral-300 hover:text-white hover:bg-[#1a1a1a] border border-neutral-800'
             }`}
           >
             <Layers className="w-4 h-4" />
             <span>مجموعات العناية (الكوليكشن)</span>
-            <span className={`px-2 py-0.5 rounded-full text-[10px] ${
-              activeTab === 'collections' ? 'bg-black/30 text-white' : 'bg-[#1a1a1a] text-[#edce8b]'
-            }`}>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[10px] ${
+                activeTab === 'collections' ? 'bg-black/30 text-black font-black' : 'bg-[#1a1a1a] text-[#edce8b]'
+              }`}
+            >
               {initialCollections.length}
             </span>
           </button>
 
+          {/* Tab: Gallery */}
           <button
             type="button"
             onClick={() => setActiveTab('gallery')}
             className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-xs font-black transition-all shrink-0 cursor-pointer ${
               activeTab === 'gallery'
-                ? 'gold-gradient text-white shadow-lg shadow-[#cea355]/20'
+                ? 'gold-gradient text-black shadow-lg shadow-[#cea355]/20'
                 : 'bg-[#121212] text-neutral-300 hover:text-white hover:bg-[#1a1a1a] border border-neutral-800'
             }`}
           >
             <Images className="w-4 h-4" />
             <span>معرض الصور (Gallery)</span>
-            <span className={`px-2 py-0.5 rounded-full text-[10px] ${
-              activeTab === 'gallery' ? 'bg-black/30 text-white' : 'bg-[#1a1a1a] text-[#edce8b]'
-            }`}>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[10px] ${
+                activeTab === 'gallery' ? 'bg-black/30 text-black font-black' : 'bg-[#1a1a1a] text-[#edce8b]'
+              }`}
+            >
               {initialGallery.length}
             </span>
           </button>
 
+          {/* Tab: Social & Contact */}
           <button
             type="button"
             onClick={() => setActiveTab('social')}
             className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-xs font-black transition-all shrink-0 cursor-pointer ${
               activeTab === 'social'
-                ? 'gold-gradient text-white shadow-lg shadow-[#cea355]/20'
+                ? 'gold-gradient text-black shadow-lg shadow-[#cea355]/20'
                 : 'bg-[#121212] text-neutral-300 hover:text-white hover:bg-[#1a1a1a] border border-neutral-800'
             }`}
           >
@@ -158,12 +265,13 @@ export default function AdminSiteClient({
             <span>روابط السوشيال والتواصل</span>
           </button>
 
+          {/* Tab: Policies */}
           <button
             type="button"
             onClick={() => setActiveTab('policies')}
             className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-xs font-black transition-all shrink-0 cursor-pointer ${
               activeTab === 'policies'
-                ? 'gold-gradient text-white shadow-lg shadow-[#cea355]/20'
+                ? 'gold-gradient text-black shadow-lg shadow-[#cea355]/20'
                 : 'bg-[#121212] text-neutral-300 hover:text-white hover:bg-[#1a1a1a] border border-neutral-800'
             }`}
           >
@@ -171,30 +279,34 @@ export default function AdminSiteClient({
             <span>السياسات والشروط (Policies)</span>
           </button>
 
+          {/* Tab: Zones & Coverage */}
           <button
             type="button"
             onClick={() => setActiveTab('zones')}
             className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-xs font-black transition-all shrink-0 cursor-pointer ${
               activeTab === 'zones'
-                ? 'gold-gradient text-white shadow-lg shadow-[#cea355]/20'
+                ? 'gold-gradient text-black shadow-lg shadow-[#cea355]/20'
                 : 'bg-[#121212] text-neutral-300 hover:text-white hover:bg-[#1a1a1a] border border-neutral-800'
             }`}
           >
             <Compass className="w-4 h-4" />
             <span>نطاقات التغطية والكمبوندات</span>
-            <span className={`px-2 py-0.5 rounded-full text-[10px] ${
-              activeTab === 'zones' ? 'bg-black/30 text-white' : 'bg-[#1a1a1a] text-[#edce8b]'
-            }`}>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[10px] ${
+                activeTab === 'zones' ? 'bg-black/30 text-black font-black' : 'bg-[#1a1a1a] text-[#edce8b]'
+              }`}
+            >
               {initialZones.length}
             </span>
           </button>
 
+          {/* Tab: Homepage Content */}
           <button
             type="button"
             onClick={() => setActiveTab('content')}
             className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-xs font-black transition-all shrink-0 cursor-pointer ${
               activeTab === 'content'
-                ? 'gold-gradient text-white shadow-lg shadow-[#cea355]/20'
+                ? 'gold-gradient text-black shadow-lg shadow-[#cea355]/20'
                 : 'bg-[#121212] text-neutral-300 hover:text-white hover:bg-[#1a1a1a] border border-neutral-800'
             }`}
           >
@@ -202,26 +314,49 @@ export default function AdminSiteClient({
             <span>نصوص الصفحة الرئيسية</span>
           </button>
 
+          {/* Tab: FAQs */}
           <button
             type="button"
             onClick={() => setActiveTab('faqs')}
             className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-xs font-black transition-all shrink-0 cursor-pointer ${
               activeTab === 'faqs'
-                ? 'gold-gradient text-white shadow-lg shadow-[#cea355]/20'
+                ? 'gold-gradient text-black shadow-lg shadow-[#cea355]/20'
                 : 'bg-[#121212] text-neutral-300 hover:text-white hover:bg-[#1a1a1a] border border-neutral-800'
             }`}
           >
             <HelpCircle className="w-4 h-4" />
             <span>الأسئلة الشائعة (FAQ)</span>
-            <span className={`px-2 py-0.5 rounded-full text-[10px] ${
-              activeTab === 'faqs' ? 'bg-black/30 text-white' : 'bg-[#1a1a1a] text-[#edce8b]'
-            }`}>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[10px] ${
+                activeTab === 'faqs' ? 'bg-black/30 text-black font-black' : 'bg-[#1a1a1a] text-[#edce8b]'
+              }`}
+            >
               {initialFaqs.length}
             </span>
           </button>
         </div>
 
-        {/* Tab 1: Collections Manager */}
+        {/* Tab 0: Services Manager */}
+        {activeTab === 'services' && (
+          <ServicesManager
+            services={fullServices}
+            branches={branches.map((b) => ({ id: b.id, nameAr: b.nameAr }))}
+            materials={materials}
+            initialServiceId={initialServiceId}
+            isNew={isNewService}
+          />
+        )}
+
+        {/* Tab 1: Subscriptions Manager */}
+        {activeTab === 'subscriptions' && (
+          <SubscriptionsManager
+            plans={plans}
+            services={subscriptionServices}
+            branches={subscriptionBranches}
+          />
+        )}
+
+        {/* Tab 2: Collections Manager */}
         {activeTab === 'collections' && (
           <CollectionsManager
             initialCollections={initialCollections}
@@ -229,14 +364,12 @@ export default function AdminSiteClient({
           />
         )}
 
-        {/* Tab 2: Gallery Manager */}
+        {/* Tab 3: Gallery Manager */}
         {activeTab === 'gallery' && (
-          <GalleryManager
-            initialGallery={initialGallery}
-          />
+          <GalleryManager initialGallery={initialGallery} />
         )}
 
-        {/* Tab 3: Social & Contact Manager */}
+        {/* Tab 4: Social & Contact Manager */}
         {activeTab === 'social' && (
           <SocialContactManager
             initialSocialLinks={initialSocialLinks}
@@ -244,14 +377,12 @@ export default function AdminSiteClient({
           />
         )}
 
-        {/* Tab 4: Policies Manager */}
+        {/* Tab 5: Policies Manager */}
         {activeTab === 'policies' && (
-          <PoliciesManager
-            initialPolicies={initialPolicies}
-          />
+          <PoliciesManager initialPolicies={initialPolicies} />
         )}
 
-        {/* Tab 5: Zones & Coverage Manager */}
+        {/* Tab 6: Zones & Coverage Manager */}
         {activeTab === 'zones' && (
           <ZonesCoverageManager
             initialZones={initialZones}
@@ -260,7 +391,7 @@ export default function AdminSiteClient({
           />
         )}
 
-        {/* Tab 6 & 7: Content & FAQs */}
+        {/* Tab 7 & 8: Content & FAQs */}
         {(activeTab === 'content' || activeTab === 'faqs') && (
           <SiteContentManager
             initialContent={initialContent}
@@ -268,7 +399,6 @@ export default function AdminSiteClient({
             defaultSection={activeTab}
           />
         )}
-
       </div>
     </main>
   );

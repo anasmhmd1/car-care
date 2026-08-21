@@ -147,10 +147,6 @@ export default function Navbar({ user }: NavbarProps) {
               <Layers className="w-4 h-4 text-[#cea355]" aria-hidden="true" />
               <span>Plans</span>
             </Link>
-            <Link href="/areas" className="hover:text-[#edce8b] transition-colors flex items-center gap-1.5">
-              <MapPin className="w-4 h-4 text-[#cea355]" aria-hidden="true" />
-              <span>Locations</span>
-            </Link>
             <Link href="/faq" className="hover:text-[#edce8b] transition-colors flex items-center gap-1.5">
               <HelpCircle className="w-4 h-4 text-[#cea355]" aria-hidden="true" />
               <span>FAQ</span>
@@ -161,7 +157,7 @@ export default function Navbar({ user }: NavbarProps) {
           <div className="flex items-center shrink-0">
             {/* Desktop Brand Logo Link */}
             <Link href="/" className="hidden md:flex items-center" aria-label="BAREEQ — Homepage">
-              <BareeqLogo size="md" />
+              <BareeqLogo size="md" variant="header" />
             </Link>
 
             {/* Mobile Clickable Brand Logo Button to Toggle Navigation Popup */}
@@ -173,7 +169,7 @@ export default function Navbar({ user }: NavbarProps) {
               aria-expanded={mobileMenuOpen}
               aria-controls="mobile-navigation"
             >
-              <BareeqLogo size="sm" />
+              <BareeqLogo size="sm" variant="header" />
             </button>
           </div>
         </div>
@@ -211,15 +207,6 @@ export default function Navbar({ user }: NavbarProps) {
             >
               <Layers className="w-4 h-4 text-[#cea355] drop-shadow-[0_0_6px_rgba(206,163,85,0.8)] group-hover:scale-110 transition-transform" />
               <span className="drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">Plans</span>
-            </Link>
-
-            <Link
-              href="/areas"
-              onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-white hover:text-[#edce8b] hover:bg-[#cea355]/20 font-bold text-sm tracking-wide transition-all group active:scale-98"
-            >
-              <MapPin className="w-4 h-4 text-[#cea355] drop-shadow-[0_0_6px_rgba(206,163,85,0.8)] group-hover:scale-110 transition-transform" />
-              <span className="drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">Locations</span>
             </Link>
 
             <Link

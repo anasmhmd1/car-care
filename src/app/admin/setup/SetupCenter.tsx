@@ -619,11 +619,28 @@ function OverviewSection({
             );
           })}
         </div>
-        <div className="mt-4 flex justify-end">
-          <Link href="/admin/catalog#cancellation-policies-title" className={secondaryButtonClass}>
-            إدارة سياسات الإلغاء في الكتالوج
-            <ArrowLeft className="size-4" aria-hidden="true" />
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-white/8 pt-4">
+          <Link
+            href="/admin/branches"
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#d4af37] px-4 text-xs font-black text-black hover:bg-[#e4c65f] transition-all shadow-md shadow-[#d4af37]/20"
+          >
+            <Plus className="size-4" aria-hidden="true" />
+            <span>إضافة فرع جديد للمنظومة</span>
           </Link>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => onNavigate('coverage')}
+              className={secondaryButtonClass}
+            >
+              <MapPinned className="size-4 text-[#d4af37]" aria-hidden="true" />
+              <span>ضبط مناطق التغطية</span>
+            </button>
+            <Link href="/admin/catalog#cancellation-policies-title" className={secondaryButtonClass}>
+              إدارة سياسات الإلغاء في الكتالوج
+              <ArrowLeft className="size-4" aria-hidden="true" />
+            </Link>
+          </div>
         </div>
       </Panel>
 
@@ -656,7 +673,15 @@ function BranchIdentityForm({ branch, tools }: {
     <Panel
       title="هوية الفرع وبيانات التواصل"
       description="هذه البيانات الأساسية تخص المالك والنظام فقط، وتظهر آثار تغيير الاسم أو الكود أو المنطقة الزمنية عبر أجزاء التشغيل."
-      actions={<Settings2 className="size-5 text-[#d4af37]" aria-hidden="true" />}
+      actions={(
+        <div className="flex items-center gap-2">
+          <Link href="/admin/branches" className={primaryButtonClass}>
+            <Plus className="size-4" aria-hidden="true" />
+            <span>إضافة فرع جديد</span>
+          </Link>
+          <Settings2 className="size-5 text-[#d4af37]" aria-hidden="true" />
+        </div>
+      )}
     >
       <form
         onSubmit={(event) => tools.execute(saveBranchIdentityAction, formDataFrom(event))}
@@ -2783,17 +2808,16 @@ function ChecklistEditor({
                     className={inputClass}
                   />
                 </label>
-                <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="mt-3 grid gap-2 sm:grid-cols-3">
                   {[
                     ['required', 'إلزامي'],
-                    ['requiresPhoto', 'يتطلب صورة'],
                     ['requiresNote', 'يتطلب ملاحظة'],
                     ['active', 'نشط'],
                   ].map(([field, label]) => (
                     <label key={field} className="flex cursor-pointer items-center gap-2 rounded-lg border border-white/8 bg-white/[0.025] p-2.5 text-xs font-bold text-white/55">
                       <input
                         type="checkbox"
-                        checked={item[field as keyof Pick<EditableChecklistItem, 'required' | 'requiresPhoto' | 'requiresNote' | 'active'>] as boolean}
+                        checked={item[field as keyof Pick<EditableChecklistItem, 'required' | 'requiresNote' | 'active'>] as boolean}
                         onChange={(event) => updateItem(item.clientKey, { [field]: event.target.checked })}
                         className="size-4 accent-[#d4af37]"
                       />
@@ -2966,6 +2990,13 @@ export default function SetupCenter({ actor, branches, employees, permissions, s
                 <p className="mt-1 text-sm font-black">{branch.nameAr} <span dir="ltr" className="text-white/35">· {branch.code}</span></p>
               </div>
             ) : null}
+            <Link
+              href="/admin/branches"
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#d4af37] via-[#e5c45a] to-[#d4af37] px-4 py-2 text-xs font-black text-black shadow-md shadow-[#d4af37]/20 hover:brightness-110 transition-all"
+            >
+              <Plus className="size-4" aria-hidden="true" />
+              <span>إضافة فرع جديد</span>
+            </Link>
             <Link href="/admin" className={secondaryButtonClass}>
               العودة للوحة المالك
               <ArrowLeft className="size-4" aria-hidden="true" />

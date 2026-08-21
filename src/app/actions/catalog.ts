@@ -60,7 +60,7 @@ const cancellationPolicySchema = z.object({
 
 const serviceProductSchema = z.object({
   serviceId: databaseIdSchema.optional(),
-  cancellationPolicyId: databaseIdSchema,
+  cancellationPolicyId: databaseIdSchema.optional(),
   nameAr: z.string().trim().min(2).max(120),
   nameEn: z.string().trim().max(120).optional(),
   slug: z.string().trim().toLowerCase().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'الرابط المختصر يقبل حروفًا إنجليزية صغيرة وأرقامًا وشرطات فقط.'),
@@ -73,8 +73,8 @@ const serviceProductSchema = z.object({
   benefits: z.array(z.string().trim().min(1).max(200)).max(30),
   preparationInstructions: z.string().trim().max(2_000).optional(),
   basePrice: z.coerce.number().int().min(0).max(1_000_000),
-  priceType: z.enum(['FIXED', 'STARTS_FROM', 'VARIANT_BASED']),
-  durationMinutes: z.coerce.number().int().min(15).max(1_440),
+  priceType: z.enum(['FIXED', 'STARTS_FROM', 'VARIANT_BASED']).default('FIXED'),
+  durationMinutes: z.coerce.number().int().min(15).max(1_440).optional(),
   slotCount: z.coerce.number().int().min(1).max(48),
   requiredTeamSize: z.coerce.number().int().min(1).max(20),
   requiresDeposit: z.boolean(),
@@ -86,20 +86,13 @@ const serviceProductSchema = z.object({
   subscriptionEligible: z.boolean(),
   minimumBeforePhotos: z.coerce.number().int().min(0).max(20),
   minimumAfterPhotos: z.coerce.number().int().min(0).max(20),
-  variants: z.array(variantSchema).max(Object.values(VehicleSize).length),
-  addonIds: z.array(databaseIdSchema).max(50),
-  branchOverrides: z.array(branchOverrideSchema).max(100),
+  variants: z.array(variantSchema).max(Object.values(VehicleSize).length).default([]),
+  addonIds: z.array(databaseIdSchema).max(50).default([]),
+  branchOverrides: z.array(branchOverrideSchema).max(100).default([]),
   materialRequirements: catalogMaterialRequirementsSchema,
 }).superRefine((value, context) => {
   if (value.depositType === 'PERCENTAGE' && value.depositValue > 100) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ['depositValue'], message: 'نسبة العربون لا تتجاوز 100%.' });
-  }
-  if (value.priceType === 'VARIANT_BASED' && value.variants.length === 0) {
-    context.addIssue({ code: z.ZodIssueCode.custom, path: ['variants'], message: 'أضف Variant واحدًا على الأقل للتسعير حسب حجم السيارة.' });
-  }
-  const vehicleSizes = value.variants.map((variant) => variant.vehicleSize);
-  if (new Set(vehicleSizes).size !== vehicleSizes.length) {
-    context.addIssue({ code: z.ZodIssueCode.custom, path: ['variants'], message: 'لا يمكن تكرار حجم السيارة.' });
   }
   const branchIds = value.branchOverrides.map((override) => override.branchId);
   if (new Set(branchIds).size !== branchIds.length) {
@@ -149,6 +142,7 @@ function catalogError(error: unknown) {
 function revalidateCatalog() {
   revalidatePath('/admin');
   revalidatePath('/admin/catalog');
+  revalidatePath('/admin/site');
   revalidatePath('/services');
   revalidatePath('/plans');
   revalidatePath('/admin/setup');
@@ -226,7 +220,10 @@ export async function saveServiceProductAction(formData: FormData) {
             })
           : Promise.resolve(null),
         tx.cancellationPolicy.findFirst({
-          where: { id: parsed.data.cancellationPolicyId, active: true },
+          where: parsed.data.cancellationPolicyId
+            ? { id: parsed.data.cancellationPolicyId, active: true }
+            : { active: true },
+          orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
           select: { id: true },
         }),
         tx.serviceAddon.count({ where: { id: { in: parsed.data.addonIds } } }),
@@ -250,7 +247,7 @@ export async function saveServiceProductAction(formData: FormData) {
       }
 
       const serviceData = {
-        cancellationPolicyId: parsed.data.cancellationPolicyId,
+        cancellationPolicyId: cancellationPolicy.id,
         nameAr: parsed.data.nameAr,
         nameEn: parsed.data.nameEn || null,
         slug: parsed.data.slug,
@@ -264,7 +261,7 @@ export async function saveServiceProductAction(formData: FormData) {
         preparationInstructions: parsed.data.preparationInstructions || null,
         basePrice: parsed.data.basePrice,
         priceType: parsed.data.priceType,
-        durationMinutes: parsed.data.durationMinutes,
+        durationMinutes: parsed.data.slotCount * 60,
         slotCount: parsed.data.slotCount,
         requiredTeamSize: parsed.data.requiredTeamSize,
         requiresDeposit: parsed.data.requiresDeposit,
@@ -521,3 +518,104 @@ export async function saveServiceAddonAction(formData: FormData) {
     return { error: catalogError(error) };
   }
 }
+
+export async function toggleServiceStatusAction(formData: FormData) {
+  const actor = await requireRole([UserRole.OWNER, UserRole.SYSTEM_SUPER_ADMIN]);
+  const serviceId = formData.get('serviceId');
+  if (typeof serviceId !== 'string' || !serviceId) {
+    return { error: 'معرّف الخدمة غير صالح.' };
+  }
+
+  try {
+    const service = await db.$transaction(async (tx) => {
+      const existing = await tx.service.findUnique({
+        where: { id: serviceId },
+        select: { id: true, nameAr: true, active: true },
+      });
+      if (!existing) throw new Error('SERVICE_NOT_FOUND');
+
+      const nextActive = !existing.active;
+      const updated = await tx.service.update({
+        where: { id: serviceId },
+        data: { active: nextActive },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          actorUserId: actor.id,
+          actorRole: actor.role,
+          action: nextActive ? 'SERVICE_ACTIVATED' : 'SERVICE_DEACTIVATED',
+          entityType: 'Service',
+          entityId: serviceId,
+          beforeJson: { active: existing.active },
+          afterJson: { active: nextActive },
+        },
+      });
+
+      return updated;
+    });
+
+    revalidateCatalog();
+    return {
+      success: true,
+      active: service.active,
+      message: service.active ? 'تم تفعيل الخدمة بنجاح.' : 'تم إيقاف الخدمة مؤقتًا.',
+    };
+  } catch (error) {
+    if (error instanceof Error && error.message === 'SERVICE_NOT_FOUND') {
+      return { error: 'الخدمة غير موجودة.' };
+    }
+    return { error: catalogError(error) };
+  }
+}
+
+export async function toggleServiceBookableOnlineAction(formData: FormData) {
+  const actor = await requireRole([UserRole.OWNER, UserRole.SYSTEM_SUPER_ADMIN]);
+  const serviceId = formData.get('serviceId');
+  if (typeof serviceId !== 'string' || !serviceId) {
+    return { error: 'معرّف الخدمة غير صالح.' };
+  }
+
+  try {
+    const service = await db.$transaction(async (tx) => {
+      const existing = await tx.service.findUnique({
+        where: { id: serviceId },
+        select: { id: true, nameAr: true, bookableOnline: true },
+      });
+      if (!existing) throw new Error('SERVICE_NOT_FOUND');
+
+      const nextBookable = !existing.bookableOnline;
+      const updated = await tx.service.update({
+        where: { id: serviceId },
+        data: { bookableOnline: nextBookable },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          actorUserId: actor.id,
+          actorRole: actor.role,
+          action: nextBookable ? 'SERVICE_ONLINE_BOOKING_ENABLED' : 'SERVICE_ONLINE_BOOKING_DISABLED',
+          entityType: 'Service',
+          entityId: serviceId,
+          beforeJson: { bookableOnline: existing.bookableOnline },
+          afterJson: { bookableOnline: nextBookable },
+        },
+      });
+
+      return updated;
+    });
+
+    revalidateCatalog();
+    return {
+      success: true,
+      bookableOnline: service.bookableOnline,
+      message: service.bookableOnline ? 'تم فتح الحجز الإلكتروني للخدمة.' : 'تم تعطيل الحجز الإلكتروني للخدمة.',
+    };
+  } catch (error) {
+    if (error instanceof Error && error.message === 'SERVICE_NOT_FOUND') {
+      return { error: 'الخدمة غير موجودة.' };
+    }
+    return { error: catalogError(error) };
+  }
+}
+

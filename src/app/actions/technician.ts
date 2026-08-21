@@ -397,23 +397,6 @@ export async function toggleChecklistItemAction(formData: FormData) {
         throw new Error('هذه القائمة ليست مفتوحة للتعديل في مرحلة الحجز الحالية.');
       }
 
-      let photoUrl: string | null = null;
-      if (parsed.data.photoFileId) {
-        const photo = await tx.bookingFile.findFirst({
-          where: {
-            id: parsed.data.photoFileId,
-            bookingId: parsed.data.bookingId,
-            fileType: { in: [...TECHNICIAN_FILE_TYPES] },
-            mimeType: { startsWith: 'image/' },
-          },
-        });
-        if (!photo) throw new Error('صورة عنصر الفحص غير مرتبطة بالحجز.');
-        photoUrl = photo.fileUrl;
-      }
-
-      if (parsed.data.isChecked && templateItem.requiresPhoto && !photoUrl) {
-        throw new Error('هذا العنصر يتطلب صورة قبل اعتماده.');
-      }
       if (parsed.data.isChecked && templateItem.requiresNote && !parsed.data.note) {
         throw new Error('هذا العنصر يتطلب ملاحظة قبل اعتماده.');
       }
@@ -434,7 +417,7 @@ export async function toggleChecklistItemAction(formData: FormData) {
         itemLabel: templateItem.labelAr,
         isChecked: parsed.data.isChecked,
         note: parsed.data.note || null,
-        photoUrl,
+        photoUrl: null,
         checkedByUserId: parsed.data.isChecked ? actor.id : null,
         checkedAt: parsed.data.isChecked ? new Date() : null,
       };
@@ -453,10 +436,7 @@ export async function toggleChecklistItemAction(formData: FormData) {
 
       const requiredItems = await tx.checklistTemplateItem.findMany({
         where: {
-          template: {
-            serviceId: booking.serviceId,
-            stage: templateItem.template.stage,
-          },
+          templateId: templateItem.templateId,
           active: true,
           required: true,
         },

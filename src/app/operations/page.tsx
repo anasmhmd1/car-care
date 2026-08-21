@@ -924,7 +924,7 @@ export default async function OperationsDashboardPage({ searchParams }: Operatio
           {[
             ['/admin/revenue', 'الإيرادات والأرباح'],
             ['/admin?section=customers', 'إدارة العملاء (CRM)'],
-            ['/admin/calendar', 'التقويم'],
+            ['/admin/calendar', 'تقويم التشغيل'],
             ['/admin/subscriptions', 'الاشتراكات'],
             ['/admin/reports', 'تقرير الفرع'],
             ['/operations/audit', 'سجل التدقيق'],

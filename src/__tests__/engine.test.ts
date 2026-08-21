@@ -87,12 +87,11 @@ describe('Bareeq engine', () => {
       ).allowed).toBe(true);
     });
 
-    it('blocks service start until team scope, checklists, and before photos are satisfied', () => {
+    it('blocks service start until team scope and preparation/arrival checklists are satisfied', () => {
       const baseEvidence = {
         actorRole: UserRole.EMPLOYEE,
         hasAssignedTeam: true,
         actorBelongsToAssignedTeam: true,
-        minimumBeforePhotos: 2,
       };
 
       expect(validateStatusTransition(BookingStatus.ARRIVED, BookingStatus.IN_SERVICE, baseEvidence)).toMatchObject({
@@ -103,13 +102,6 @@ describe('Bareeq engine', () => {
       expect(validateStatusTransition(BookingStatus.ARRIVED, BookingStatus.IN_SERVICE, {
         ...baseEvidence,
         completedChecklistStages: [ChecklistStage.TEAM_PREPARATION, ChecklistStage.ARRIVAL_INSPECTION],
-        beforePhotoCount: 1,
-      })).toMatchObject({ allowed: false, code: 'BEFORE_PHOTOS_REQUIRED' });
-
-      expect(validateStatusTransition(BookingStatus.ARRIVED, BookingStatus.IN_SERVICE, {
-        ...baseEvidence,
-        completedChecklistStages: [ChecklistStage.TEAM_PREPARATION, ChecklistStage.ARRIVAL_INSPECTION],
-        beforePhotoCount: 2,
       }).allowed).toBe(true);
     });
 

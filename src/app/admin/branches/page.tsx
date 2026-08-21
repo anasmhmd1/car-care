@@ -26,6 +26,7 @@ export default async function AdminBranchesPage() {
         phone: true,
         whatsapp: true,
         status: true,
+        assignmentMode: true,
         dailyBookingLimit: true,
         workingHours: {
           orderBy: { dayOfWeek: 'asc' },
@@ -45,6 +46,7 @@ export default async function AdminBranchesPage() {
     phone: branch.phone,
     whatsapp: branch.whatsapp,
     status: branch.status,
+    assignmentMode: branch.assignmentMode,
     dailyBookingLimit: branch.dailyBookingLimit,
     workingHours: branch.workingHours,
     teamCount: branch._count.teams,
