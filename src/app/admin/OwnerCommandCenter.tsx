@@ -420,16 +420,16 @@ const sectionNav: Array<{
 }> = [
   { id: 'overview', label: 'الرئيسية', icon: LayoutDashboard },
   { id: 'bookings', label: 'الحجوزات', icon: CalendarDays },
-  { id: 'subscriptions', label: 'اشتراكات العملاء', icon: PackageCheck },
+  { id: 'subscriptions', label: 'الاشتراكات', icon: PackageCheck },
   { id: 'cancellations', label: 'الإلغاء والاسترداد', icon: ShieldAlert },
-  { id: 'customers', label: 'العملاء', icon: UserRound },
   { id: 'reports', label: 'التقارير', icon: BarChart3 },
   { href: '/admin/reports', label: 'الإيرادات', icon: DollarSign },
-  { href: '/admin/site', label: 'إدارة محتوى الموقع والتغطية والسياسات', icon: Globe },
-  { href: '/admin/setup', label: 'إعداد التشغيل والمواعيد', icon: Settings2 },
+  { id: 'customers', label: 'العملاء', icon: UserRound },
   { href: '/admin/reviews', label: 'تقييمات العملاء', icon: ClipboardCheck },
-  { href: '/operations/resources', label: 'الموارد التشغيلية', icon: Boxes },
-  { href: '/operations/password-resets', label: 'استعادة كلمات المرور', icon: KeyRound },
+  { href: '/admin/site', label: 'إدارة محتوى الموقع', icon: Globe },
+  { href: '/admin/setup', label: 'إعداد التشغيل', icon: Settings2 },
+  { href: '/operations/resources', label: 'المواد التشغيلية', icon: Boxes },
+  { href: '/operations/password-resets', label: 'استعادة كلمة المرور', icon: KeyRound },
   { id: 'audit', label: 'سجل التعديلات', icon: History },
 ];
 
