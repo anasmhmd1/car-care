@@ -1,6 +1,4 @@
-'use client';
-
-import { useState } from 'react';
+import { useState, useRef, useEffect, type WheelEvent, type MouseEvent } from 'react';
 import Link from 'next/link';
 import {
   Layers,
@@ -14,6 +12,8 @@ import {
   ExternalLink,
   ArrowLeft,
   Sparkles,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import CollectionsManager from './CollectionsManager';
 import GalleryManager from './GalleryManager';
@@ -78,7 +78,7 @@ interface AdminSiteClientProps {
   initialSocialLinks?: SocialLinks;
   branches?: BranchContactDto[];
   activeBranch?: BranchContactDto | null;
-  defaultBranchId: string;
+  defaultBranchId?: string;
   initialTab?: string;
   initialServiceId?: string;
   isNewService?: boolean;
@@ -100,7 +100,7 @@ export default function AdminSiteClient({
   initialSocialLinks = DEFAULT_SOCIAL_LINKS,
   branches = [],
   activeBranch,
-  defaultBranchId,
+  defaultBranchId = '',
   initialTab,
   initialServiceId,
   isNewService,
@@ -121,6 +121,51 @@ export default function AdminSiteClient({
     }
     return 'services';
   });
+
+  const tabsScrollRef = useRef<HTMLDivElement>(null);
+  const isDraggingRef = useRef(false);
+  const startXRef = useRef(0);
+  const scrollLeftRef = useRef(0);
+
+  function scrollTabs(direction: 'left' | 'right') {
+    const el = tabsScrollRef.current;
+    if (!el) return;
+    const scrollAmount = 300;
+    el.scrollBy({
+      left: direction === 'left' ? -scrollAmount : scrollAmount,
+      behavior: 'smooth',
+    });
+  }
+
+  function handleWheel(e: WheelEvent<HTMLDivElement>) {
+    const el = tabsScrollRef.current;
+    if (!el) return;
+    if (e.deltaY !== 0) {
+      el.scrollLeft += e.deltaY;
+    }
+  }
+
+  function handleMouseDown(e: MouseEvent<HTMLDivElement>) {
+    const el = tabsScrollRef.current;
+    if (!el) return;
+    isDraggingRef.current = true;
+    startXRef.current = e.pageX - el.offsetLeft;
+    scrollLeftRef.current = el.scrollLeft;
+  }
+
+  function handleMouseMove(e: MouseEvent<HTMLDivElement>) {
+    if (!isDraggingRef.current) return;
+    const el = tabsScrollRef.current;
+    if (!el) return;
+    e.preventDefault();
+    const x = e.pageX - el.offsetLeft;
+    const walk = (x - startXRef.current) * 1.5;
+    el.scrollLeft = scrollLeftRef.current - walk;
+  }
+
+  function handleMouseUpOrLeave() {
+    isDraggingRef.current = false;
+  }
 
   return (
     <main
@@ -162,161 +207,196 @@ export default function AdminSiteClient({
           </div>
         </header>
 
-        {/* Navigation Tabs - Wrapped so all tabs are always visible and clickable */}
-        <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 border-b border-neutral-800/80 pb-4">
-          {/* Tab 0: Services */}
-          <button
-            type="button"
-            onClick={() => setActiveTab('services')}
-            className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-xs font-black transition-all shrink-0 cursor-pointer ${
-              activeTab === 'services'
-                ? 'gold-gradient text-black shadow-lg shadow-[#cea355]/20'
-                : 'bg-[#121212] text-neutral-300 hover:text-white hover:bg-[#1a1a1a] border border-neutral-800'
-            }`}
-          >
-            <Layers className="w-4 h-4" />
-            <span>الخدمات والمنتجات</span>
-            <span
-              className={`px-2 py-0.5 rounded-full text-[10px] ${
-                activeTab === 'services' ? 'bg-black/30 text-black font-black' : 'bg-[#1a1a1a] text-[#edce8b]'
-              }`}
+        {/* Horizontal Navigation Tabs with Left/Right Nav Arrows and Smooth Wheel Scroll */}
+        <div className="relative border-b border-neutral-800/80 pb-4">
+          <div className="flex items-center gap-2">
+            {/* Scroll Right Button */}
+            <button
+              type="button"
+              onClick={() => scrollTabs('right')}
+              title="تمرير لليمين"
+              aria-label="تمرير التبويبات لليمين"
+              className="flex size-9 sm:size-10 shrink-0 items-center justify-center rounded-xl border border-neutral-800 bg-[#111114] text-neutral-300 transition-all hover:border-[#cea355]/50 hover:text-[#edce8b] hover:bg-[#18181c] active:scale-95 cursor-pointer shadow-md"
             >
-              {fullServices.length}
-            </span>
-          </button>
+              <ChevronRight className="size-4 sm:size-5" />
+            </button>
 
-          {/* Tab 1: Subscriptions */}
-          <button
-            type="button"
-            onClick={() => setActiveTab('subscriptions')}
-            className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-xs font-black transition-all shrink-0 cursor-pointer ${
-              activeTab === 'subscriptions'
-                ? 'gold-gradient text-black shadow-lg shadow-[#cea355]/20'
-                : 'bg-[#121212] text-neutral-300 hover:text-white hover:bg-[#1a1a1a] border border-neutral-800'
-            }`}
-          >
-            <Repeat className="w-4 h-4" />
-            <span>باقات الاشتراكات</span>
-            <span
-              className={`px-2 py-0.5 rounded-full text-[10px] ${
-                activeTab === 'subscriptions' ? 'bg-black/30 text-black font-black' : 'bg-[#1a1a1a] text-[#edce8b]'
-              }`}
+            {/* Scrollable Single-Line Tab Strip */}
+            <div
+              ref={tabsScrollRef}
+              onWheel={handleWheel}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUpOrLeave}
+              onMouseLeave={handleMouseUpOrLeave}
+              className="flex-1 flex items-center gap-2.5 overflow-x-auto scroll-smooth py-1 select-none cursor-grab active:cursor-grabbing [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
             >
-              {plans.length}
-            </span>
-          </button>
+              {/* Tab 0: Services */}
+              <button
+                type="button"
+                onClick={() => setActiveTab('services')}
+                className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-xs font-black transition-all shrink-0 cursor-pointer ${
+                  activeTab === 'services'
+                    ? 'gold-gradient text-black shadow-lg shadow-[#cea355]/20'
+                    : 'bg-[#121212] text-neutral-300 hover:text-white hover:bg-[#1a1a1a] border border-neutral-800'
+                }`}
+              >
+                <Layers className="w-4 h-4" />
+                <span>الخدمات والمنتجات</span>
+                <span
+                  className={`px-2 py-0.5 rounded-full text-[10px] ${
+                    activeTab === 'services' ? 'bg-black/30 text-black font-black' : 'bg-[#1a1a1a] text-[#edce8b]'
+                  }`}
+                >
+                  {fullServices.length}
+                </span>
+              </button>
 
-          {/* Tab 2: Collections */}
-          <button
-            type="button"
-            onClick={() => setActiveTab('collections')}
-            className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-xs font-black transition-all shrink-0 cursor-pointer ${
-              activeTab === 'collections'
-                ? 'gold-gradient text-black shadow-lg shadow-[#cea355]/20'
-                : 'bg-[#121212] text-neutral-300 hover:text-white hover:bg-[#1a1a1a] border border-neutral-800'
-            }`}
-          >
-            <PackageCheck className="w-4 h-4" />
-            <span>مجموعات الخدمات (Collections)</span>
-            <span
-              className={`px-2 py-0.5 rounded-full text-[10px] ${
-                activeTab === 'collections' ? 'bg-black/30 text-black font-black' : 'bg-[#1a1a1a] text-[#edce8b]'
-              }`}
+              {/* Tab 1: Subscriptions */}
+              <button
+                type="button"
+                onClick={() => setActiveTab('subscriptions')}
+                className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-xs font-black transition-all shrink-0 cursor-pointer ${
+                  activeTab === 'subscriptions'
+                    ? 'gold-gradient text-black shadow-lg shadow-[#cea355]/20'
+                    : 'bg-[#121212] text-neutral-300 hover:text-white hover:bg-[#1a1a1a] border border-neutral-800'
+                }`}
+              >
+                <Repeat className="w-4 h-4" />
+                <span>باقات الاشتراكات</span>
+                <span
+                  className={`px-2 py-0.5 rounded-full text-[10px] ${
+                    activeTab === 'subscriptions' ? 'bg-black/30 text-black font-black' : 'bg-[#1a1a1a] text-[#edce8b]'
+                  }`}
+                >
+                  {plans.length}
+                </span>
+              </button>
+
+              {/* Tab 2: Collections */}
+              <button
+                type="button"
+                onClick={() => setActiveTab('collections')}
+                className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-xs font-black transition-all shrink-0 cursor-pointer ${
+                  activeTab === 'collections'
+                    ? 'gold-gradient text-black shadow-lg shadow-[#cea355]/20'
+                    : 'bg-[#121212] text-neutral-300 hover:text-white hover:bg-[#1a1a1a] border border-neutral-800'
+                }`}
+              >
+                <PackageCheck className="w-4 h-4" />
+                <span>مجموعات الخدمات (Collections)</span>
+                <span
+                  className={`px-2 py-0.5 rounded-full text-[10px] ${
+                    activeTab === 'collections' ? 'bg-black/30 text-black font-black' : 'bg-[#1a1a1a] text-[#edce8b]'
+                  }`}
+                >
+                  {initialCollections.length}
+                </span>
+              </button>
+
+              {/* Tab 3: Gallery */}
+              <button
+                type="button"
+                onClick={() => setActiveTab('gallery')}
+                className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-xs font-black transition-all shrink-0 cursor-pointer ${
+                  activeTab === 'gallery'
+                    ? 'gold-gradient text-black shadow-lg shadow-[#cea355]/20'
+                    : 'bg-[#121212] text-neutral-300 hover:text-white hover:bg-[#1a1a1a] border border-neutral-800'
+                }`}
+              >
+                <ImageIcon className="w-4 h-4" />
+                <span>معرض الصور (Gallery)</span>
+                <span
+                  className={`px-2 py-0.5 rounded-full text-[10px] ${
+                    activeTab === 'gallery' ? 'bg-black/30 text-black font-black' : 'bg-[#1a1a1a] text-[#edce8b]'
+                  }`}
+                >
+                  {initialGallery.length}
+                </span>
+              </button>
+
+              {/* Tab 4: Social & Contact */}
+              <button
+                type="button"
+                onClick={() => setActiveTab('social')}
+                className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-xs font-black transition-all shrink-0 cursor-pointer ${
+                  activeTab === 'social'
+                    ? 'gold-gradient text-black shadow-lg shadow-[#cea355]/20'
+                    : 'bg-[#121212] text-neutral-300 hover:text-white hover:bg-[#1a1a1a] border border-neutral-800'
+                }`}
+              >
+                <Share2 className="w-4 h-4" />
+                <span>روابط السوشيال والتواصل</span>
+              </button>
+
+              {/* Tab 5: Policies */}
+              <button
+                type="button"
+                onClick={() => setActiveTab('policies')}
+                className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-xs font-black transition-all shrink-0 cursor-pointer ${
+                  activeTab === 'policies'
+                    ? 'gold-gradient text-black shadow-lg shadow-[#cea355]/20'
+                    : 'bg-[#121212] text-neutral-300 hover:text-white hover:bg-[#1a1a1a] border border-neutral-800'
+                }`}
+              >
+                <ShieldCheck className="w-4 h-4" />
+                <span>السياسات والشروط (Policies)</span>
+              </button>
+
+              {/* Tab 6: Zones */}
+              <button
+                type="button"
+                onClick={() => setActiveTab('zones')}
+                className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-xs font-black transition-all shrink-0 cursor-pointer ${
+                  activeTab === 'zones'
+                    ? 'gold-gradient text-black shadow-lg shadow-[#cea355]/20'
+                    : 'bg-[#121212] text-neutral-300 hover:text-white hover:bg-[#1a1a1a] border border-neutral-800'
+                }`}
+              >
+                <Compass className="w-4 h-4" />
+                <span>نطاقات التغطية والكمبوندات</span>
+                <span
+                  className={`px-2 py-0.5 rounded-full text-[10px] ${
+                    activeTab === 'zones' ? 'bg-black/30 text-black font-black' : 'bg-[#1a1a1a] text-[#edce8b]'
+                  }`}
+                >
+                  {initialZones.length}
+                </span>
+              </button>
+
+              {/* Tab 7: FAQs */}
+              <button
+                type="button"
+                onClick={() => setActiveTab('faqs')}
+                className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-xs font-black transition-all shrink-0 cursor-pointer ${
+                  activeTab === 'faqs'
+                    ? 'gold-gradient text-black shadow-lg shadow-[#cea355]/20'
+                    : 'bg-[#121212] text-neutral-300 hover:text-white hover:bg-[#1a1a1a] border border-neutral-800'
+                }`}
+              >
+                <HelpCircle className="w-4 h-4" />
+                <span>الأسئلة الشائعة (FAQ)</span>
+                <span
+                  className={`px-2 py-0.5 rounded-full text-[10px] ${
+                    activeTab === 'faqs' ? 'bg-black/30 text-black font-black' : 'bg-[#1a1a1a] text-[#edce8b]'
+                  }`}
+                >
+                  {initialFaqs.length}
+                </span>
+              </button>
+            </div>
+
+            {/* Scroll Left Button */}
+            <button
+              type="button"
+              onClick={() => scrollTabs('left')}
+              title="تمرير لليسار"
+              aria-label="تمرير التبويبات لليسار"
+              className="flex size-9 sm:size-10 shrink-0 items-center justify-center rounded-xl border border-neutral-800 bg-[#111114] text-neutral-300 transition-all hover:border-[#cea355]/50 hover:text-[#edce8b] hover:bg-[#18181c] active:scale-95 cursor-pointer shadow-md"
             >
-              {initialCollections.length}
-            </span>
-          </button>
-
-          {/* Tab 3: Gallery */}
-          <button
-            type="button"
-            onClick={() => setActiveTab('gallery')}
-            className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-xs font-black transition-all shrink-0 cursor-pointer ${
-              activeTab === 'gallery'
-                ? 'gold-gradient text-black shadow-lg shadow-[#cea355]/20'
-                : 'bg-[#121212] text-neutral-300 hover:text-white hover:bg-[#1a1a1a] border border-neutral-800'
-            }`}
-          >
-            <ImageIcon className="w-4 h-4" />
-            <span>معرض الصور (Gallery)</span>
-            <span
-              className={`px-2 py-0.5 rounded-full text-[10px] ${
-                activeTab === 'gallery' ? 'bg-black/30 text-black font-black' : 'bg-[#1a1a1a] text-[#edce8b]'
-              }`}
-            >
-              {initialGallery.length}
-            </span>
-          </button>
-
-          {/* Tab 4: Social & Contact */}
-          <button
-            type="button"
-            onClick={() => setActiveTab('social')}
-            className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-xs font-black transition-all shrink-0 cursor-pointer ${
-              activeTab === 'social'
-                ? 'gold-gradient text-black shadow-lg shadow-[#cea355]/20'
-                : 'bg-[#121212] text-neutral-300 hover:text-white hover:bg-[#1a1a1a] border border-neutral-800'
-            }`}
-          >
-            <Share2 className="w-4 h-4" />
-            <span>روابط السوشيال والتواصل</span>
-          </button>
-
-          {/* Tab 5: Policies */}
-          <button
-            type="button"
-            onClick={() => setActiveTab('policies')}
-            className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-xs font-black transition-all shrink-0 cursor-pointer ${
-              activeTab === 'policies'
-                ? 'gold-gradient text-black shadow-lg shadow-[#cea355]/20'
-                : 'bg-[#121212] text-neutral-300 hover:text-white hover:bg-[#1a1a1a] border border-neutral-800'
-            }`}
-          >
-            <ShieldCheck className="w-4 h-4" />
-            <span>السياسات والشروط (Policies)</span>
-          </button>
-
-          {/* Tab 6: Zones */}
-          <button
-            type="button"
-            onClick={() => setActiveTab('zones')}
-            className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-xs font-black transition-all shrink-0 cursor-pointer ${
-              activeTab === 'zones'
-                ? 'gold-gradient text-black shadow-lg shadow-[#cea355]/20'
-                : 'bg-[#121212] text-neutral-300 hover:text-white hover:bg-[#1a1a1a] border border-neutral-800'
-            }`}
-          >
-            <Compass className="w-4 h-4" />
-            <span>نطاقات التغطية والكمبوندات</span>
-            <span
-              className={`px-2 py-0.5 rounded-full text-[10px] ${
-                activeTab === 'zones' ? 'bg-black/30 text-black font-black' : 'bg-[#1a1a1a] text-[#edce8b]'
-              }`}
-            >
-              {initialZones.length}
-            </span>
-          </button>
-
-          {/* Tab: FAQs */}
-          <button
-            type="button"
-            onClick={() => setActiveTab('faqs')}
-            className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-xs font-black transition-all shrink-0 cursor-pointer ${
-              activeTab === 'faqs'
-                ? 'gold-gradient text-black shadow-lg shadow-[#cea355]/20'
-                : 'bg-[#121212] text-neutral-300 hover:text-white hover:bg-[#1a1a1a] border border-neutral-800'
-            }`}
-          >
-            <HelpCircle className="w-4 h-4" />
-            <span>الأسئلة الشائعة (FAQ)</span>
-            <span
-              className={`px-2 py-0.5 rounded-full text-[10px] ${
-                activeTab === 'faqs' ? 'bg-black/30 text-black font-black' : 'bg-[#1a1a1a] text-[#edce8b]'
-              }`}
-            >
-              {initialFaqs.length}
-            </span>
-          </button>
+              <ChevronLeft className="size-4 sm:size-5" />
+            </button>
+          </div>
         </div>
 
         {/* Tab 0: Services Manager */}
