@@ -157,6 +157,10 @@ export interface OperationsEmployeeDto {
   fullName: string;
   phone: string;
   role: string;
+  branchName?: string;
+  teamName?: string;
+}
+
 export interface OperationsResourcesBoardProps {
   actorRole: string;
   canManageCatalog: boolean;
