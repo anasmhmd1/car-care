@@ -162,8 +162,8 @@ export default function AdminSiteClient({
           </div>
         </header>
 
-        {/* Horizontal Navigation Tabs */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none border-b border-neutral-800/80">
+        {/* Navigation Tabs - Wrapped so all tabs are always visible and clickable */}
+        <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 border-b border-neutral-800/80 pb-4">
           {/* Tab 0: Services */}
           <button
             type="button"
