@@ -12,14 +12,17 @@ import {
   BarChart3,
   Boxes,
   Building2,
+  Calendar,
   CalendarDays,
   CheckCircle2,
   ClipboardCheck,
   Clock,
   Crown,
   DollarSign,
+  Download,
   ExternalLink,
   FileSearch,
+  FileSpreadsheet,
   Gauge,
   Globe,
   History,
@@ -36,6 +39,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   Sparkles,
+  TrendingUp,
   User,
   UserRound,
   WalletCards,
@@ -361,6 +365,38 @@ export interface ReportsDto {
   cancellationReasons: Array<{ reason: string; count: number }>;
 }
 
+export type OverviewTab = 'pulse' | 'revenue' | 'analytics';
+
+export interface MonthlyRevenueDataDto {
+  selectedMonth: string;
+  pastMonths: Array<{ key: string; label: string }>;
+  grossRevenue: number;
+  netRevenue: number;
+  bookingRevenue: number;
+  subscriptionRevenue: number;
+  refundsTotal: number;
+  bookingPaymentsCount: number;
+  subscriptionProofsCount: number;
+  refundsCount: number;
+  paymentMethods: Array<{ key: string; label: string; amount: number; count: number; percentage: number }>;
+  branches: Array<{ name: string; amount: number; count: number; percentage: number }>;
+  transactions: Array<{
+    id: string;
+    date: string;
+    type: 'BOOKING' | 'SUBSCRIPTION' | 'REFUND';
+    customerName: string;
+    customerPhone: string;
+    title: string;
+    branchName: string;
+    paymentMethod: string;
+    amount: number;
+    reference: string;
+  }>;
+  filterType: 'all' | 'booking' | 'subscription' | 'refund';
+  searchQuery: string;
+  exportUrl: string;
+}
+
 export interface OwnerFiltersDto {
   bookingQuery: string;
   bookingStatus: string;
@@ -370,6 +406,7 @@ export interface OwnerCommandCenterProps {
   owner: OwnerDto;
   brand: BrandDto;
   currentSection: OwnerSection;
+  overviewTab?: OverviewTab;
   metrics: DashboardMetricsDto;
   filters: OwnerFiltersDto;
   customerQuery: string;
@@ -388,6 +425,7 @@ export interface OwnerCommandCenterProps {
   auditLogs: AuditLogDto[];
   branchRequests?: BranchRequestDto[];
   reports: ReportsDto;
+  monthlyRevenue?: MonthlyRevenueDataDto;
 }
 
 type BookingDecision = 'ACCEPT' | 'REJECT';
@@ -406,8 +444,6 @@ const sectionNav: Array<{
   { id: 'overview', label: 'الرئيسية', icon: LayoutDashboard },
   { id: 'bookings', label: 'الحجوزات', icon: CalendarDays },
   { id: 'subscriptions', label: 'الاشتراكات', icon: PackageCheck },
-  { id: 'reports', label: 'التقارير', icon: BarChart3 },
-  { href: '/admin/reports', label: 'الإيرادات', icon: DollarSign },
   { id: 'customers', label: 'العملاء', icon: UserRound },
   { href: '/admin/reviews', label: 'تقييمات العملاء', icon: ClipboardCheck },
   { href: '/admin/site', label: 'إدارة محتوى الموقع', icon: Globe },
@@ -716,117 +752,527 @@ function CapabilityNotice({ children }: { children: ReactNode }) {
 }
 
 function OverviewSection({
+  overviewTab = 'pulse',
   metrics,
   branches,
   operationsReviewBookings,
   unassignedBookings,
+  reports,
+  monthlyRevenue,
   onReview,
   onAssign,
 }: {
+  overviewTab?: OverviewTab;
   metrics: DashboardMetricsDto;
   branches: BranchDto[];
   operationsReviewBookings: BookingSummaryDto[];
   unassignedBookings: BookingSummaryDto[];
+  reports: ReportsDto;
+  monthlyRevenue?: MonthlyRevenueDataDto;
   onReview: (booking: BookingSummaryDto) => void;
   onAssign: (booking: BookingSummaryDto) => void;
 }) {
+  const activeTab: OverviewTab = overviewTab;
+  const cancellationRate = reports.totalBookings > 0
+    ? Math.round((reports.cancelledBookings / reports.totalBookings) * 100)
+    : 0;
+
   return (
     <div className="space-y-8">
-      <SectionHeader
-        eyebrow="نظرة تشغيلية مباشرة"
-        title="مركز قيادة بريق"
-        description="المؤشرات والبيانات التشغيلية محسوبة آلياً من سجلات الحجوزات والمدفوعات والاشتراكات الفعلية المسجلة."
-      />
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-        <MetricCard label="إيراد اليوم المحصل" value={formatCurrency(metrics.revenueToday)} hint={`هذا الشهر: ${formatCurrency(metrics.revenueMonth)}`} icon={<Banknote aria-hidden="true" className="size-5" />} tone="green" />
-        <MetricCard label="المبالغ المستحقة" value={formatCurrency(metrics.pendingAmounts)} hint="أرصدة حجوزات غير منتهية" icon={<WalletCards aria-hidden="true" className="size-5" />} tone="red" />
-        <MetricCard label="حجوزات اليوم" value={formatNumber(metrics.todayBookings)} hint={`قيد التنفيذ: ${formatNumber(metrics.inProgress)}`} icon={<CalendarDays aria-hidden="true" className="size-5" />} />
-        <MetricCard label="إشغال الفرق اليوم" value={`${formatNumber(metrics.teamUtilization)}٪`} hint="الحجوزات المسندة ÷ السعة اليومية" icon={<Gauge aria-hidden="true" className="size-5" />} tone="blue" />
-        <MetricCard label="اكتملت اليوم" value={formatNumber(metrics.completedToday)} hint={`معدل إكمال الفترة: ${formatNumber(metrics.completionRate)}٪`} icon={<CheckCircle2 aria-hidden="true" className="size-5" />} tone="green" />
-        <MetricCard label="الاشتراكات النشطة" value={formatNumber(metrics.activeSubscriptions)} hint={`زيارات متبقية: ${formatNumber(metrics.visitsRemaining)}`} icon={<PackageCheck aria-hidden="true" className="size-5" />} />
-        <MetricCard label="عملاء جدد هذا الشهر" value={formatNumber(metrics.newCustomersMonth)} hint={`عملاء متكررون: ${formatNumber(metrics.repeatCustomers)}`} icon={<UserRound aria-hidden="true" className="size-5" />} tone="blue" />
-        <MetricCard label="مشكلات الجودة المفتوحة" value={formatNumber(metrics.qualityOpen)} hint="حجوزات جودة وشكاوى مفتوحة" icon={<ShieldAlert aria-hidden="true" className="size-5" />} tone="red" />
+      {/* Executive Command Header */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between border-b border-neutral-800/80 pb-5">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="size-2 rounded-full bg-[#d4af37] shadow-sm shadow-[#d4af37]" />
+            <p className="text-xs font-bold uppercase tracking-widest text-[#d4af37]">EXECUTIVE COMMAND CENTER</p>
+          </div>
+          <h2 className="mt-1 text-balance text-2xl font-black tracking-tight text-white sm:text-3xl">
+            مركز قيادة بريق التنفيذي
+          </h2>
+          <p className="mt-1.5 max-w-3xl text-pretty text-xs sm:text-sm leading-6 text-neutral-400">
+            لوحة قيادة موحدة لمتابعة نبض التشغيل الحي، دفتر الإيرادات وصافي الأرباح الشهرية، والتقارير والتحليلات الشاملة.
+          </p>
+        </div>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-2">
-        <section aria-labelledby="priority-queues-title" className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-lg">
-          <div className="flex items-center justify-between border-b border-neutral-800/60 pb-3.5 mb-4">
-            <h3 id="priority-queues-title" className="text-base font-bold text-white flex items-center gap-2">
-              <Activity className="size-4 text-[#d4af37]" />
-              قوائم التدخل السريع والأولوية
-            </h3>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <QueueLink href="/operations?tab=proofs" label="إثباتات الدفع (مركز التشغيل)" count={metrics.pendingProofs} urgent />
-            <QueueLink href="/admin?section=bookings" label="بانتظار مراجعة التشغيل" count={metrics.operationsReview} urgent />
-            <QueueLink href="/admin?section=bookings" label="حجوزات بانتظار الإسناد" count={metrics.unassignedBookings} urgent />
-            <QueueLink href="/operations?tab=cancellations" label="طلبات الإلغاء (مركز التشغيل)" count={metrics.pendingCancellations} urgent />
-            <QueueLink href="/admin/reports" label="الاستردادات والتقارير" count={metrics.pendingRefunds} />
-            <QueueLink href="/admin/reports" label="مراجعات الجودة والشكاوى" count={metrics.qualityOpen} />
-          </div>
-        </section>
+      {/* 3 Executive Tabs Switcher */}
+      <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-neutral-800/80 bg-[#111114]/90 p-2 shadow-lg">
+        <Link
+          href="/admin?section=overview&tab=pulse"
+          className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs sm:text-sm font-bold transition-all ${
+            activeTab === 'pulse'
+              ? 'bg-gradient-to-r from-[#d4af37] via-[#e5c45a] to-[#d4af37] text-neutral-950 shadow-md shadow-[#d4af37]/20 font-black'
+              : 'text-neutral-300 hover:text-white hover:bg-white/[0.04]'
+          }`}
+        >
+          <Activity className="size-4" />
+          <span>⚡ نبض التشغيل الحي</span>
+        </Link>
+        <Link
+          href={`/admin?section=overview&tab=revenue${monthlyRevenue?.selectedMonth ? `&month=${monthlyRevenue.selectedMonth}` : ''}`}
+          className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs sm:text-sm font-bold transition-all ${
+            activeTab === 'revenue'
+              ? 'bg-gradient-to-r from-[#d4af37] via-[#e5c45a] to-[#d4af37] text-neutral-950 shadow-md shadow-[#d4af37]/20 font-black'
+              : 'text-neutral-300 hover:text-white hover:bg-white/[0.04]'
+          }`}
+        >
+          <DollarSign className="size-4" />
+          <span>💰 دفتر الإيرادات والأرباح {monthlyRevenue ? `(${monthlyRevenue.selectedMonth})` : ''}</span>
+        </Link>
+        <Link
+          href={`/admin?section=overview&tab=analytics${reports.from ? `&from=${reports.from}&to=${reports.to}` : ''}`}
+          className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs sm:text-sm font-bold transition-all ${
+            activeTab === 'analytics'
+              ? 'bg-gradient-to-r from-[#d4af37] via-[#e5c45a] to-[#d4af37] text-neutral-950 shadow-md shadow-[#d4af37]/20 font-black'
+              : 'text-neutral-300 hover:text-white hover:bg-white/[0.04]'
+          }`}
+        >
+          <BarChart3 className="size-4" />
+          <span>📊 التحليلات والتقارير الشاملة</span>
+        </Link>
+      </div>
 
-        <section aria-labelledby="branch-capacity-title" className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-lg">
-          <div className="flex items-center justify-between border-b border-neutral-800/60 pb-3.5 mb-4">
-            <h3 id="branch-capacity-title" className="text-base font-bold text-white flex items-center gap-2">
-              <Building2 className="size-4 text-[#d4af37]" />
-              سعة الفروع التشغيلية اليوم
-            </h3>
+      {/* Tab 1: Live Pulse */}
+      {activeTab === 'pulse' && (
+        <div className="space-y-8 animate-in fade-in duration-200">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+            <MetricCard label="إيراد اليوم المحصل" value={formatCurrency(metrics.revenueToday)} hint={`هذا الشهر: ${formatCurrency(metrics.revenueMonth)}`} icon={<Banknote aria-hidden="true" className="size-5" />} tone="green" />
+            <MetricCard label="المبالغ المستحقة" value={formatCurrency(metrics.pendingAmounts)} hint="أرصدة حجوزات غير منتهية" icon={<WalletCards aria-hidden="true" className="size-5" />} tone="red" />
+            <MetricCard label="حجوزات اليوم" value={formatNumber(metrics.todayBookings)} hint={`قيد التنفيذ: ${formatNumber(metrics.inProgress)}`} icon={<CalendarDays aria-hidden="true" className="size-5" />} />
+            <MetricCard label="إشغال الفرق اليوم" value={`${formatNumber(metrics.teamUtilization)}٪`} hint="الحجوزات المسندة ÷ السعة اليومية" icon={<Gauge aria-hidden="true" className="size-5" />} tone="blue" />
+            <MetricCard label="اكتملت اليوم" value={formatNumber(metrics.completedToday)} hint={`معدل إكمال الفترة: ${formatNumber(metrics.completionRate)}٪`} icon={<CheckCircle2 aria-hidden="true" className="size-5" />} tone="green" />
+            <MetricCard label="الاشتراكات النشطة" value={formatNumber(metrics.activeSubscriptions)} hint={`زيارات متبقية: ${formatNumber(metrics.visitsRemaining)}`} icon={<PackageCheck aria-hidden="true" className="size-5" />} />
+            <MetricCard label="عملاء جدد هذا الشهر" value={formatNumber(metrics.newCustomersMonth)} hint={`عملاء متكررون: ${formatNumber(metrics.repeatCustomers)}`} icon={<UserRound aria-hidden="true" className="size-5" />} tone="blue" />
+            <MetricCard label="مشكلات الجودة المفتوحة" value={formatNumber(metrics.qualityOpen)} hint="حجوزات جودة وشكاوى مفتوحة" icon={<ShieldAlert aria-hidden="true" className="size-5" />} tone="red" />
           </div>
-          {branches.length === 0 ? (
-            <div className="mt-4"><EmptyState title="لا توجد فروع" description="أنشئ الفرع من مدير النظام بعد اعتماد طلب الإضافة." /></div>
-          ) : (
-            <div className="space-y-4">
-              {branches.map((branch) => {
-                const capacity = branch.dailyBookingLimit > 0
-                  ? Math.min(100, Math.round((branch.todayBookings / branch.dailyBookingLimit) * 100))
-                  : 0;
-                return (
-                  <div key={branch.id} className="rounded-xl bg-neutral-950/40 border border-neutral-800/60 p-3.5">
-                    <div className="mb-2 flex items-center justify-between gap-4 text-xs sm:text-sm">
-                      <span className="font-bold text-neutral-200">{branch.nameAr}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[11px] text-neutral-400 font-medium">الحمل:</span>
-                        <span className="tabular-nums font-bold text-white bg-neutral-900 px-2 py-0.5 rounded border border-neutral-800">
-                          {formatNumber(branch.todayBookings)} / {formatNumber(branch.dailyBookingLimit)}
-                        </span>
-                        <span className="text-xs font-black text-[#d4af37]">{capacity}٪</span>
+
+          <div className="grid gap-6 xl:grid-cols-2">
+            <section aria-labelledby="priority-queues-title" className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-lg">
+              <div className="flex items-center justify-between border-b border-neutral-800/60 pb-3.5 mb-4">
+                <h3 id="priority-queues-title" className="text-base font-bold text-white flex items-center gap-2">
+                  <Activity className="size-4 text-[#d4af37]" />
+                  قوائم التدخل السريع والأولوية
+                </h3>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <QueueLink href="/operations?tab=proofs" label="إثباتات الدفع (مركز التشغيل)" count={metrics.pendingProofs} urgent />
+                <QueueLink href="/admin?section=bookings" label="بانتظار مراجعة التشغيل" count={metrics.operationsReview} urgent />
+                <QueueLink href="/admin?section=bookings" label="حجوزات بانتظار الإسناد" count={metrics.unassignedBookings} urgent />
+                <QueueLink href="/operations?tab=cancellations" label="طلبات الإلغاء (مركز التشغيل)" count={metrics.pendingCancellations} urgent />
+                <QueueLink href="/admin?section=overview&tab=analytics" label="الاستردادات والتقارير" count={metrics.pendingRefunds} />
+                <QueueLink href="/admin?section=overview&tab=analytics" label="مراجعات الجودة والشكاوى" count={metrics.qualityOpen} />
+              </div>
+            </section>
+
+            <section aria-labelledby="branch-capacity-title" className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-lg">
+              <div className="flex items-center justify-between border-b border-neutral-800/60 pb-3.5 mb-4">
+                <h3 id="branch-capacity-title" className="text-base font-bold text-white flex items-center gap-2">
+                  <Building2 className="size-4 text-[#d4af37]" />
+                  سعة الفروع التشغيلية اليوم
+                </h3>
+              </div>
+              {branches.length === 0 ? (
+                <div className="mt-4"><EmptyState title="لا توجد فروع" description="أنشئ الفرع من مدير النظام بعد اعتماد طلب الإضافة." /></div>
+              ) : (
+                <div className="space-y-4">
+                  {branches.map((branch) => {
+                    const capacity = branch.dailyBookingLimit > 0
+                      ? Math.min(100, Math.round((branch.todayBookings / branch.dailyBookingLimit) * 100))
+                      : 0;
+                    return (
+                      <div key={branch.id} className="rounded-xl bg-neutral-950/40 border border-neutral-800/60 p-3.5">
+                        <div className="mb-2 flex items-center justify-between gap-4 text-xs sm:text-sm">
+                          <span className="font-bold text-neutral-200">{branch.nameAr}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] text-neutral-400 font-medium">الحمل:</span>
+                            <span className="tabular-nums font-bold text-white bg-neutral-900 px-2 py-0.5 rounded border border-neutral-800">
+                              {formatNumber(branch.todayBookings)} / {formatNumber(branch.dailyBookingLimit)}
+                            </span>
+                            <span className="text-xs font-black text-[#d4af37]">{capacity}٪</span>
+                          </div>
+                        </div>
+                        <div className="h-2 overflow-hidden rounded-full bg-neutral-800" aria-label={`استخدام سعة ${branch.nameAr}: ${capacity}٪`}>
+                          <div className="h-full rounded-full bg-gradient-to-r from-[#d4af37] to-[#f0d879] transition-all duration-500" style={{ width: `${capacity}%` }} />
+                        </div>
                       </div>
-                    </div>
-                    <div className="h-2 overflow-hidden rounded-full bg-neutral-800" aria-label={`استخدام سعة ${branch.nameAr}: ${capacity}٪`}>
-                      <div className="h-full rounded-full bg-gradient-to-r from-[#d4af37] to-[#f0d879] transition-all duration-500" style={{ width: `${capacity}%` }} />
-                    </div>
-                  </div>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          </div>
+
+          <section aria-labelledby="oldest-bookings-title" className="mt-8">
+            <div className="mb-4 flex items-center justify-between gap-4 border-b border-neutral-800/60 pb-3.5">
+              <h3 id="oldest-bookings-title" className="text-base font-bold text-white flex items-center gap-2">
+                <Clock className="size-4 text-[#d4af37]" />
+                أقدم حجوزات تحتاج تدخلاً إدارياً
+              </h3>
+              <Link href="/admin?section=bookings" className="text-xs sm:text-sm font-bold text-[#d4af37] hover:text-[#f3e4a8] hover:underline">
+                عرض كل الحجوزات ←
+              </Link>
+            </div>
+            {operationsReviewBookings.length === 0 && unassignedBookings.length === 0 ? (
+              <EmptyState title="لا توجد حجوزات متوقفة" description="لا توجد حجوزات تنتظر مراجعة التشغيل أو إسناد فريق." />
+            ) : (
+              <div className="space-y-3">
+                {operationsReviewBookings.slice(0, 2).map((booking) => (
+                  <BookingCard key={booking.id} booking={booking} onReview={onReview} />
+                ))}
+                {unassignedBookings.slice(0, 2).map((booking) => (
+                  <BookingCard key={booking.id} booking={booking} onAssign={onAssign} />
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
+      )}
+
+      {/* Tab 2: Monthly Revenue & Cash Ledger */}
+      {activeTab === 'revenue' && monthlyRevenue && (
+        <div className="space-y-8 animate-in fade-in duration-200">
+          {/* Month Selector Pills */}
+          <section aria-labelledby="revenue-month-select" className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 p-5 shadow-lg">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h3 id="revenue-month-select" className="text-base font-bold text-white flex items-center gap-2">
+                  <Calendar className="size-4 text-[#d4af37]" />
+                  <span>تحديد الشهر المالي</span>
+                </h3>
+                <p className="text-xs text-neutral-400 mt-1">اختر الشهر لمتابعة الإيرادات وصافي الأرباح وحركات الحجوزات والاشتراكات.</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={monthlyRevenue.exportUrl}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2 text-xs font-bold text-emerald-300 hover:bg-emerald-500/20 transition-all"
+                >
+                  <Download className="size-3.5" />
+                  <span>تصدير كشف الإيرادات CSV</span>
+                </a>
+              </div>
+            </div>
+            <div className="mt-4 flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
+              {monthlyRevenue.pastMonths.map((m) => {
+                const isActive = m.key === monthlyRevenue.selectedMonth;
+                return (
+                  <Link
+                    key={m.key}
+                    href={`/admin?section=overview&tab=revenue&month=${m.key}`}
+                    className={`shrink-0 rounded-xl px-3.5 py-1.5 text-xs font-bold transition-all ${
+                      isActive
+                        ? 'bg-[#d4af37] text-neutral-950 shadow-md font-black'
+                        : 'bg-neutral-900 text-neutral-400 hover:bg-neutral-800 hover:text-white border border-neutral-800'
+                    }`}
+                  >
+                    {m.label}
+                  </Link>
                 );
               })}
             </div>
-          )}
-        </section>
-      </div>
+          </section>
 
-      <section aria-labelledby="oldest-bookings-title" className="mt-8">
-        <div className="mb-4 flex items-center justify-between gap-4 border-b border-neutral-800/60 pb-3.5">
-          <h3 id="oldest-bookings-title" className="text-base font-bold text-white flex items-center gap-2">
-            <Clock className="size-4 text-[#d4af37]" />
-            أقدم حجوزات تحتاج تدخلاً إدارياً
-          </h3>
-          <Link href="/admin?section=bookings" className="text-xs sm:text-sm font-bold text-[#d4af37] hover:text-[#f3e4a8] hover:underline">
-            عرض كل الحجوزات ←
-          </Link>
-        </div>
-        {operationsReviewBookings.length === 0 && unassignedBookings.length === 0 ? (
-          <EmptyState title="لا توجد حجوزات متوقفة" description="لا توجد حجوزات تنتظر مراجعة التشغيل أو إسناد فريق." />
-        ) : (
-          <div className="space-y-3">
-            {operationsReviewBookings.slice(0, 2).map((booking) => (
-              <BookingCard key={booking.id} booking={booking} onReview={onReview} />
-            ))}
-            {unassignedBookings.slice(0, 2).map((booking) => (
-              <BookingCard key={booking.id} booking={booking} onAssign={onAssign} />
-            ))}
+          {/* Revenue Summary Cards */}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="rounded-2xl border border-[#d4af37]/40 bg-gradient-to-br from-[#d4af37]/15 to-transparent p-5 shadow-xl">
+              <div className="flex items-center justify-between text-xs font-bold text-[#f3e4a8]">
+                <span>صافي الإيراد والأرباح</span>
+                <Sparkles className="size-4 text-[#d4af37]" />
+              </div>
+              <p className="mt-3 text-2xl lg:text-3xl font-black text-white">{formatCurrency(monthlyRevenue.netRevenue)}</p>
+              <p className="mt-1 text-[11px] text-neutral-400">إجمالي المقبوضات ناقص الاستردادات</p>
+            </div>
+
+            <div className="rounded-2xl border border-neutral-800 bg-[#111] p-5">
+              <div className="flex items-center justify-between text-xs font-bold text-neutral-400">
+                <span>إجمالي المقبوضات</span>
+                <DollarSign className="size-4 text-neutral-400" />
+              </div>
+              <p className="mt-3 text-2xl lg:text-3xl font-black text-white">{formatCurrency(monthlyRevenue.grossRevenue)}</p>
+              <p className="mt-1 text-[11px] text-neutral-400">الحجوزات + الاشتراكات</p>
+            </div>
+
+            <div className="rounded-2xl border border-neutral-800 bg-[#111] p-5">
+              <div className="flex items-center justify-between text-xs font-bold text-emerald-400">
+                <span>إيراد الحجوزات</span>
+                <CheckCircle2 className="size-4 text-emerald-400" />
+              </div>
+              <p className="mt-3 text-2xl font-black text-white">{formatCurrency(monthlyRevenue.bookingRevenue)}</p>
+              <p className="mt-1 text-[11px] text-neutral-400">{monthlyRevenue.bookingPaymentsCount} حركة دفع حجز</p>
+            </div>
+
+            <div className="rounded-2xl border border-neutral-800 bg-[#111] p-5">
+              <div className="flex items-center justify-between text-xs font-bold text-sky-400">
+                <span>إيراد الاشتراكات</span>
+                <PackageCheck className="size-4 text-sky-400" />
+              </div>
+              <p className="mt-3 text-2xl font-black text-white">{formatCurrency(monthlyRevenue.subscriptionRevenue)}</p>
+              <p className="mt-1 text-[11px] text-neutral-400">{monthlyRevenue.subscriptionProofsCount} اشتراك مفعل</p>
+            </div>
+
+            <div className="rounded-2xl border border-neutral-800 bg-[#111] p-5">
+              <div className="flex items-center justify-between text-xs font-bold text-rose-400">
+                <span>الاستردادات المعتمدة</span>
+                <ShieldAlert className="size-4 text-rose-400" />
+              </div>
+              <p className="mt-3 text-2xl font-black text-rose-400">-{formatCurrency(monthlyRevenue.refundsTotal)}</p>
+              <p className="mt-1 text-[11px] text-neutral-400">{monthlyRevenue.refundsCount} حركة استرداد</p>
+            </div>
           </div>
-        )}
-      </section>
+
+          {/* Breakdowns: Payment Method & Branches */}
+          <div className="grid gap-6 lg:grid-cols-2">
+            <section aria-labelledby="method-breakdown" className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 p-5 shadow-lg">
+              <h3 id="method-breakdown" className="text-base font-bold text-white flex items-center gap-2 border-b border-neutral-800/60 pb-3 mb-4">
+                <WalletCards className="size-4 text-[#d4af37]" />
+                <span>توزيع الإيراد حسب وسيلة الدفع</span>
+              </h3>
+              <div className="space-y-3">
+                {monthlyRevenue.paymentMethods.length === 0 ? (
+                  <p className="text-xs text-neutral-500 py-4 text-center">لا توجد عمليات مسجلة في هذا الشهر.</p>
+                ) : (
+                  monthlyRevenue.paymentMethods.map((data) => (
+                    <div key={data.key} className="rounded-xl border border-neutral-800/80 bg-neutral-950/40 p-3">
+                      <div className="flex items-center justify-between text-xs font-bold">
+                        <span className="text-neutral-200">{data.label}</span>
+                        <span className="font-mono text-[#f3e4a8]">{formatCurrency(data.amount)} ({data.count} عملية)</span>
+                      </div>
+                      <div className="mt-2 flex items-center gap-3">
+                        <div className="h-2 flex-1 rounded-full bg-neutral-800 overflow-hidden">
+                          <div className="h-full rounded-full bg-gradient-to-r from-[#d4af37] to-[#f0d879]" style={{ width: `${data.percentage}%` }} />
+                        </div>
+                        <span className="text-[11px] font-bold text-neutral-400">{data.percentage}%</span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </section>
+
+            <section aria-labelledby="branch-revenue-breakdown" className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 p-5 shadow-lg">
+              <h3 id="branch-revenue-breakdown" className="text-base font-bold text-white flex items-center gap-2 border-b border-neutral-800/60 pb-3 mb-4">
+                <Building2 className="size-4 text-[#d4af37]" />
+                <span>توزيع الإيراد حسب الفرع</span>
+              </h3>
+              <div className="space-y-3">
+                {monthlyRevenue.branches.length === 0 ? (
+                  <p className="text-xs text-neutral-500 py-4 text-center">لا توجد عمليات مسجلة في هذا الشهر.</p>
+                ) : (
+                  monthlyRevenue.branches.map((data) => (
+                    <div key={data.name} className="rounded-xl border border-neutral-800/80 bg-neutral-950/40 p-3">
+                      <div className="flex items-center justify-between text-xs font-bold">
+                        <span className="text-neutral-200">{data.name}</span>
+                        <span className="font-mono text-emerald-400">{formatCurrency(data.amount)} ({data.count} عملية)</span>
+                      </div>
+                      <div className="mt-2 flex items-center gap-3">
+                        <div className="h-2 flex-1 rounded-full bg-neutral-800 overflow-hidden">
+                          <div className="h-full rounded-full bg-emerald-400" style={{ width: `${data.percentage}%` }} />
+                        </div>
+                        <span className="text-[11px] font-bold text-neutral-400">{data.percentage}%</span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </section>
+          </div>
+
+          {/* Transactions Ledger Table */}
+          <section aria-labelledby="transactions-ledger" className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 p-5 shadow-lg space-y-4">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between border-b border-neutral-800/60 pb-3.5">
+              <div>
+                <h3 id="transactions-ledger" className="text-base font-black text-white flex items-center gap-2">
+                  <TrendingUp className="size-4 text-[#d4af37]" />
+                  <span>سجل الحركات المالية الموثقة ({monthlyRevenue.transactions.length} حركة)</span>
+                </h3>
+                <p className="text-xs text-neutral-400 mt-1">كشف تفصيلي بالاسم ورقم الهاتف والفرع وطريقة الدفع لكل حجز واشتراك واسترداد.</p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {(
+                  [
+                    { type: 'all', label: 'الكل' },
+                    { type: 'booking', label: 'الحجوزات' },
+                    { type: 'subscription', label: 'الاشتراكات' },
+                    { type: 'refund', label: 'الاستردادات' },
+                  ] as const
+                ).map((tab) => {
+                  const isActive = monthlyRevenue.filterType === tab.type;
+                  return (
+                    <Link
+                      key={tab.type}
+                      href={`/admin?section=overview&tab=revenue&month=${monthlyRevenue.selectedMonth}&revenue_type=${tab.type}${monthlyRevenue.searchQuery ? `&revenue_q=${encodeURIComponent(monthlyRevenue.searchQuery)}` : ''}`}
+                      className={`rounded-xl px-3 py-1.5 text-xs font-bold transition-all ${isActive ? 'bg-[#d4af37] text-black shadow-md' : 'bg-neutral-900 text-neutral-400 hover:bg-neutral-800 hover:text-white border border-neutral-800'}`}
+                    >
+                      {tab.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Search Bar */}
+            <form action="/admin" method="get" className="flex items-center gap-2">
+              <input type="hidden" name="section" value="overview" />
+              <input type="hidden" name="tab" value="revenue" />
+              <input type="hidden" name="month" value={monthlyRevenue.selectedMonth} />
+              <input type="hidden" name="revenue_type" value={monthlyRevenue.filterType} />
+              <div className="relative flex-1">
+                <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 size-4 text-neutral-500" />
+                <input
+                  name="revenue_q"
+                  defaultValue={monthlyRevenue.searchQuery}
+                  placeholder="ابحث باسم العميل، رقم الهاتف، رقم الحجز، أو الفرع…"
+                  className="w-full rounded-xl border border-neutral-800 bg-[#080808] py-2.5 pr-10 pl-4 text-xs text-white placeholder:text-neutral-500 focus:border-[#d4af37] focus:outline-none"
+                />
+              </div>
+              <button type="submit" className="rounded-xl bg-[#d4af37] px-4 py-2.5 text-xs font-bold text-black hover:bg-[#e0bd3a]">بحث</button>
+              {monthlyRevenue.searchQuery ? (
+                <Link
+                  href={`/admin?section=overview&tab=revenue&month=${monthlyRevenue.selectedMonth}&revenue_type=${monthlyRevenue.filterType}`}
+                  className="rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2.5 text-xs font-bold text-neutral-300 hover:bg-neutral-800"
+                >
+                  مسح
+                </Link>
+              ) : null}
+            </form>
+
+            {/* Transactions Table */}
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[850px] border-collapse text-right text-xs">
+                <caption className="sr-only">سجل الحركات المالية الموثقة</caption>
+                <thead className="border-b border-neutral-800 text-neutral-400">
+                  <tr>
+                    <th scope="col" className="px-3 py-3 font-medium">التاريخ والوقت</th>
+                    <th scope="col" className="px-3 py-3 font-medium">النوع والبيان</th>
+                    <th scope="col" className="px-3 py-3 font-medium">العميل</th>
+                    <th scope="col" className="px-3 py-3 font-medium">الفرع</th>
+                    <th scope="col" className="px-3 py-3 font-medium">وسيلة الدفع</th>
+                    <th scope="col" className="px-3 py-3 font-medium">المرجع</th>
+                    <th scope="col" className="px-3 py-3 font-medium text-left">المبلغ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {monthlyRevenue.transactions.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-3 py-10 text-center text-neutral-500">
+                        لا توجد حركات مالية مطابقة للبحث في هذا الشهر.
+                      </td>
+                    </tr>
+                  ) : (
+                    monthlyRevenue.transactions.map((tx) => {
+                      const isPositive = tx.amount > 0;
+                      return (
+                        <tr key={tx.id} className="border-b border-neutral-900 hover:bg-white/[0.02]">
+                          <td className="px-3 py-3 font-mono text-neutral-400 text-[11px]" dir="ltr">
+                            {formatDateTime(tx.date)}
+                          </td>
+                          <td className="px-3 py-3">
+                            <span className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[10px] font-bold ${tx.type === 'BOOKING' ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20' : tx.type === 'SUBSCRIPTION' ? 'bg-sky-500/10 text-sky-300 border border-sky-500/20' : 'bg-rose-500/10 text-rose-300 border border-rose-500/20'}`}>
+                              {tx.type === 'BOOKING' ? 'حجز' : tx.type === 'SUBSCRIPTION' ? 'اشتراك' : 'استرداد'}
+                            </span>
+                            <span className="mr-2 text-white font-medium">{tx.title}</span>
+                          </td>
+                          <td className="px-3 py-3">
+                            <p className="font-bold text-neutral-200">{tx.customerName}</p>
+                            <p className="font-mono text-[10px] text-neutral-500" dir="ltr">{tx.customerPhone}</p>
+                          </td>
+                          <td className="px-3 py-3 text-neutral-300">{tx.branchName}</td>
+                          <td className="px-3 py-3 text-neutral-300">{tx.paymentMethod}</td>
+                          <td className="px-3 py-3 font-mono text-neutral-400 text-[11px]" dir="ltr">{tx.reference}</td>
+                          <td className="px-3 py-3 text-left font-mono font-bold">
+                            <span className={isPositive ? 'text-emerald-400' : 'text-rose-400'}>
+                              {isPositive ? '+' : ''}{formatCurrency(tx.amount)}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {/* Tab 3: Reports & Multi-dimensional Analytics */}
+      {activeTab === 'analytics' && (
+        <div className="space-y-8 animate-in fade-in duration-200">
+          <form action="/admin" method="get" className="grid gap-3 rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-4 sm:grid-cols-[1fr_1fr_auto_auto] shadow-md items-end">
+            <input type="hidden" name="section" value="overview" />
+            <input type="hidden" name="tab" value="analytics" />
+            <div>
+              <label htmlFor="report-from" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">من تاريخ</label>
+              <input id="report-from" name="from" type="date" defaultValue={reports.from} className={inputClass} />
+            </div>
+            <div>
+              <label htmlFor="report-to" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">إلى تاريخ</label>
+              <input id="report-to" name="to" type="date" defaultValue={reports.to} className={inputClass} />
+            </div>
+            <button type="submit" className={primaryButtonClass}>تحديث التقرير</button>
+            <a
+              href={`/admin/reports/export?from=${reports.from}&to=${reports.to}`}
+              className={secondaryButtonClass}
+            >
+              <FileSpreadsheet className="size-4" />
+              <span>تصدير CSV</span>
+            </a>
+          </form>
+
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <MetricCard label="إجمالي الحجوزات" value={formatNumber(reports.totalBookings)} icon={<CalendarDays aria-hidden="true" className="size-5" />} />
+            <MetricCard label="الحجوزات المكتملة" value={formatNumber(reports.completedBookings)} icon={<CheckCircle2 aria-hidden="true" className="size-5" />} tone="green" />
+            <MetricCard label="الحجوزات الملغاة" value={formatNumber(reports.cancelledBookings)} hint={`معدل الإلغاء: ${cancellationRate}٪`} icon={<ShieldAlert aria-hidden="true" className="size-5" />} tone="red" />
+            <MetricCard label="المحصل الفعلي (الإيراد)" value={formatCurrency(reports.collectedAmount)} icon={<Banknote aria-hidden="true" className="size-5" />} tone="green" />
+            <MetricCard label="إجمالي المبالغ المستردة" value={formatCurrency(reports.refundedAmount)} hint="مستردة للعملاء" icon={<ShieldAlert aria-hidden="true" className="size-5" />} tone="red" />
+            <MetricCard label="صافي التحصيل والأرباح" value={formatCurrency(reports.netCollected)} hint="المحصل ناقص المسترد" icon={<Activity aria-hidden="true" className="size-5" />} tone="blue" />
+            <MetricCard label="المبالغ المستحقة" value={formatCurrency(reports.amountDue)} icon={<WalletCards aria-hidden="true" className="size-5" />} tone="red" />
+            <MetricCard label="متوسط قيمة الحجز" value={formatCurrency(reports.averageBookingValue)} icon={<Gauge aria-hidden="true" className="size-5" />} />
+          </div>
+
+          <div className="grid gap-6 xl:grid-cols-2">
+            <ReportTable title="حسب الخدمة" rows={reports.byService} />
+            <ReportTable title="حسب الفرع" rows={reports.byBranch} />
+            <ReportTable title="حسب الفريق" rows={reports.byTeam} />
+            <section className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-lg">
+              <div className="border-b border-neutral-800/60 pb-3 mb-4 flex items-center justify-between">
+                <h3 className="text-base font-bold text-white">تفصيل أسباب الإلغاء</h3>
+                <span className="text-xs text-rose-400 font-bold">{formatNumber(reports.cancelledBookings)} حجز ملغي</span>
+              </div>
+              {reports.cancellationReasons.length === 0 ? (
+                <EmptyState title="لا توجد إلغاءات" description="لا توجد طلبات إلغاء في الفترة المحددة." />
+              ) : (
+                <ol className="space-y-2.5">
+                  {reports.cancellationReasons.map((item) => (
+                    <li key={item.reason} className="flex items-start justify-between gap-4 rounded-xl border border-neutral-800/80 bg-neutral-950/40 p-3">
+                      <span className="break-words text-xs sm:text-sm text-neutral-300">{item.reason}</span>
+                      <span className="shrink-0 rounded-full bg-neutral-800 border border-neutral-700 px-2.5 py-1 text-xs font-black tabular-nums text-white">
+                        {formatNumber(item.count)}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </section>
+          </div>
+
+          <section aria-labelledby="status-breakdown-title" className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-lg">
+            <h3 id="status-breakdown-title" className="text-base font-bold text-white border-b border-neutral-800/60 pb-3 mb-4">توزيع حالات الحجز</h3>
+            {reports.byStatus.length === 0 ? (
+              <EmptyState title="لا توجد حالات" description="لا توجد حجوزات في الفترة المحددة." />
+            ) : (
+              <div className="flex flex-wrap gap-2.5">
+                {reports.byStatus.map((item) => (
+                  <div key={item.status} className="flex items-center gap-2 rounded-xl border border-neutral-800 bg-neutral-950/50 px-3 py-2">
+                    <StatusBadge status={item.status} label={bookingStatusLabel(item.status)} />
+                    <span className="font-bold text-xs tabular-nums text-white">{formatNumber(item.count)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
+      )}
     </div>
   );
 }
@@ -990,97 +1436,7 @@ function ReportTable({ title, rows }: { title: string; rows: ReportRowDto[] }) {
   );
 }
 
-function ReportsSection({ reports }: { reports: ReportsDto }) {
-  const cancellationRate = reports.totalBookings > 0
-    ? Math.round((reports.cancelledBookings / reports.totalBookings) * 100)
-    : 0;
 
-  return (
-    <div className="space-y-6">
-      <SectionHeader
-        eyebrow="التحليلات والمؤشرات"
-        title="ملخص الأداء والتقارير المالية"
-        description="نظرة شاملة على مؤشرات الحجوزات، الإيرادات المحصلة، الحجوزات الملغاة، والمبالغ المستردة للعملاء."
-      />
-      <form action="/admin" method="get" className="grid gap-3 rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-4 sm:grid-cols-[1fr_1fr_auto] shadow-md">
-        <input type="hidden" name="section" value="reports" />
-        <div><label htmlFor="report-from" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">من تاريخ</label><input id="report-from" name="from" type="date" defaultValue={reports.from} className={inputClass} /></div>
-        <div><label htmlFor="report-to" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">إلى تاريخ</label><input id="report-to" name="to" type="date" defaultValue={reports.to} className={inputClass} /></div>
-        <button type="submit" className={`${primaryButtonClass} self-end`}>تحديث التقرير</button>
-      </form>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="flex flex-col justify-between gap-3 rounded-2xl border border-[#d4af37]/30 bg-[#d4af37]/[0.06] p-4 shadow-md">
-          <div>
-            <h4 className="text-sm font-bold text-[#f3e4a8]">مركز التقارير والإيرادات الشامل</h4>
-            <p className="text-xs text-neutral-300 mt-1 leading-5">متابعة دقيقة للأداء التشغيلي ومؤشرات الجودة ودفتر الإيرادات والأرباح الشهرية مع تصدير CSV.</p>
-          </div>
-          <Link href="/admin/reports" className={`${primaryButtonClass} shrink-0 self-start`}>
-            <BarChart3 aria-hidden="true" className="size-4" /> فتح مركز التقارير والإيرادات
-          </Link>
-        </div>
-        <div className="flex flex-col justify-between gap-3 rounded-2xl border border-emerald-500/25 bg-emerald-500/[0.05] p-4 shadow-md">
-          <div>
-            <h4 className="text-sm font-bold text-emerald-300">دفتر الإيرادات والحركات المالية</h4>
-            <p className="text-xs text-neutral-300 mt-1 leading-5">استعراض مباشر لكشف الحركات المالية وتوزيع الإيراد حسب وسائل الدفع والفروع لكل شهر.</p>
-          </div>
-          <Link href="/admin/reports?tab=revenue" className={`${secondaryButtonClass} shrink-0 self-start`}>
-            <DollarSign aria-hidden="true" className="size-4" /> فتح دفتر الإيرادات والحركات
-          </Link>
-        </div>
-      </div>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="إجمالي الحجوزات" value={formatNumber(reports.totalBookings)} icon={<CalendarDays aria-hidden="true" className="size-5" />} />
-        <MetricCard label="الحجوزات المكتملة" value={formatNumber(reports.completedBookings)} icon={<CheckCircle2 aria-hidden="true" className="size-5" />} tone="green" />
-        <MetricCard label="الحجوزات الملغاة" value={formatNumber(reports.cancelledBookings)} hint={`معدل الإلغاء: ${cancellationRate}٪`} icon={<ShieldAlert aria-hidden="true" className="size-5" />} tone="red" />
-        <MetricCard label="المحصل الفعلي (الإيراد)" value={formatCurrency(reports.collectedAmount)} icon={<Banknote aria-hidden="true" className="size-5" />} tone="green" />
-        <MetricCard label="إجمالي المبالغ المستردة" value={formatCurrency(reports.refundedAmount)} hint="مستردة للعملاء" icon={<ShieldAlert aria-hidden="true" className="size-5" />} tone="red" />
-        <MetricCard label="صافي التحصيل والأرباح" value={formatCurrency(reports.netCollected)} hint="المحصل ناقص المسترد" icon={<Activity aria-hidden="true" className="size-5" />} tone="blue" />
-        <MetricCard label="المبالغ المستحقة" value={formatCurrency(reports.amountDue)} icon={<WalletCards aria-hidden="true" className="size-5" />} tone="red" />
-        <MetricCard label="متوسط قيمة الحجز" value={formatCurrency(reports.averageBookingValue)} icon={<Gauge aria-hidden="true" className="size-5" />} />
-      </div>
-      <div className="grid gap-6 xl:grid-cols-2">
-        <ReportTable title="حسب الخدمة" rows={reports.byService} />
-        <ReportTable title="حسب الفرع" rows={reports.byBranch} />
-        <ReportTable title="حسب الفريق" rows={reports.byTeam} />
-        <section className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-lg">
-          <div className="border-b border-neutral-800/60 pb-3 mb-4 flex items-center justify-between">
-            <h3 className="text-base font-bold text-white">تفصيل أسباب الإلغاء</h3>
-            <span className="text-xs text-rose-400 font-bold">{formatNumber(reports.cancelledBookings)} حجز ملغي</span>
-          </div>
-          {reports.cancellationReasons.length === 0 ? (
-            <EmptyState title="لا توجد إلغاءات" description="لا توجد طلبات إلغاء في الفترة المحددة." />
-          ) : (
-            <ol className="space-y-2.5">
-              {reports.cancellationReasons.map((item) => (
-                <li key={item.reason} className="flex items-start justify-between gap-4 rounded-xl border border-neutral-800/80 bg-neutral-950/40 p-3">
-                  <span className="break-words text-xs sm:text-sm text-neutral-300">{item.reason}</span>
-                  <span className="shrink-0 rounded-full bg-neutral-800 border border-neutral-700 px-2.5 py-1 text-xs font-black tabular-nums text-white">
-                    {formatNumber(item.count)}
-                  </span>
-                </li>
-              ))}
-            </ol>
-          )}
-        </section>
-      </div>
-      <section aria-labelledby="status-breakdown-title" className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-lg">
-        <h3 id="status-breakdown-title" className="text-base font-bold text-white border-b border-neutral-800/60 pb-3 mb-4">توزيع حالات الحجز</h3>
-        {reports.byStatus.length === 0 ? (
-          <EmptyState title="لا توجد حالات" description="لا توجد حجوزات في الفترة المحددة." />
-        ) : (
-          <div className="flex flex-wrap gap-2.5">
-            {reports.byStatus.map((item) => (
-              <div key={item.status} className="flex items-center gap-2 rounded-xl border border-neutral-800 bg-neutral-950/50 px-3 py-2">
-                <StatusBadge status={item.status} label={bookingStatusLabel(item.status)} />
-                <span className="font-bold text-xs tabular-nums text-white">{formatNumber(item.count)}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-    </div>
-  );
-}
 
 function AuditSection({ auditLogs }: { auditLogs: AuditLogDto[] }) {
   return (
@@ -1217,6 +1573,7 @@ export default function OwnerCommandCenter(props: OwnerCommandCenterProps) {
   const {
     owner,
     currentSection,
+    overviewTab = 'pulse',
     metrics,
     filters,
     customerQuery,
@@ -1229,6 +1586,7 @@ export default function OwnerCommandCenter(props: OwnerCommandCenterProps) {
     customers,
     auditLogs,
     reports,
+    monthlyRevenue,
   } = props;
   const router = useRouter();
   const [modal, setModal] = useState<ModalState>(null);
@@ -1334,13 +1692,37 @@ export default function OwnerCommandCenter(props: OwnerCommandCenterProps) {
       sectionContent = <CustomerManagementPanel customers={customers} query={customerQuery} />;
       break;
     case 'reports':
-      sectionContent = <ReportsSection reports={reports} />;
+      sectionContent = (
+        <OverviewSection
+          overviewTab="analytics"
+          metrics={metrics}
+          branches={branches}
+          operationsReviewBookings={operationsReviewBookings}
+          unassignedBookings={unassignedBookings}
+          reports={reports}
+          monthlyRevenue={monthlyRevenue}
+          onReview={(booking) => openModal({ type: 'booking-review', booking })}
+          onAssign={(booking) => openModal({ type: 'assignment', booking })}
+        />
+      );
       break;
     case 'audit':
       sectionContent = <AuditSection auditLogs={auditLogs} />;
       break;
     default:
-      sectionContent = <OverviewSection metrics={metrics} branches={branches} operationsReviewBookings={operationsReviewBookings} unassignedBookings={unassignedBookings} onReview={(booking) => openModal({ type: 'booking-review', booking })} onAssign={(booking) => openModal({ type: 'assignment', booking })} />;
+      sectionContent = (
+        <OverviewSection
+          overviewTab={overviewTab}
+          metrics={metrics}
+          branches={branches}
+          operationsReviewBookings={operationsReviewBookings}
+          unassignedBookings={unassignedBookings}
+          reports={reports}
+          monthlyRevenue={monthlyRevenue}
+          onReview={(booking) => openModal({ type: 'booking-review', booking })}
+          onAssign={(booking) => openModal({ type: 'assignment', booking })}
+        />
+      );
   }
 
   return (

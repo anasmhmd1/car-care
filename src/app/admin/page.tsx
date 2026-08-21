@@ -7,6 +7,7 @@ import {
   Prisma,
   ProofStatus,
   RefundStatus,
+  SubscriptionPaymentProofStatus,
   SubscriptionStatus,
   UserRole,
 } from '@prisma/client';
@@ -17,9 +18,37 @@ import { expireActiveSubscriptions } from '@/lib/engine/subscription-expiration'
 import { normalizePhone } from '@/lib/validations/phone';
 import OwnerCommandCenter, {
   type BookingSummaryDto,
+  type MonthlyRevenueDataDto,
   type OwnerSection,
+  type OverviewTab,
 } from './OwnerCommandCenter';
 import type { ManagedSubscription } from './subscriptions/SubscriptionManagementPanel';
+
+const MONTH_NAMES_AR = [
+  'يناير',
+  'فبراير',
+  'مارس',
+  'أبريل',
+  'مايو',
+  'يونيو',
+  'يوليو',
+  'أغسطس',
+  'سبتمبر',
+  'أكتوبر',
+  'نوفمبر',
+  'ديسمبر',
+];
+
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  CASH: 'كاش عند الاستلام',
+  INSTAPAY: 'إنستاباي (تحويل بنكي)',
+  VODAFONE_CASH: 'فودافون كاش',
+  ORANGE_CASH: 'أورنج كاش',
+  ETISALAT_CASH: 'اتصالات كاش',
+  SMART_WALLET: 'محفظة ذكية',
+  CARD: 'بطاقة ائتمان',
+  OTHER: 'أخرى',
+};
 
 export const metadata: Metadata = {
   title: 'لوحة المالك',
@@ -141,6 +170,192 @@ function countForStatus<Key extends string>(
   }, 0);
 }
 
+async function getMonthlyRevenueData(
+  selectedMonthRange: { gte: Date; lt: Date },
+  branchesRaw: Array<{ nameAr: string }>,
+  selectedMonth: string,
+  pastMonths: Array<{ key: string; label: string }>,
+  revenueTypeParam: 'all' | 'booking' | 'subscription' | 'refund',
+  revenueQueryParam: string,
+): Promise<MonthlyRevenueDataDto> {
+  const [bookingPayments, subscriptionProofs, refunds] = await Promise.all([
+    db.payment.findMany({
+      where: {
+        createdAt: selectedMonthRange,
+      },
+      include: {
+        booking: {
+          include: {
+            customer: { include: { user: true } },
+            service: true,
+            branch: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    }),
+    db.subscriptionPaymentProof.findMany({
+      where: {
+        status: SubscriptionPaymentProofStatus.APPROVED,
+        reviewedAt: selectedMonthRange,
+      },
+      include: {
+        subscription: {
+          include: {
+            customer: { include: { user: true } },
+            plan: true,
+            branch: true,
+          },
+        },
+        paymentMethod: true,
+      },
+      orderBy: { reviewedAt: 'desc' },
+    }),
+    db.refund.findMany({
+      where: {
+        status: { in: [RefundStatus.REFUNDED, RefundStatus.PARTIALLY_REFUNDED] },
+        createdAt: selectedMonthRange,
+      },
+      include: {
+        booking: {
+          include: {
+            customer: { include: { user: true } },
+            service: true,
+            branch: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    }),
+  ]);
+
+  const totalBookingRevenue = bookingPayments.reduce((sum, p) => sum + p.amount, 0);
+  const totalSubscriptionRevenue = subscriptionProofs.reduce((sum, p) => sum + p.amountSubmitted, 0);
+  const totalGrossRevenue = totalBookingRevenue + totalSubscriptionRevenue;
+  const totalRefunds = refunds.reduce((sum, r) => sum + r.amount, 0);
+  const netRevenue = totalGrossRevenue - totalRefunds;
+
+  const paymentMethodMap: Record<string, { label: string; amount: number; count: number }> = {};
+  for (const p of bookingPayments) {
+    const methodKey = p.paymentMethod || 'OTHER';
+    const label = PAYMENT_METHOD_LABELS[methodKey] || methodKey;
+    if (!paymentMethodMap[methodKey]) paymentMethodMap[methodKey] = { label, amount: 0, count: 0 };
+    paymentMethodMap[methodKey].amount += p.amount;
+    paymentMethodMap[methodKey].count += 1;
+  }
+  for (const sp of subscriptionProofs) {
+    const methodKey = sp.paymentMethod.name || 'OTHER';
+    if (!paymentMethodMap[methodKey]) paymentMethodMap[methodKey] = { label: methodKey, amount: 0, count: 0 };
+    paymentMethodMap[methodKey].amount += sp.amountSubmitted;
+    paymentMethodMap[methodKey].count += 1;
+  }
+  const paymentMethodsList = Object.entries(paymentMethodMap).map(([key, item]) => ({
+    key,
+    label: item.label,
+    amount: item.amount,
+    count: item.count,
+    percentage: totalGrossRevenue > 0 ? Math.round((item.amount / totalGrossRevenue) * 100) : 0,
+  })).sort((a, b) => b.amount - a.amount);
+
+  const branchMap: Record<string, { name: string; amount: number; count: number }> = {};
+  for (const b of branchesRaw) {
+    branchMap[b.nameAr] = { name: b.nameAr, amount: 0, count: 0 };
+  }
+  for (const p of bookingPayments) {
+    const bName = p.booking.branch.nameAr;
+    if (!branchMap[bName]) branchMap[bName] = { name: bName, amount: 0, count: 0 };
+    branchMap[bName].amount += p.amount;
+    branchMap[bName].count += 1;
+  }
+  for (const sp of subscriptionProofs) {
+    const bName = sp.subscription.branch.nameAr;
+    if (!branchMap[bName]) branchMap[bName] = { name: bName, amount: 0, count: 0 };
+    branchMap[bName].amount += sp.amountSubmitted;
+    branchMap[bName].count += 1;
+  }
+  const branchRevenueList = Object.values(branchMap).map((b) => ({
+    name: b.name,
+    amount: b.amount,
+    count: b.count,
+    percentage: totalGrossRevenue > 0 ? Math.round((b.amount / totalGrossRevenue) * 100) : 0,
+  })).sort((a, b) => b.amount - a.amount);
+
+  const allTx = [
+    ...bookingPayments.map((p) => ({
+      id: p.id,
+      date: p.createdAt.toISOString(),
+      type: 'BOOKING' as const,
+      customerName: p.booking.customer.user.fullName,
+      customerPhone: p.booking.customer.user.phone,
+      title: `حجز: ${p.booking.service.nameAr}`,
+      branchName: p.booking.branch.nameAr,
+      paymentMethod: PAYMENT_METHOD_LABELS[p.paymentMethod] || p.paymentMethod,
+      amount: p.amount,
+      reference: p.booking.bookingNumber,
+    })),
+    ...subscriptionProofs.map((sp) => ({
+      id: sp.id,
+      date: (sp.reviewedAt ?? sp.createdAt).toISOString(),
+      type: 'SUBSCRIPTION' as const,
+      customerName: sp.subscription.customer.user.fullName,
+      customerPhone: sp.subscription.customer.user.phone,
+      title: `اشتراك: ${sp.subscription.plan.nameAr}`,
+      branchName: sp.subscription.branch.nameAr,
+      paymentMethod: sp.paymentMethod.name,
+      amount: sp.amountSubmitted,
+      reference: `SUB-${sp.subscriptionId.slice(0, 8).toUpperCase()}`,
+    })),
+    ...refunds.map((r) => ({
+      id: r.id,
+      date: r.createdAt.toISOString(),
+      type: 'REFUND' as const,
+      customerName: r.booking.customer.user.fullName,
+      customerPhone: r.booking.customer.user.phone,
+      title: `استرداد: ${r.booking.service.nameAr}`,
+      branchName: r.booking.branch.nameAr,
+      paymentMethod: 'استرداد معتمد',
+      amount: -r.amount,
+      reference: r.booking.bookingNumber,
+    })),
+  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+  const filteredTx = allTx.filter((tx) => {
+    if (revenueTypeParam === 'booking' && tx.type !== 'BOOKING') return false;
+    if (revenueTypeParam === 'subscription' && tx.type !== 'SUBSCRIPTION') return false;
+    if (revenueTypeParam === 'refund' && tx.type !== 'REFUND') return false;
+    if (revenueQueryParam) {
+      const q = revenueQueryParam.toLowerCase();
+      const match =
+        tx.customerName.toLowerCase().includes(q) ||
+        tx.customerPhone.includes(q) ||
+        tx.reference.toLowerCase().includes(q) ||
+        tx.branchName.toLowerCase().includes(q) ||
+        tx.title.toLowerCase().includes(q);
+      if (!match) return false;
+    }
+    return true;
+  });
+
+  return {
+    selectedMonth,
+    pastMonths,
+    grossRevenue: totalGrossRevenue,
+    netRevenue,
+    bookingRevenue: totalBookingRevenue,
+    subscriptionRevenue: totalSubscriptionRevenue,
+    refundsTotal: totalRefunds,
+    bookingPaymentsCount: bookingPayments.length,
+    subscriptionProofsCount: subscriptionProofs.length,
+    refundsCount: refunds.length,
+    paymentMethods: paymentMethodsList,
+    branches: branchRevenueList,
+    transactions: filteredTx,
+    filterType: revenueTypeParam,
+    searchQuery: revenueQueryParam,
+    exportUrl: `/admin/revenue/export?month=${selectedMonth}`,
+  };
+}
+
 export default async function OwnerDashboardPage({ searchParams }: OwnerDashboardPageProps) {
   const [owner, query] = await Promise.all([
     requireRole([UserRole.OWNER, UserRole.SYSTEM_SUPER_ADMIN, UserRole.OPERATIONS_MANAGER]),
@@ -153,6 +368,14 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
   const monthStartDate = `${today.slice(0, 7)}-01`;
   const todayBounds = localDateBoundsUtc(today, CAIRO_TIME_ZONE);
   const monthBounds = localDateBoundsUtc(monthStartDate, CAIRO_TIME_ZONE);
+
+  const rawTab = firstParam(query.tab);
+  const overviewTab: OverviewTab =
+    rawTab === 'revenue'
+      ? 'revenue'
+      : rawTab === 'analytics' || rawTab === 'reports'
+        ? 'analytics'
+        : 'pulse';
 
   const rawSection = firstParam(query.section);
   if (rawSection === 'services') {
@@ -171,7 +394,10 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
     redirect('/operations');
   }
   if (rawSection === 'revenue') {
-    redirect('/admin/reports');
+    redirect('/admin?section=overview&tab=revenue');
+  }
+  if (rawSection === 'reports') {
+    redirect('/admin?section=overview&tab=analytics');
   }
   const currentSection = rawSection && VALID_SECTIONS.has(rawSection as OwnerSection)
     ? (rawSection as OwnerSection)
@@ -183,6 +409,35 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
   const bookingStatus = rawBookingStatus && Object.values(BookingStatus).includes(rawBookingStatus as BookingStatus)
     ? rawBookingStatus as BookingStatus
     : undefined;
+
+  const revenueMonthParam = firstParam(query.month);
+  const revenueTypeParam = (firstParam(query.revenue_type) ?? firstParam(query.type) ?? 'all') as 'all' | 'booking' | 'subscription' | 'refund';
+  const revenueQueryParam = (firstParam(query.revenue_q) ?? '').trim().slice(0, 100);
+
+  const pastMonths: Array<{ key: string; label: string }> = [];
+  const currentYear = now.getFullYear();
+  const currentMonthIdx = now.getMonth();
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(currentYear, currentMonthIdx - i, 1);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const key = `${y}-${m}`;
+    const monthIdx = d.getMonth();
+    const label = `${MONTH_NAMES_AR[monthIdx]} ${y}`;
+    pastMonths.push({ key, label });
+  }
+
+  const selectedMonth = (revenueMonthParam && /^\d{4}-\d{2}$/.test(revenueMonthParam))
+    ? revenueMonthParam
+    : pastMonths[0].key;
+  const selectedMonthStartDate = `${selectedMonth}-01`;
+  const selectedMonthStart = localDateBoundsUtc(selectedMonthStartDate, CAIRO_TIME_ZONE).start;
+  const [sYear, sMonth] = selectedMonth.split('-').map(Number);
+  const nextYear = sMonth === 12 ? sYear + 1 : sYear;
+  const nextMonth = sMonth === 12 ? 1 : sMonth + 1;
+  const nextMonthStartDate = `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`;
+  const selectedMonthEnd = localDateBoundsUtc(nextMonthStartDate, CAIRO_TIME_ZONE).start;
+  const selectedMonthRange = { gte: selectedMonthStart, lt: selectedMonthEnd };
 
   let reportFrom = validDate(firstParam(query.from)) ?? monthStartDate;
   let reportTo = validDate(firstParam(query.to)) ?? today;
@@ -417,7 +672,8 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
   const isSubscriptions = currentSection === 'subscriptions';
   const isCustomers = currentSection === 'customers';
   const isAudit = currentSection === 'audit';
-  const isReports = currentSection === 'reports';
+  const isReports = currentSection === 'reports' || (isOverview && overviewTab === 'analytics');
+  const isRevenue = isOverview && overviewTab === 'revenue';
 
   // Overview quick cards & Bookings list
   const [pendingProofsRaw, operationsReviewRaw, unassignedRaw, bookingsRaw] = await Promise.all([
@@ -623,6 +879,18 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
         })
       : Promise.resolve([]),
   ]);
+
+  // Monthly Revenue Queries (Only executed if user is viewing Revenue tab!)
+  const monthlyRevenueData = isRevenue
+    ? await getMonthlyRevenueData(
+        selectedMonthRange,
+        branchesRaw,
+        selectedMonth,
+        pastMonths,
+        revenueTypeParam,
+        revenueQueryParam,
+      )
+    : undefined;
 
   // Reporting Analytics (Only executed if user is viewing Reports!)
   const [
@@ -862,6 +1130,8 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
       }}
       brand={brandRaw ?? { brandNameAr: 'بريق', brandNameEn: 'Bareeq', maxBranches: 1 }}
       currentSection={currentSection}
+      overviewTab={overviewTab}
+      monthlyRevenue={monthlyRevenueData}
       metrics={metrics}
       filters={{ bookingQuery, bookingStatus: bookingStatus ?? '' }}
       customerQuery={customerQuery}
