@@ -892,7 +892,7 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
       )
     : undefined;
 
-  // Reporting Analytics (Only executed if user is viewing Reports!)
+  // Reporting Analytics (Calculated for the exact selected date range)
   const [
     reportStatusGroups,
     reportBookingAggregate,
@@ -906,6 +906,12 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
     reportNewSubscriptions,
     reportVisits,
     reportComplaintCount,
+    reportNewCustomers,
+    reportRepeatCustomerGroups,
+    reportQualityOpenBookings,
+    reportActiveSubscriptions,
+    reportRemainingVisitsAggregate,
+    reportTeamAssignedBookings,
   ] = isReports
     ? await Promise.all([
         db.booking.groupBy({
@@ -967,6 +973,25 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
           _sum: { visitChange: true },
         }),
         db.complaint.count({ where: { createdAt: reportRange } }),
+        db.customerProfile.count({ where: { createdAt: reportRange } }),
+        db.booking.groupBy({
+          by: ['customerId'],
+          where: { deletedAt: null, createdAt: reportRange },
+          _count: { _all: true },
+        }),
+        db.booking.count({
+          where: { deletedAt: null, createdAt: reportRange, bookingStatus: BookingStatus.QUALITY_REVIEW },
+        }),
+        db.customerSubscription.count({
+          where: { status: SubscriptionStatus.ACTIVE, createdAt: reportRange },
+        }),
+        db.customerSubscription.aggregate({
+          where: { status: SubscriptionStatus.ACTIVE, createdAt: reportRange },
+          _sum: { remainingVisits: true },
+        }),
+        db.booking.count({
+          where: { deletedAt: null, createdAt: reportRange, assignedTeamId: { not: null } },
+        }),
       ])
     : [
         [],
@@ -980,6 +1005,12 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
         [],
         0,
         { _sum: { visitChange: null } },
+        0,
+        0,
+        [],
+        0,
+        0,
+        { _sum: { remainingVisits: null } },
         0,
       ];
 
@@ -1028,11 +1059,25 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
   const completedInRange = reportStatusGroups
     .filter((group) => COMPLETED_BOOKING_STATUSES.includes(group.bookingStatus))
     .reduce((total, group) => total + group._count._all, 0);
+  const inProgressInRange = reportStatusGroups
+    .filter((group) => IN_PROGRESS_BOOKING_STATUSES.includes(group.bookingStatus))
+    .reduce((total, group) => total + group._count._all, 0);
   const collectedAmount = reportPaymentAggregate._sum.amount ?? 0;
   const refundedAmount = reportRefundAggregate._sum.amount ?? 0;
   const totalTeamCapacity = teams
     .filter((team) => team.active)
     .reduce((total, team) => total + team.dailyCapacity, 0);
+
+  const daysInRange = Math.max(
+    1,
+    Math.round((reportEnd.getTime() - reportStart.getTime()) / (1000 * 60 * 60 * 24)),
+  );
+  const periodTeamCapacity = totalTeamCapacity * daysInRange;
+  const periodTeamUtilization = periodTeamCapacity > 0
+    ? Math.min(100, Math.round((reportTeamAssignedBookings / periodTeamCapacity) * 100))
+    : 0;
+
+  const repeatCustomersCount = reportRepeatCustomerGroups.filter((g) => g._count._all > 1).length;
   const todayAssignedBookings = teams
     .filter((team) => team.active)
     .reduce((total, team) => total + team.todayBookingCount, 0);
@@ -1221,6 +1266,7 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
         totalBookings: reportTotalBookings,
         completedBookings: completedInRange,
         cancelledBookings: countForStatus(reportStatusGroups, 'bookingStatus', [BookingStatus.CANCELLED]),
+        inProgressBookings: inProgressInRange,
         rejectedBookings: countForStatus(reportStatusGroups, 'bookingStatus', [BookingStatus.REJECTED]),
         noShowBookings: countForStatus(reportStatusGroups, 'bookingStatus', [BookingStatus.CUSTOMER_NO_SHOW]),
         accessDeniedBookings: countForStatus(reportStatusGroups, 'bookingStatus', [BookingStatus.ACCESS_DENIED]),
@@ -1230,7 +1276,13 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
         amountDue: reportDueAggregate._sum?.amountDue ?? 0,
         averageBookingValue: Math.round(reportBookingAggregate._avg?.totalPrice ?? 0),
         newSubscriptions: reportNewSubscriptions,
+        activeSubscriptions: reportActiveSubscriptions,
         visitsConsumed: Math.abs(Math.min(0, reportVisits._sum?.visitChange ?? 0)),
+        visitsRemaining: reportRemainingVisitsAggregate._sum.remainingVisits ?? 0,
+        newCustomers: reportNewCustomers,
+        repeatCustomers: repeatCustomersCount,
+        teamUtilization: periodTeamUtilization,
+        qualityOpen: reportQualityOpenBookings + reportComplaintCount,
         complaintCount: reportComplaintCount,
         byStatus: reportStatusGroups
           .map((group) => ({ status: group.bookingStatus, count: group._count._all }))

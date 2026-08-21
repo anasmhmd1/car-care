@@ -347,6 +347,7 @@ export interface ReportsDto {
   totalBookings: number;
   completedBookings: number;
   cancelledBookings: number;
+  inProgressBookings: number;
   rejectedBookings: number;
   noShowBookings: number;
   accessDeniedBookings: number;
@@ -356,7 +357,13 @@ export interface ReportsDto {
   amountDue: number;
   averageBookingValue: number;
   newSubscriptions: number;
+  activeSubscriptions: number;
   visitsConsumed: number;
+  visitsRemaining: number;
+  newCustomers: number;
+  repeatCustomers: number;
+  teamUtilization: number;
+  qualityOpen: number;
   complaintCount: number;
   byStatus: Array<{ status: string; count: number }>;
   byService: ReportRowDto[];
@@ -629,20 +636,20 @@ function MetricCard({
   }[tone];
 
   return (
-    <article className="group relative overflow-hidden rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 transition-all duration-300 hover:border-[#d4af37]/50 hover:shadow-xl hover:shadow-[#d4af37]/5">
+    <article className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 transition-all duration-300 hover:border-[#d4af37]/50 hover:shadow-xl hover:shadow-[#d4af37]/5">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold uppercase tracking-wider text-neutral-400 truncate">{label}</p>
-          <p className="mt-2 text-2xl lg:text-3xl font-black tracking-tight tabular-nums text-white group-hover:text-[#f3e4a8] transition-colors">{value}</p>
+          <p className="text-xs sm:text-sm font-bold text-neutral-300 leading-snug">{label}</p>
+          <p className="mt-2.5 text-2xl sm:text-3xl font-black tracking-tight tabular-nums text-white group-hover:text-[#f3e4a8] transition-colors">{value}</p>
         </div>
         <div className={`flex size-11 shrink-0 items-center justify-center rounded-2xl border shadow-md transition-transform duration-300 group-hover:scale-105 ${toneClass}`}>
           {icon}
         </div>
       </div>
       {hint ? (
-        <p className="mt-3 text-xs leading-5 text-neutral-400 border-t border-neutral-800/60 pt-2.5 flex items-center gap-1.5 truncate">
+        <p className="mt-3 text-xs leading-relaxed text-neutral-400 border-t border-neutral-800/60 pt-2.5 flex items-center gap-1.5">
           <span className="size-1.5 rounded-full bg-neutral-600 shrink-0" />
-          <span className="truncate">{hint}</span>
+          <span className="break-words">{hint}</span>
         </p>
       ) : null}
     </article>
@@ -821,7 +828,7 @@ function OverviewSection({
           </div>
         </div>
 
-        <form action="/admin" method="get" className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] items-end">
+        <form action="/admin" method="get" className="space-y-3">
           <input type="hidden" name="section" value="overview" />
           {monthlyRevenue?.filterType && (
             <input type="hidden" name="revenue_type" value={monthlyRevenue.filterType} />
@@ -829,17 +836,46 @@ function OverviewSection({
           {monthlyRevenue?.searchQuery && (
             <input type="hidden" name="revenue_q" value={monthlyRevenue.searchQuery} />
           )}
-          <div>
-            <label htmlFor="report-from" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">من تاريخ</label>
-            <input id="report-from" name="from" type="date" defaultValue={reports.from} className={inputClass} />
+          <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] items-end">
+            <div>
+              <label htmlFor="report-from" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">من تاريخ</label>
+              <input id="report-from" name="from" type="date" defaultValue={reports.from} className={inputClass} />
+            </div>
+            <div>
+              <label htmlFor="report-to" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">إلى تاريخ</label>
+              <input id="report-to" name="to" type="date" defaultValue={reports.to} className={inputClass} />
+            </div>
+            <button type="submit" className={primaryButtonClass}>
+              تطبيق وحساب الفترة
+            </button>
           </div>
-          <div>
-            <label htmlFor="report-to" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">إلى تاريخ</label>
-            <input id="report-to" name="to" type="date" defaultValue={reports.to} className={inputClass} />
+          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-neutral-800/50">
+            <span className="text-[11px] font-bold text-neutral-400">فترات سريعة:</span>
+            <Link
+              href={`/admin?section=overview&from=${new Date().toISOString().slice(0, 10)}&to=${new Date().toISOString().slice(0, 10)}`}
+              className="rounded-lg bg-neutral-900 px-2.5 py-1 text-[11px] font-bold text-neutral-300 hover:bg-[#d4af37] hover:text-neutral-950 border border-neutral-800 transition-all"
+            >
+              اليوم
+            </Link>
+            <Link
+              href={`/admin?section=overview&from=${new Date(Date.now() - 6 * 86400000).toISOString().slice(0, 10)}&to=${new Date().toISOString().slice(0, 10)}`}
+              className="rounded-lg bg-neutral-900 px-2.5 py-1 text-[11px] font-bold text-neutral-300 hover:bg-[#d4af37] hover:text-neutral-950 border border-neutral-800 transition-all"
+            >
+              آخر 7 أيام
+            </Link>
+            <Link
+              href={`/admin?section=overview&from=${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-01&to=${new Date().toISOString().slice(0, 10)}`}
+              className="rounded-lg bg-neutral-900 px-2.5 py-1 text-[11px] font-bold text-neutral-300 hover:bg-[#d4af37] hover:text-neutral-950 border border-neutral-800 transition-all"
+            >
+              هذا الشهر
+            </Link>
+            <Link
+              href={`/admin?section=overview&from=${new Date(Date.now() - 29 * 86400000).toISOString().slice(0, 10)}&to=${new Date().toISOString().slice(0, 10)}`}
+              className="rounded-lg bg-neutral-900 px-2.5 py-1 text-[11px] font-bold text-neutral-300 hover:bg-[#d4af37] hover:text-neutral-950 border border-neutral-800 transition-all"
+            >
+              آخر 30 يوم
+            </Link>
           </div>
-          <button type="submit" className={primaryButtonClass}>
-            تطبيق وحساب الفترة
-          </button>
         </form>
       </section>
 
@@ -862,41 +898,35 @@ function OverviewSection({
           </span>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-          <div className="rounded-2xl border border-[#d4af37]/40 bg-gradient-to-br from-[#d4af37]/15 to-transparent p-5 shadow-xl sm:col-span-2 lg:col-span-1 xl:col-span-2">
-            <div className="flex items-center justify-between text-xs font-bold text-[#f3e4a8]">
-              <span>صافي الإيراد والأرباح</span>
-              <Sparkles className="size-4 text-[#d4af37]" />
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+          {/* Card 1: صافي الإيراد والأرباح (VIP Hero Card) */}
+          <article className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-[#d4af37]/40 bg-gradient-to-br from-[#d4af37]/20 via-[#d4af37]/5 to-[#111114] p-5 sm:p-6 shadow-xl transition-all duration-300 hover:border-[#d4af37] hover:shadow-[#d4af37]/15">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm font-bold uppercase tracking-wider text-[#f3e4a8] leading-snug">صافي الإيراد والأرباح</p>
+                <p className="mt-2.5 text-2xl sm:text-3xl font-black tracking-tight text-white group-hover:text-[#f3e4a8] transition-colors tabular-nums">
+                  {formatCurrency(monthlyRevenue ? monthlyRevenue.netRevenue : reports.netCollected)}
+                </p>
+              </div>
+              <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl border border-[#d4af37]/40 bg-[#d4af37]/20 text-[#d4af37] shadow-md shadow-[#d4af37]/10 transition-transform duration-300 group-hover:scale-105">
+                <Sparkles className="size-5" />
+              </div>
             </div>
-            <p className="mt-3 text-2xl lg:text-3xl font-black text-white">
-              {formatCurrency(monthlyRevenue ? monthlyRevenue.netRevenue : reports.netCollected)}
+            <p className="mt-3 text-xs leading-relaxed text-neutral-300 border-t border-[#d4af37]/20 pt-2.5 flex items-center gap-1.5">
+              <span className="size-1.5 rounded-full bg-[#d4af37] shrink-0" />
+              <span>إجمالي المقبوضات ناقص الاستردادات</span>
             </p>
-            <p className="mt-1 text-[11px] text-neutral-400">إجمالي المقبوضات ناقص الاستردادات</p>
-          </div>
+          </article>
 
+          {/* Card 2: إجمالي المقبوضات */}
           <MetricCard
             label="إجمالي المقبوضات"
             value={formatCurrency(monthlyRevenue ? monthlyRevenue.grossRevenue : reports.collectedAmount)}
-            hint="الحجوزات + الاشتراكات"
+            hint="الحجوزات + باقات الاشتراكات"
             icon={<DollarSign aria-hidden="true" className="size-5 text-neutral-400" />}
           />
 
-          <MetricCard
-            label="إيراد الحجوزات"
-            value={formatCurrency(monthlyRevenue ? monthlyRevenue.bookingRevenue : reports.collectedAmount)}
-            hint={monthlyRevenue ? `${monthlyRevenue.bookingPaymentsCount} حركة دفع حجز` : 'مدفوعات الحجوزات'}
-            icon={<Banknote aria-hidden="true" className="size-5" />}
-            tone="green"
-          />
-
-          <MetricCard
-            label="إيراد باقات الاشتراكات"
-            value={formatCurrency(monthlyRevenue ? monthlyRevenue.subscriptionRevenue : 0)}
-            hint={monthlyRevenue ? `${monthlyRevenue.subscriptionProofsCount} اشتراك مفعل في الفترة` : 'مدفوعات الباقات'}
-            icon={<PackageCheck aria-hidden="true" className="size-5" />}
-            tone="blue"
-          />
-
+          {/* Card 3: المبالغ المستحقة */}
           <MetricCard
             label="المبالغ المستحقة"
             value={formatCurrency(reports.amountDue)}
@@ -905,6 +935,25 @@ function OverviewSection({
             tone="red"
           />
 
+          {/* Card 4: إيراد الحجوزات */}
+          <MetricCard
+            label="إيراد الحجوزات"
+            value={formatCurrency(monthlyRevenue ? monthlyRevenue.bookingRevenue : reports.collectedAmount)}
+            hint={monthlyRevenue ? `${monthlyRevenue.bookingPaymentsCount} حركة دفع حجز` : 'مدفوعات الحجوزات'}
+            icon={<Banknote aria-hidden="true" className="size-5" />}
+            tone="green"
+          />
+
+          {/* Card 5: إيراد باقات الاشتراكات */}
+          <MetricCard
+            label="إيراد باقات الاشتراكات"
+            value={formatCurrency(monthlyRevenue ? monthlyRevenue.subscriptionRevenue : 0)}
+            hint={monthlyRevenue ? `${monthlyRevenue.subscriptionProofsCount} اشتراك مفعل في الفترة` : 'مدفوعات الباقات'}
+            icon={<PackageCheck aria-hidden="true" className="size-5" />}
+            tone="blue"
+          />
+
+          {/* Card 6: الاستردادات المعتمدة */}
           <MetricCard
             label="الاستردادات المعتمدة"
             value={`-${formatCurrency(monthlyRevenue ? monthlyRevenue.refundsTotal : reports.refundedAmount)}`}
@@ -926,16 +975,16 @@ function OverviewSection({
             </div>
             <div>
               <h3 id="operations-kpi-heading" className="text-base sm:text-lg font-black text-white">المؤشرات التشغيلية ونشاط الفرق والجودة</h3>
-              <p className="text-xs text-neutral-400">حركة الحجوزات ونسب الإنجاز وسعة الفرق والعملاء وملاحظات الجودة</p>
+              <p className="text-xs text-neutral-400">حركة الحجوزات ونسب الإنجاز وسعة الفرق والعملاء وملاحظات الجودة للفترة المحددة</p>
             </div>
           </div>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
           <MetricCard
             label="إجمالي الحجوزات"
             value={formatNumber(reports.totalBookings)}
-            hint={`قيد التنفيذ: ${formatNumber(metrics.inProgress)}`}
+            hint={`قيد التنفيذ: ${formatNumber(reports.inProgressBookings)}`}
             icon={<CalendarDays aria-hidden="true" className="size-5" />}
           />
 
@@ -964,31 +1013,31 @@ function OverviewSection({
 
           <MetricCard
             label="إشغال الفرق التشغيلية"
-            value={`${formatNumber(metrics.teamUtilization)}٪`}
-            hint="الحجوزات المسندة ÷ السعة اليومية"
+            value={`${formatNumber(reports.teamUtilization)}٪`}
+            hint="الحجوزات المسندة ÷ السعة الإجمالية"
             icon={<Gauge aria-hidden="true" className="size-5" />}
             tone="blue"
           />
 
           <MetricCard
             label="الاشتراكات النشطة"
-            value={formatNumber(metrics.activeSubscriptions)}
-            hint={`زيارات متبقية: ${formatNumber(metrics.visitsRemaining)}`}
+            value={formatNumber(reports.activeSubscriptions)}
+            hint={`زيارات متبقية: ${formatNumber(reports.visitsRemaining)}`}
             icon={<PackageCheck aria-hidden="true" className="size-5" />}
           />
 
           <MetricCard
             label="عملاء جدد في الفترة"
-            value={formatNumber(metrics.newCustomersMonth)}
-            hint={`عملاء متكررون: ${formatNumber(metrics.repeatCustomers)}`}
+            value={formatNumber(reports.newCustomers)}
+            hint={`عملاء متكررون: ${formatNumber(reports.repeatCustomers)}`}
             icon={<UserRound aria-hidden="true" className="size-5" />}
             tone="blue"
           />
 
           <MetricCard
             label="مشكلات الجودة والشكاوى"
-            value={formatNumber(metrics.qualityOpen)}
-            hint="حجوزات جودة وشكاوى مفتوحة"
+            value={formatNumber(reports.qualityOpen)}
+            hint="حجوزات جودة وشكاوى بالفترة"
             icon={<ShieldAlert aria-hidden="true" className="size-5" />}
             tone="red"
           />
