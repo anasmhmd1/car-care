@@ -268,7 +268,7 @@ export default function SocialContactManager({
               </div>
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-[#cea355]/15 text-[#edce8b] border border-[#cea355]/30">
                 <Sparkles className="w-3 h-3" />
-                <span>خدمة عملاء بريق الموحدة</span>
+                <span>خدمة عملاء بريق</span>
               </span>
             </div>
 
