@@ -102,7 +102,7 @@ interface Notice {
 }
 
 const inputClass =
-  'mt-2 min-h-11 w-full rounded-xl border border-white/10 bg-black/40 px-3 text-sm text-white outline-none transition focus:border-[#cea355] focus:ring-2 focus:ring-[#cea355]/20';
+  'mt-2 min-h-11 w-full rounded-xl border border-white/10 bg-black/40 px-3 text-sm text-white outline-none transition focus:border-[#cea355] focus:ring-2 focus:ring-[#cea355]/20 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none';
 const areaClass = `${inputClass} min-h-28 py-3 leading-6`;
 
 function numberOrNull(value: string): number | null {
@@ -179,7 +179,6 @@ function ServiceEditor({
   });
   const [newChecklistLabel, setNewChecklistLabel] = useState('');
 
-  const [depositType, setDepositType] = useState<string>(service?.depositType ?? 'PERCENTAGE');
   const [slotCount, setSlotCount] = useState<number>(() => {
     if (service?.slotCount && service.slotCount >= 1) return service.slotCount;
     if (service?.durationMinutes) return Math.max(1, Math.round(service.durationMinutes / 60));
@@ -278,6 +277,7 @@ function ServiceEditor({
     data.set('nameEn', nameEn.trim());
     data.set('slug', autoSlug || service?.slug || 'service');
     data.set('priceType', 'FIXED');
+    data.set('depositType', 'FIXED');
     data.set('coverImage', coverImage);
     data.set('galleryImages', JSON.stringify(galleryImages));
     data.set('variants', JSON.stringify([]));
@@ -551,31 +551,22 @@ function ServiceEditor({
           </label>
 
           <label className="text-xs font-bold text-neutral-300">
-            نوع العربون
-            <select
-              name="depositType"
-              value={depositType}
-              onChange={(event) => setDepositType(event.target.value)}
-              className={inputClass}
-            >
-              <option value="PERCENTAGE">نسبة مئوية (%)</option>
-              <option value="FIXED">مبلغ ثابت (ج.م)</option>
-            </select>
-          </label>
-
-          <label className="text-xs font-bold text-neutral-300">
-            قيمة العربون {depositType === 'PERCENTAGE' ? '(كنسبة % من السعر)' : '(مبلغ ثابت بالجنيه)'}
+            قيمة العربون الثابت (ج.م)
             <input
               name="depositValue"
               type="number"
               min="0"
-              max={depositType === 'PERCENTAGE' ? 100 : 100000}
+              max={100000}
               required
-              defaultValue={service?.depositValue ?? (depositType === 'PERCENTAGE' ? 30 : 200)}
-              placeholder={depositType === 'PERCENTAGE' ? 'مثال: 30' : 'مثال: 200'}
+              defaultValue={service?.depositValue ?? 100}
+              placeholder="مثال: 100"
               className={inputClass}
             />
+            <span className="mt-1 block text-[10px] text-neutral-400">
+              مبلغ نقدي ثابت بالجنيه يُدفع عند تأكيد الحجز
+            </span>
           </label>
+          <input type="hidden" name="depositType" value="FIXED" />
           <input type="hidden" name="minimumBeforePhotos" value="0" />
           <input type="hidden" name="minimumAfterPhotos" value="0" />
         </div>
