@@ -263,15 +263,13 @@ export default function SocialContactManager({
               <div className="flex items-center gap-2">
                 <Phone className="w-4 h-4 text-[#cea355]" />
                 <h3 className="text-base font-bold text-white">
-                  أرقام التواصل المباشر (تواصل معنا والواتساب)
+                  أرقام التواصل المباشر (تواصل معنا والواتساب للبراند)
                 </h3>
               </div>
-              {activeBranch && (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-[#cea355]/15 text-[#edce8b] border border-[#cea355]/30">
-                  <Building2 className="w-3 h-3" />
-                  <span>{activeBranch.nameAr}</span>
-                </span>
-              )}
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-[#cea355]/15 text-[#edce8b] border border-[#cea355]/30">
+                <Sparkles className="w-3 h-3" />
+                <span>خدمة عملاء بريق الموحدة</span>
+              </span>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
