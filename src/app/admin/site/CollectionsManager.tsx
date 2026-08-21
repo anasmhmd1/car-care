@@ -15,14 +15,25 @@ import {
   EyeOff,
   MoveUp,
   MoveDown,
+  ImagePlus,
 } from 'lucide-react';
 import PublicImage from '@/components/PublicImage';
+import { prepareImageForUpload } from '@/lib/client/image-upload';
 import {
   DEFAULT_SERVICE_COLLECTIONS,
   PRESET_COLLECTION_IMAGES,
   type ServiceCollection,
 } from '@/lib/service-collections';
 import { saveServiceCollectionsAction } from '@/app/actions/owner-collections';
+
+function responseMessage(value: unknown): { url?: string; error?: string } {
+  if (!value || typeof value !== 'object') return { error: 'استجابة رفع غير صالحة.' };
+  const record = value as Record<string, unknown>;
+  return {
+    url: typeof record.url === 'string' ? record.url : undefined,
+    error: typeof record.error === 'string' ? record.error : undefined,
+  };
+}
 
 interface ServiceOption {
   id: string;
@@ -44,8 +55,29 @@ export default function CollectionsManager({
   const router = useRouter();
   const [collections, setCollections] = useState<ServiceCollection[]>(initialCollections);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ kind: 'error' | 'success'; message: string } | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  async function handleUploadCollectionImage(colId: string, file: File | null) {
+    if (!file) return;
+    setUploadingId(colId);
+    setFeedback(null);
+    try {
+      const preparedFile = await prepareImageForUpload(file, { maxDimension: 2200, quality: 0.86 });
+      const data = new FormData();
+      data.set('file', preparedFile);
+      const response = await fetch('/api/catalog-media', { method: 'POST', body: data });
+      const payload = responseMessage(await response.json());
+      if (!response.ok || !payload.url) throw new Error(payload.error ?? 'تعذر رفع الصورة.');
+      handleUpdateField(colId, 'image', payload.url);
+      setFeedback({ kind: 'success', message: 'تم رفع صورة الكوليكشن بنجاح! احفظ التغييرات لتثبيتها في الموقع.' });
+    } catch (error) {
+      setFeedback({ kind: 'error', message: error instanceof Error ? error.message : 'تعذر رفع الصورة.' });
+    } finally {
+      setUploadingId(null);
+    }
+  }
 
   // New collection template
   function handleAddNew() {
@@ -309,12 +341,57 @@ export default function CollectionsManager({
 
                     {/* Image Selection */}
                     <div className="md:col-span-2 space-y-3">
-                      <label className="text-xs font-bold text-neutral-300 flex items-center justify-between">
-                        <span>صورة الكوليكشن</span>
-                        <span className="text-[11px] text-neutral-500 font-normal">اختر من الصور الجاهزة أو ضع مسار الصورة</span>
-                      </label>
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <label className="text-xs font-bold text-neutral-300 block">
+                            صورة الكوليكشن
+                          </label>
+                          <span className="text-[11px] text-neutral-500 font-normal">
+                            اختر من الصور الجاهزة، أو ارفع صورة خاصة من جهازك
+                          </span>
+                        </div>
+                        <label className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-[#cea355]/40 bg-[#cea355]/15 px-4 text-xs font-bold text-[#edce8b] transition hover:bg-[#cea355]/25 cursor-pointer ${uploadingId === col.id ? 'opacity-60 pointer-events-none' : ''}`}>
+                          {uploadingId === col.id ? (
+                            <>
+                              <LoaderCircle className="size-4 animate-spin text-[#cea355]" />
+                              جاري رفع الصورة...
+                            </>
+                          ) : (
+                            <>
+                              <ImagePlus className="size-4 text-[#cea355]" />
+                              رفع صورة من جهازك
+                            </>
+                          )}
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp,image/svg+xml"
+                            className="hidden"
+                            onChange={(e) => void handleUploadCollectionImage(col.id, e.target.files?.[0] ?? null)}
+                          />
+                        </label>
+                      </div>
                       
-                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
+                        {/* If custom image uploaded from device or external URL, display it in the grid */}
+                        {!PRESET_COLLECTION_IMAGES.some((p) => p.url === col.image) && col.image ? (
+                          <div className="relative rounded-2xl overflow-hidden border p-1 text-right border-[#cea355] bg-[#cea355]/10 shadow-md ring-2 ring-[#cea355]/30">
+                            <div className="h-16 w-full rounded-xl overflow-hidden bg-black relative">
+                              <PublicImage
+                                src={col.image}
+                                alt="صورة مرفوعة مخصصة"
+                                sizes="120px"
+                                className="w-full h-full object-cover"
+                              />
+                              <div className="absolute top-1 left-1 w-5 h-5 rounded-full gold-gradient flex items-center justify-center text-white shadow">
+                                <Check className="w-3 h-3" />
+                              </div>
+                            </div>
+                            <span className="text-[10px] font-bold text-[#edce8b] block mt-1.5 px-1 truncate">
+                              صورة مرفوعة خاصة
+                            </span>
+                          </div>
+                        ) : null}
+
                         {PRESET_COLLECTION_IMAGES.map((preset) => {
                           const isSelected = col.image === preset.url;
                           return (
@@ -349,13 +426,13 @@ export default function CollectionsManager({
                         })}
                       </div>
 
-                      <div className="pt-2">
+                      <div className="pt-1">
                         <input
                           type="text"
                           value={col.image}
                           onChange={(e) => handleUpdateField(col.id, 'image', e.target.value)}
                           className="w-full bg-[#080808] border border-neutral-800 rounded-xl p-3 text-xs text-neutral-300 font-mono focus:outline-none focus:border-[#cea355]"
-                          placeholder="مسار مخصص للصورة مثل /images/custom.png"
+                          placeholder="مسار مخصص للصورة أو رابط صورة مرفوعة"
                         />
                       </div>
                     </div>
