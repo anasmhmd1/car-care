@@ -407,7 +407,7 @@ export default function SocialContactManager({
             {/* 2. Floating Contact Widget Preview */}
             <div className="space-y-3">
               <span className="text-xs font-bold text-neutral-400 block">
-                ٢. أرقام الاتصال لزر التواصل العائم (Contact Us)
+                ٢. أرقام الاتصال لزر التواصل العائم (تواصل مع الدعم)
               </span>
               <div className="rounded-2xl border border-neutral-900 bg-[#050505] p-4 space-y-2.5">
                 {/* WhatsApp Pill */}

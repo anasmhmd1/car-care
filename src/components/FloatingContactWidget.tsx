@@ -113,7 +113,7 @@ export default function FloatingContactWidget({
           )}
         </span>
         <span className="text-xs sm:text-sm font-bold tracking-wide text-white group-hover:text-[#edce8b] transition-colors">
-          Contact Us
+          تواصل مع الدعم
         </span>
       </button>
 
@@ -134,7 +134,7 @@ export default function FloatingContactWidget({
               </div>
               <div className="flex flex-col text-right">
                 <span className="text-xs sm:text-sm font-bold text-white group-hover:text-[#edce8b] transition-colors">
-                  WhatsApp
+                  محادثة واتساب
                 </span>
               </div>
             </div>
@@ -152,7 +152,7 @@ export default function FloatingContactWidget({
               </div>
               <div className="flex flex-col text-right">
                 <span className="text-xs sm:text-sm font-bold text-white group-hover:text-[#edce8b] transition-colors">
-                  Phone Call
+                  اتصال هاتفي مباشر
                 </span>
               </div>
             </div>
