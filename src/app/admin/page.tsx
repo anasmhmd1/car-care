@@ -158,7 +158,7 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
   if (rawSection === 'services') {
     redirect('/admin/site?tab=services');
   }
-  if (rawSection === 'branches') {
+  if (rawSection === 'branches' || rawSection === 'teams') {
     redirect('/admin/setup');
   }
   if (rawSection === 'quality') {

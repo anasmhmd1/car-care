@@ -428,7 +428,6 @@ const sectionNav: Array<{
   { id: 'subscriptions', label: 'اشتراكات العملاء', icon: PackageCheck },
   { id: 'payments', label: 'مراجعة المدفوعات', icon: WalletCards },
   { id: 'cancellations', label: 'الإلغاء والاسترداد', icon: ShieldAlert },
-  { id: 'teams', label: 'فرق التشغيل', icon: Users },
   { id: 'customers', label: 'العملاء', icon: UserRound },
   { id: 'reports', label: 'التقارير', icon: BarChart3 },
   { href: '/admin/reports', label: 'الإيرادات', icon: DollarSign },
@@ -981,17 +980,7 @@ function CancellationsSection({
 
 
 
-function TeamsSection({ teams }: { teams: TeamDto[] }) {
-  return (
-    <div className="space-y-6">
-      <SectionHeader eyebrow="التشغيل" title="الفرق والسعة اليومية" description="الأعضاء والزونات والقدرات والحمل الفعلي لكل فريق اليوم." />
-      {teams.length === 0 ? <EmptyState title="لا توجد فرق تشغيل" description="لا توجد فرق مسجلة. يلزم إنشاء فريق وربطه بفرع وزونات وموظفين نشطين." /> : <div className="grid gap-4 xl:grid-cols-2">{teams.map((team) => {
-        const utilization = team.dailyCapacity > 0 ? Math.min(100, Math.round((team.todayBookingCount / team.dailyCapacity) * 100)) : 0;
-        return <article key={team.id} className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-lg"><div className="flex items-start justify-between gap-4"><div className="min-w-0"><h3 className="truncate text-base font-bold text-white">{team.name}</h3><p className="mt-0.5 text-xs text-neutral-400">{team.branchName}</p></div><StatusBadge status={team.active ? 'ACTIVE' : 'DISABLED'} label={team.active ? 'نشط' : 'متوقف'} /></div><div className="mt-4"><div className="mb-1.5 flex items-center justify-between text-xs text-neutral-400"><span>حمل اليوم</span><span className="tabular-nums font-bold text-white">{formatNumber(team.todayBookingCount)} / {formatNumber(team.dailyCapacity)}</span></div><div className="h-2 overflow-hidden rounded-full bg-neutral-800" aria-label={`إشغال الفريق ${utilization}٪`}><div className="h-full rounded-full bg-gradient-to-r from-[#d4af37] to-[#f0d879]" style={{ width: `${utilization}%` }} /></div></div><dl className="mt-4 grid gap-3 text-xs sm:text-sm sm:grid-cols-2 rounded-xl bg-neutral-950/40 border border-neutral-800/60 p-3.5"><div><dt className="text-neutral-500 text-[11px]">الأعضاء</dt><dd className="mt-1.5 space-y-1 text-neutral-300">{team.members.length ? team.members.map((member) => <span key={member.id} className="block truncate">{member.fullName}{member.isLeader ? ' · قائد' : ''}</span>) : 'لا يوجد أعضاء'}</dd></div><div><dt className="text-neutral-500 text-[11px]">الزونات المغطاة</dt><dd className="mt-1.5 flex flex-wrap gap-1.5">{team.zones.length ? team.zones.map((zone) => <span key={zone.id} className="rounded-md bg-neutral-900 border border-neutral-800 px-2 py-0.5 text-xs text-neutral-300">{zone.name}</span>) : <span className="text-neutral-500">غير محددة</span>}</dd></div><div className="sm:col-span-2"><dt className="text-neutral-500 text-[11px]">الخدمات المؤهل لها</dt><dd className="mt-1.5 flex flex-wrap gap-1.5">{team.capabilities.length ? team.capabilities.map((service) => <span key={service.id} className="rounded-md border border-[#d4af37]/30 bg-[#d4af37]/10 px-2 py-0.5 text-xs font-medium text-[#f3e4a8]">{service.name}</span>) : <span className="text-neutral-500">لا توجد قدرات مسجلة</span>}</dd></div></dl></article>;
-      })}</div>}
-    </div>
-  );
-}
+
 
 function BranchesSection({
   branches,
@@ -1444,9 +1433,6 @@ export default function OwnerCommandCenter(props: OwnerCommandCenterProps) {
       break;
     case 'cancellations':
       sectionContent = <CancellationsSection requests={cancellationRequests} refunds={pendingRefunds} onReviewRequest={(request) => openModal({ type: 'cancellation', request })} onApproveRefund={(refund) => openModal({ type: 'refund-approval', refund })} />;
-      break;
-    case 'teams':
-      sectionContent = <TeamsSection teams={teams} />;
       break;
     case 'branches':
       sectionContent = <BranchesSection branches={branches} onEditBranch={(branch) => openModal({ type: 'edit-branch', branch })} />;
