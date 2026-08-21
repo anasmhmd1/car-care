@@ -3,7 +3,6 @@ import { redirect } from 'next/navigation';
 import {
   BookingStatus,
   ComplaintStatus,
-  FileType,
   PaymentStatus,
   Prisma,
   ProofStatus,
@@ -414,7 +413,6 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
   const isCancellations = currentSection === 'cancellations';
   const isCustomers = currentSection === 'customers';
   const isAudit = currentSection === 'audit';
-  const isBranches = currentSection === 'branches';
   const isReports = currentSection === 'reports';
 
   // Overview quick cards & Bookings list

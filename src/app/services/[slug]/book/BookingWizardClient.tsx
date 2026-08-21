@@ -616,14 +616,6 @@ export default function BookingWizardClient({
     /^\+?[0-9]{10,15}$/.test(normalizePhone(whatsapp));
   const useSavedContact = Boolean(user) && hasSavedContact;
   const upcomingDays = useMemo(() => getUpcoming7Days(), []);
-  const modelYears = useMemo(() => {
-    const currentYear = new Date().getFullYear();
-    const years: number[] = [];
-    for (let y = currentYear + 1; y >= 1980; y--) {
-      years.push(y);
-    }
-    return years;
-  }, []);
 
   useEffect(() => {
     if (uiError) errorRef.current?.focus();

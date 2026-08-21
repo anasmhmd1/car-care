@@ -3,13 +3,11 @@
 import type { FormEvent, ReactNode } from 'react';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import {
   Activity,
   AlertTriangle,
-  ArrowLeft,
   Banknote,
   BarChart3,
   Boxes,
@@ -21,7 +19,6 @@ import {
   Crown,
   DollarSign,
   ExternalLink,
-  Eye,
   FileSearch,
   Gauge,
   Globe,
@@ -546,10 +543,6 @@ function formatDateTime(value: string) {
   return dateTimeFormatter.format(new Date(value));
 }
 
-function formatDate(value: string) {
-  return dateFormatter.format(new Date(value));
-}
-
 function bookingStatusLabel(status: string) {
   return bookingStatusLabels[status] ?? status;
 }
@@ -986,24 +979,7 @@ function CancellationsSection({
   );
 }
 
-function QualitySection({
-  bookings,
-  complaints,
-}: {
-  bookings: QualityBookingDto[];
-  complaints: ComplaintDto[];
-}) {
-  return (
-    <div className="space-y-6">
-      <SectionHeader eyebrow="الجودة والشكاوى" title="مراجعة جودة التنفيذ" description="الحجوزات المنتظرة والشكاوى المفتوحة كما هي مسجلة في قاعدة البيانات." />
-      <div className="flex flex-col gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.05] p-4 sm:flex-row sm:items-center sm:justify-between"><p className="text-xs sm:text-sm leading-6 text-neutral-300">قرارات الجودة والشكاوى تُدار من مركز التشغيل، بينما نشر تقييمات وتجارب العملاء متاح لاعتماد المالك.</p><div className="flex flex-wrap gap-2"><Link href="/operations" className={`${secondaryButtonClass} shrink-0`}><ClipboardCheck aria-hidden="true" className="size-4" /> مركز الجودة</Link><Link href="/admin/reviews" className={`${secondaryButtonClass} shrink-0`}><ClipboardCheck aria-hidden="true" className="size-4" /> تقييمات العملاء</Link></div></div>
-      <div className="grid gap-6 xl:grid-cols-2">
-        <section aria-labelledby="quality-waiting-title" className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-lg"><h3 id="quality-waiting-title" className="mb-4 text-base font-bold text-white border-b border-neutral-800/60 pb-3">بانتظار مراجعة الجودة</h3>{bookings.length === 0 ? <EmptyState title="لا توجد مراجعات منتظرة" description="لا توجد حجوزات في حالة QUALITY_REVIEW حاليًا." /> : <div className="space-y-3">{bookings.map((item) => <article key={item.booking.id} className="rounded-xl border border-neutral-800/80 bg-neutral-950/40 p-4"><div className="flex items-center justify-between gap-3"><p dir="ltr" translate="no" className="font-mono font-bold text-white">{item.booking.bookingNumber}</p><StatusBadge status="QUALITY_REVIEW" label="مراجعة جودة" /></div><p className="mt-2 text-xs sm:text-sm text-neutral-400">{item.booking.serviceName} · {item.booking.assignedTeamName ?? 'بلا فريق'}</p><div className="mt-3 flex items-center justify-between rounded-lg bg-neutral-900 border border-neutral-800 p-3 text-xs sm:text-sm"><span className="text-neutral-400">العميل: <strong className="text-white">{item.booking.customerName}</strong></span><span className="text-neutral-400">الفرع: <strong className="text-white">{item.booking.branchName}</strong></span></div></article>)}</div>}</section>
-        <section aria-labelledby="open-complaints-title" className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-lg"><h3 id="open-complaints-title" className="mb-4 text-base font-bold text-white border-b border-neutral-800/60 pb-3">الشكاوى المفتوحة</h3>{complaints.length === 0 ? <EmptyState title="لا توجد شكاوى مفتوحة" description="لا توجد شكاوى OPEN أو UNDER_REVIEW أو ACTION_REQUIRED." /> : <div className="space-y-3">{complaints.map((complaint) => <article key={complaint.id} className="rounded-xl border border-neutral-800/80 bg-neutral-950/40 p-4"><div className="flex flex-wrap items-center gap-2"><StatusBadge status={complaint.status} /><StatusBadge status={complaint.priority} label={`أولوية ${complaint.priority}`} /></div><p className="mt-2.5 font-bold text-sm text-white">{complaint.type}</p><p className="mt-1.5 line-clamp-3 break-words text-xs sm:text-sm leading-6 text-neutral-300">{complaint.description}</p><p className="mt-2.5 text-xs text-neutral-500">{complaint.customerName} · <span dir="ltr" translate="no" className="font-mono">{complaint.bookingNumber}</span> · {formatDateTime(complaint.createdAt)}</p></article>)}</div>}</section>
-      </div>
-    </div>
-  );
-}
+
 
 function TeamsSection({ teams }: { teams: TeamDto[] }) {
   return (
@@ -1117,227 +1093,9 @@ function BranchesSection({
   );
 }
 
-function ServiceStatusToggle({ serviceId, initialActive }: { serviceId: string; initialActive: boolean }) {
-  const router = useRouter();
-  const [active, setActive] = useState(initialActive);
-  const [isPending, startTransition] = useTransition();
 
-  const handleToggle = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    startTransition(async () => {
-      const formData = new FormData();
-      formData.set('serviceId', serviceId);
-      const res = await toggleServiceStatusAction(formData);
-      if (res.success && typeof res.active === 'boolean') {
-        setActive(res.active);
-        router.refresh();
-      }
-    });
-  };
 
-  return (
-    <button
-      type="button"
-      onClick={handleToggle}
-      disabled={isPending}
-      title={active ? 'إيقاف الخدمة مؤقتًا' : 'تفعيل الخدمة'}
-      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold transition-all shadow-sm ${
-        active
-          ? 'border border-emerald-500/40 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 hover:border-emerald-400'
-          : 'border border-neutral-700 bg-neutral-800/80 text-neutral-400 hover:bg-neutral-700 hover:text-neutral-200'
-      } disabled:opacity-50`}
-    >
-      <span className={`size-2 rounded-full ${active ? 'bg-emerald-400 animate-pulse' : 'bg-neutral-500'}`} />
-      <span>{isPending ? 'جاري الحفظ…' : active ? 'نشطة' : 'متوقفة'}</span>
-    </button>
-  );
-}
 
-function ServicesSection({ services }: { services: ServiceDto[] }) {
-  return (
-    <div className="space-y-6">
-      <SectionHeader
-        eyebrow="كتالوج الخدمات"
-        title="الخدمات والمنتجات"
-        description="إدارة الأسعار، المدد، صور الغلاف والمعرض، وتجهيزات ومستلزمات التنفيذ."
-        action={
-          <div className="flex flex-wrap items-center gap-2">
-            <Link
-              href="/admin/site?tab=services&new=1"
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#d4af37] to-[#f0d879] px-4 py-2 text-xs font-black text-black shadow-lg shadow-[#d4af37]/20 hover:brightness-110 transition-all"
-            >
-              <Plus className="size-4" aria-hidden="true" />
-              <span>إضافة خدمة جديدة</span>
-            </Link>
-            <Link
-              href="/admin/site?tab=services"
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-neutral-700 bg-neutral-900/80 px-4 py-2 text-xs font-bold text-neutral-200 hover:border-[#d4af37]/50 hover:text-white transition-all"
-            >
-              <Settings2 className="size-4 text-[#d4af37]" aria-hidden="true" />
-              <span>إدارة وتعديل الخدمات</span>
-            </Link>
-            <Link
-              href="/admin/site?tab=collections"
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#d4af37]/30 bg-[#d4af37]/10 px-4 py-2 text-xs font-bold text-[#f0d36d] hover:bg-[#d4af37]/20 transition-all"
-            >
-              <Sparkles className="size-4" aria-hidden="true" />
-              <span>مجموعات العناية</span>
-            </Link>
-          </div>
-        }
-      />
-
-      <div className="flex flex-col gap-3 rounded-2xl border border-[#d4af37]/30 bg-gradient-to-r from-[#d4af37]/[0.08] via-neutral-950/40 to-[#d4af37]/[0.04] p-4 sm:flex-row sm:items-center sm:justify-between shadow-lg">
-        <div className="flex items-center gap-3">
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#d4af37]/20 border border-[#d4af37]/40 text-[#f0d36d]">
-            <Pencil className="size-5" />
-          </div>
-          <div>
-            <p className="text-sm font-bold text-white">تعديل فوري وشامل لجميع الخدمات</p>
-            <p className="text-xs leading-5 text-neutral-400">
-              اضغط على &quot;تعديل الخدمة&quot; لأي خدمة لتعديل أسعارها وتفاصيلها ومواد التنفيذ وصور المعرض فورياً.
-            </p>
-          </div>
-        </div>
-        <Link href="/admin/site?tab=services" className={`${secondaryButtonClass} shrink-0 text-xs`}>
-          <PackageCheck aria-hidden="true" className="size-4" /> فتح كل الخدمات
-        </Link>
-      </div>
-
-      {services.length === 0 ? (
-        <EmptyState
-          title="لا توجد خدمات"
-          description="لا توجد خدمات مسجلة في الكتالوج حتى الآن. أضف أول خدمة لبدء استقبال الحجوزات."
-        />
-      ) : (
-        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-          {services.map((service) => (
-            <article
-              key={service.id}
-              className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-xl transition-all duration-300 hover:border-[#d4af37]/50 hover:shadow-2xl hover:shadow-[#d4af37]/5"
-            >
-              <div>
-                {/* Header: Name + Active Toggle */}
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <h3 className="truncate text-base font-black text-white group-hover:text-[#f3e4a8] transition-colors">
-                      {service.nameAr}
-                    </h3>
-                    <div className="mt-0.5 flex items-center gap-2">
-                      <p dir="ltr" translate="no" className="truncate text-[11px] text-neutral-500 font-mono">
-                        /{service.slug}
-                      </p>
-                      {service.nameEn ? (
-                        <span dir="ltr" className="text-[10px] text-neutral-400 font-medium truncate">
-                          · {service.nameEn}
-                        </span>
-                      ) : null}
-                    </div>
-                  </div>
-                  <ServiceStatusToggle serviceId={service.id} initialActive={service.active} />
-                </div>
-
-                {/* Price and Thumbnail Section */}
-                <div className="mt-4 flex items-center justify-between gap-3 rounded-xl bg-neutral-950/60 border border-neutral-800/80 p-3.5">
-                  <div className="min-w-0">
-                    <span className="text-[11px] font-medium text-neutral-400">
-                      {service.priceType === 'STARTS_FROM' ? 'يبدأ من' : 'السعر الأساسي'}
-                    </span>
-                    <p className="text-2xl font-black tabular-nums text-[#f3e4a8]">
-                      {formatCurrency(service.basePrice)}
-                    </p>
-                  </div>
-                  {service.coverImage ? (
-                    <div className="relative size-14 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-neutral-900 shadow-inner">
-                      <Image
-                        src={service.coverImage}
-                        alt={service.nameAr}
-                        fill
-                        unoptimized
-                        className="object-cover"
-                      />
-                    </div>
-                  ) : null}
-                </div>
-
-                {/* Stats Grid */}
-                <dl className="mt-3.5 grid grid-cols-2 gap-2 text-xs">
-                  <div className="rounded-xl bg-neutral-950/40 border border-neutral-800/60 p-2.5">
-                    <dt className="text-neutral-500 text-[10px] font-medium">المدة المقدرة</dt>
-                    <dd className="mt-0.5 text-neutral-200 font-bold tabular-nums">
-                      {formatNumber(service.durationMinutes)} دقيقة
-                    </dd>
-                  </div>
-                  <div className="rounded-xl bg-neutral-950/40 border border-neutral-800/60 p-2.5">
-                    <dt className="text-neutral-500 text-[10px] font-medium">عدد الحجوزات</dt>
-                    <dd className="mt-0.5 tabular-nums font-bold text-white">
-                      {formatNumber(service.bookingCount)} حجز
-                    </dd>
-                  </div>
-                </dl>
-
-                {/* Badges */}
-                <div className="mt-3.5 flex flex-wrap gap-2">
-                  <StatusBadge
-                    status={service.bookableOnline ? 'ACTIVE' : 'DISABLED'}
-                    label={service.bookableOnline ? 'حجز إلكتروني' : 'غير متاحة للحجز'}
-                  />
-                  <StatusBadge
-                    status={service.subscriptionEligible ? 'ACTIVE' : 'DISABLED'}
-                    label={service.subscriptionEligible ? 'ضمن الاشتراكات' : 'خارج الاشتراكات'}
-                  />
-                  {service.requiredTeamSize ? (
-                    <span className="rounded-lg bg-neutral-900 border border-neutral-800 px-2 py-0.5 text-[10px] font-medium text-neutral-400">
-                      فريق: {service.requiredTeamSize} فنيين
-                    </span>
-                  ) : null}
-                </div>
-              </div>
-
-              {/* Action Buttons Row */}
-              <div className="mt-5 flex items-center gap-2 border-t border-neutral-800/80 pt-4">
-                <Link
-                  href={`/admin/site?tab=services&serviceId=${service.id}`}
-                  className="flex-1 inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl bg-[#d4af37] px-3 py-2 text-xs font-black text-black shadow-md hover:bg-[#e5c45a] transition-all"
-                >
-                  <Pencil className="size-3.5" aria-hidden="true" />
-                  <span>تعديل الخدمة</span>
-                </Link>
-                <Link
-                  href={`/services/${service.slug}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-neutral-700 bg-neutral-900/90 px-3 py-2 text-xs font-bold text-neutral-300 hover:border-neutral-500 hover:text-white transition-all"
-                >
-                  <Eye className="size-3.5 text-neutral-400" aria-hidden="true" />
-                  <span>معاينة</span>
-                </Link>
-              </div>
-            </article>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function SubscriptionsSection({ plans, subscriptions }: { plans: PlanDto[]; subscriptions: SubscriptionDto[] }) {
-  return (
-    <div className="space-y-6">
-      <SectionHeader eyebrow="الاشتراكات" title="الباقات والاشتراكات الفعلية" description="حالة الباقات وعدد المشتركين وآخر اشتراكات العملاء والزيارات المتبقية." />
-      <div className="flex justify-end">
-        <Link href="/admin/subscriptions" className={primaryButtonClass}>
-          تفعيل وإدارة اشتراكات العملاء
-          <ArrowLeft aria-hidden="true" className="size-4" />
-        </Link>
-      </div>
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{plans.length ? plans.map((plan) => <article key={plan.id} className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-lg"><div className="flex items-start justify-between gap-3"><h3 className="text-base font-bold text-white">{plan.nameAr}</h3><StatusBadge status={plan.active ? 'ACTIVE' : 'DISABLED'} label={plan.active ? 'نشطة' : 'متوقفة'} /></div><p className="mt-2 line-clamp-3 break-words text-xs sm:text-sm leading-6 text-neutral-400">{plan.descriptionAr}</p><p className="mt-3 text-2xl font-black tabular-nums text-[#f3e4a8]">{formatCurrency(plan.price)}</p><dl className="mt-3 grid grid-cols-2 gap-3 text-xs sm:text-sm rounded-xl bg-neutral-950/40 border border-neutral-800/60 p-3"><div><dt className="text-neutral-500 text-[11px]">الزيارات المضمنة</dt><dd className="mt-1 font-bold text-white">{formatNumber(plan.visitCount)}</dd></div><div><dt className="text-neutral-500 text-[11px]">صلاحية الباقة</dt><dd className="mt-1 font-medium text-neutral-300">{formatNumber(plan.validityDays)} يوم</dd></div><div><dt className="text-neutral-500 text-[11px]">إجمالي الاشتراكات</dt><dd className="mt-1 font-bold tabular-nums text-white">{formatNumber(plan.subscriptionCount)}</dd></div><div><dt className="text-neutral-500 text-[11px]">الاشتراكات النشطة</dt><dd className="mt-1 font-bold tabular-nums text-emerald-300">{formatNumber(plan.activeSubscriptionCount)}</dd></div></dl></article>) : <div className="md:col-span-2 xl:col-span-3"><EmptyState title="لا توجد باقات" description="لا توجد خطط اشتراك مسجلة." /></div>}</div>
-
-      <section aria-labelledby="recent-subscriptions-title" className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-lg"><h3 id="recent-subscriptions-title" className="text-base font-bold text-white border-b border-neutral-800/60 pb-3 mb-4">آخر اشتراكات العملاء المسجلة</h3>{subscriptions.length === 0 ? <EmptyState title="لا توجد اشتراكات" description="لم يتم تسجيل اشتراكات عملاء حتى الآن." /> : <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-right text-xs sm:text-sm"><caption className="sr-only">آخر اشتراكات العملاء</caption><thead className="text-neutral-400 border-b border-neutral-800"><tr><th scope="col" className="px-3 py-3 font-semibold">العميل</th><th scope="col" className="px-3 py-3 font-semibold">الباقة</th><th scope="col" className="px-3 py-3 font-semibold">الفرع</th><th scope="col" className="px-3 py-3 font-semibold">الحالة</th><th scope="col" className="px-3 py-3 font-semibold">الزيارات</th><th scope="col" className="px-3 py-3 font-semibold">تاريخ الانتهاء</th></tr></thead><tbody className="divide-y divide-neutral-800/60">{subscriptions.map((subscription) => <tr key={subscription.id} className="hover:bg-white/[0.02] transition"><td className="px-3 py-3.5"><p className="font-semibold text-white">{subscription.customerName}</p><p dir="ltr" className="mt-0.5 text-xs text-neutral-400 font-mono">{subscription.customerPhone}</p></td><td className="px-3 py-3.5 text-neutral-300">{subscription.planName}</td><td className="px-3 py-3.5 text-neutral-300">{subscription.branchName}</td><td className="px-3 py-3.5"><StatusBadge status={subscription.status} /></td><td className="px-3 py-3.5 tabular-nums font-bold text-white">{formatNumber(subscription.remainingVisits)} / {formatNumber(subscription.totalVisits)}</td><td className="px-3 py-3.5 text-neutral-400">{formatDate(subscription.endDate)}</td></tr>)}</tbody></table></div>}</section>
-    </div>
-  );
-}
 
 function ReportTable({ title, rows }: { title: string; rows: ReportRowDto[] }) {
   return (
@@ -1549,7 +1307,6 @@ function OwnerActionDialog({
 export default function OwnerCommandCenter(props: OwnerCommandCenterProps) {
   const {
     owner,
-    brand,
     currentSection,
     metrics,
     filters,
@@ -1559,15 +1316,12 @@ export default function OwnerCommandCenter(props: OwnerCommandCenterProps) {
     unassignedBookings,
     cancellationRequests,
     pendingRefunds,
-    qualityBookings,
-    complaints,
     bookings,
     managedSubscriptions = [],
     teams,
     branches,
     customers,
     auditLogs,
-    branchRequests,
     reports,
   } = props;
   const router = useRouter();

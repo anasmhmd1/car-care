@@ -15,7 +15,6 @@ import {
   type SubscriptionPlanBranchOption,
   type SubscriptionPlanServiceOption,
 } from '../subscriptions/SubscriptionPlanManager';
-import { type ManagedSubscription } from '../subscriptions/SubscriptionManagementPanel';
 
 export const metadata: Metadata = {
   title: 'إدارة محتوى الموقع والتغطية والسياسات | إدارة بريق',

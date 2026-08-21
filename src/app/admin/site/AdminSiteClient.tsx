@@ -31,7 +31,6 @@ import {
   type SubscriptionPlanBranchOption,
   type SubscriptionPlanServiceOption,
 } from '../subscriptions/SubscriptionPlanManager';
-import { type ManagedSubscription } from '../subscriptions/SubscriptionManagementPanel';
 import { type ServiceCollection } from '@/lib/service-collections';
 import { type FaqItem, type HomepageContent } from '@/lib/homepage-content';
 import { type GalleryItem } from '@/lib/gallery-items';
@@ -70,7 +69,6 @@ interface AdminSiteClientProps {
   fullServices?: SiteServiceDto[];
   materials?: CatalogMaterialDto[];
   plans?: SubscriptionPlanAdminItem[];
-  subscriptions?: ManagedSubscription[];
   subscriptionServices?: SubscriptionPlanServiceOption[];
   subscriptionBranches?: SubscriptionPlanBranchOption[];
   initialContent: HomepageContent;
@@ -93,7 +91,6 @@ export default function AdminSiteClient({
   fullServices = [],
   materials = [],
   plans = [],
-  subscriptions = [],
   subscriptionServices = [],
   subscriptionBranches = [],
   initialContent,

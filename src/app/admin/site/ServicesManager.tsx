@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 import { useMemo, useState, useTransition } from 'react';
 import {
   Car,
-  CheckCircle2,
   Clock,
   ExternalLink,
   ImagePlus,

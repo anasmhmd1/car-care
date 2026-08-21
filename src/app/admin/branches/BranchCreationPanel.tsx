@@ -583,7 +583,7 @@ export default function BranchCreationPanel({
             <div className="space-y-2 text-sm text-white/80">
               <p>
                 هل أنت متأكد من رغبتك في حذف فرع{' '}
-                <span className="font-bold text-white">"{deletingBranch.nameAr}"</span> ({deletingBranch.code})؟
+                <span className="font-bold text-white">&quot;{deletingBranch.nameAr}&quot;</span> ({deletingBranch.code})؟
               </p>
               <p className="text-xs text-white/50 leading-5">
                 لا يمكن حذف الفرع إلا إذا لم يحتوي على حجوزات أو اشتراكات نشطة في النظام. سيتم حذف الإعدادات المرتبطة به.

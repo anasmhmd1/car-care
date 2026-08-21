@@ -1,18 +1,16 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import Image from 'next/image';
 import { requireRole } from '@/lib/auth/session';
 import { db } from '@/lib/db';
 import { whatsappHref } from '@/lib/contact-links';
 import { getCustomerFacingStatusLabel, isValidStatusTransition } from '@/lib/engine/state-machine';
-import { Sparkles, AlertCircle, FileText, ArrowRight, MessageSquare } from 'lucide-react';
+import { AlertCircle, FileText, ArrowRight, MessageSquare } from 'lucide-react';
 import { BookingStatus, UserRole } from '@prisma/client';
 import {
   evaluateCancellationPolicyRequest,
   readCancellationPolicySnapshot,
 } from '@/lib/policies/cancellation';
 import BookingActionsClient from './BookingActionsClient';
-import GalleryConsentForm from './GalleryConsentForm';
 import CustomerRatingForm from './CustomerRatingForm';
 
 
@@ -61,8 +59,6 @@ export default async function BookingDetailPage({ params }: BookingDetailProps) 
     orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
   });
 
-  const beforeFiles = booking.files.filter((f) => f.fileType === 'BEFORE_SERVICE');
-  const afterFiles = booking.files.filter((f) => f.fileType === 'AFTER_SERVICE');
   const customerVisibleStatus = booking.terminalReopenSourceStatus
     ?? booking.bookingStatus;
   const terminalReviewOnly = booking.terminalReopenSourceStatus !== null;

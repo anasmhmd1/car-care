@@ -4,7 +4,7 @@ import { Suspense, useActionState, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { loginAction } from '@/app/actions/auth';
-import { Phone, Lock, LogIn, UserPlus, Eye, EyeOff, Sparkles } from 'lucide-react';
+import { Phone, Lock, LogIn, UserPlus, Eye, EyeOff } from 'lucide-react';
 import BareeqLogo from '@/components/BareeqLogo';
 import SkipLink from '@/components/SkipLink';
 
