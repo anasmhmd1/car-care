@@ -964,6 +964,9 @@ function OverviewSection({
         </div>
       </section>
 
+      {/* خط فاصل أنيق بين الأقسام */}
+      <div className="border-t border-neutral-800/80" />
+
       {/* ========================================================================= */}
       {/* 2. المؤشرات التشغيلية ونشاط الفرق والجودة */}
       {/* ========================================================================= */}
@@ -978,13 +981,16 @@ function OverviewSection({
               <p className="text-xs text-neutral-400">حركة الحجوزات ونسب الإنجاز وسعة الفرق والعملاء وملاحظات الجودة للفترة المحددة</p>
             </div>
           </div>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-[#d4af37]/10 px-3 py-1 text-xs font-bold text-[#f3e4a8] border border-[#d4af37]/25">
+            {reports.from === reports.to ? `يوم ${reports.from}` : `${reports.from} ← ${reports.to}`}
+          </span>
         </div>
 
         <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
           <MetricCard
             label="إجمالي الحجوزات"
             value={formatNumber(reports.totalBookings)}
-            hint={`قيد التنفيذ: ${formatNumber(reports.inProgressBookings)}`}
+            hint={reports.inProgressBookings > 0 ? `قيد التنفيذ بالفترة: ${formatNumber(reports.inProgressBookings)}` : 'إجمالي حجوزات الفترة'}
             icon={<CalendarDays aria-hidden="true" className="size-5" />}
           />
 
@@ -999,7 +1005,7 @@ function OverviewSection({
           <MetricCard
             label="الحجوزات الملغاة"
             value={formatNumber(reports.cancelledBookings)}
-            hint={`معدل الإلغاء: ${cancellationRate}٪`}
+            hint={`معدل إلغاء الفترة: ${cancellationRate}٪`}
             icon={<ShieldAlert aria-hidden="true" className="size-5" />}
             tone="red"
           />
@@ -1007,29 +1013,29 @@ function OverviewSection({
           <MetricCard
             label="متوسط قيمة الحجز"
             value={formatCurrency(reports.averageBookingValue)}
-            hint="متوسط قيمة الخدمة للحجز"
+            hint="متوسط قيمة الخدمة في الفترة"
             icon={<Gauge aria-hidden="true" className="size-5" />}
           />
 
           <MetricCard
             label="إشغال الفرق التشغيلية"
             value={`${formatNumber(reports.teamUtilization)}٪`}
-            hint="الحجوزات المسندة ÷ السعة الإجمالية"
+            hint="الحجوزات المسندة ÷ سعة الفترة"
             icon={<Gauge aria-hidden="true" className="size-5" />}
             tone="blue"
           />
 
           <MetricCard
-            label="الاشتراكات النشطة"
-            value={formatNumber(reports.activeSubscriptions)}
-            hint={`زيارات متبقية: ${formatNumber(reports.visitsRemaining)}`}
+            label="الاشتراكات المفعلة"
+            value={`${formatNumber(reports.newSubscriptions)} اشتراك`}
+            hint={reports.visitsRemaining > 0 ? `رصيد زيارات متاح: ${formatNumber(reports.visitsRemaining)}` : 'تم تفعيلها في الفترة'}
             icon={<PackageCheck aria-hidden="true" className="size-5" />}
           />
 
           <MetricCard
             label="عملاء جدد في الفترة"
-            value={formatNumber(reports.newCustomers)}
-            hint={`عملاء متكررون: ${formatNumber(reports.repeatCustomers)}`}
+            value={`${formatNumber(reports.newCustomers)} عميل`}
+            hint={reports.repeatCustomers > 0 ? `عملاء متكررون بالفترة: ${formatNumber(reports.repeatCustomers)}` : 'تم تسجيلهم في الفترة'}
             icon={<UserRound aria-hidden="true" className="size-5" />}
             tone="blue"
           />
@@ -1037,7 +1043,7 @@ function OverviewSection({
           <MetricCard
             label="مشكلات الجودة والشكاوى"
             value={formatNumber(reports.qualityOpen)}
-            hint="حجوزات جودة وشكاوى بالفترة"
+            hint="مراجعات جودة وشكاوى بالفترة"
             icon={<ShieldAlert aria-hidden="true" className="size-5" />}
             tone="red"
           />
