@@ -157,11 +157,7 @@ export interface OperationsEmployeeDto {
   fullName: string;
   phone: string;
   role: string;
-  branchName?: string;
-  teamName?: string;
-}
-
-interface Props {
+export interface OperationsResourcesBoardProps {
   actorRole: string;
   canManageCatalog: boolean;
   branches: ResourceBranchDto[];
@@ -172,6 +168,8 @@ interface Props {
   employees: OperationsEmployeeDto[];
   vehicles: ResourceVehicleDto[];
   bookings: ResourceBookingDto[];
+  embedded?: boolean;
+  defaultBranchId?: string;
 }
 
 type Tab = 'catalog' | 'stock' | 'employee-stock' | 'fleet' | 'assignments';
@@ -966,13 +964,19 @@ export default function OperationsResourcesBoard({
   employees,
   vehicles,
   bookings,
-}: Props) {
+  embedded = false,
+  defaultBranchId,
+}: OperationsResourcesBoardProps) {
   const [tab, setTab] = useState<Tab>(canManageCatalog ? 'catalog' : 'employee-stock');
   const [notice, setNotice] = useState<Notice>(null);
   const [materialId, setMaterialId] = useState<string | null>(materials[0]?.id ?? null);
   const [serviceId, setServiceId] = useState<string | null>(services[0]?.id ?? null);
   const [requirementId, setRequirementId] = useState<string | null>(null);
-  const [stockBranchId, setStockBranchId] = useState(branches[0]?.id ?? '');
+  const [stockBranchId, setStockBranchId] = useState(
+    defaultBranchId && branches.some((b) => b.id === defaultBranchId)
+      ? defaultBranchId
+      : branches[0]?.id ?? ''
+  );
   const [stockId, setStockId] = useState<string | null>(null);
   const [vehicleId, setVehicleId] = useState<string | null>(vehicles[0]?.id ?? null);
 
@@ -986,6 +990,87 @@ export default function OperationsResourcesBoard({
 
   function setFeedback(next: Notice) {
     setNotice(next);
+  }
+
+  const boardContent = (
+    <>
+      <NoticeBox notice={notice} />
+
+      <nav aria-label="أقسام الموارد" className="flex gap-2 overflow-x-auto rounded-2xl border border-white/10 bg-white/[0.02] p-2">
+        {canManageCatalog ? <TabButton active={tab === 'catalog'} onClick={() => setTab('catalog')} icon={<Package className="size-4" aria-hidden="true" />} label="مواد الخدمات" /> : null}
+        <TabButton active={tab === 'employee-stock'} onClick={() => setTab('employee-stock')} icon={<Users className="size-4" aria-hidden="true" />} label="عهدة ومخزون الموظفين" />
+        <TabButton active={tab === 'stock'} onClick={() => setTab('stock')} icon={<Boxes className="size-4" aria-hidden="true" />} label="مخزون الفروع" />
+        <TabButton active={tab === 'fleet'} onClick={() => setTab('fleet')} icon={<CarFront className="size-4" aria-hidden="true" />} label="سيارات التشغيل" />
+        <TabButton active={tab === 'assignments'} onClick={() => setTab('assignments')} icon={<ClipboardList className="size-4" aria-hidden="true" />} label="تخصيص موارد الحجوزات" />
+      </nav>
+
+      {tab === 'employee-stock' ? (
+        <EmployeeStockPanel
+          employees={employees}
+          materials={materials}
+          branches={branches}
+          employeeStocks={employeeStocks}
+          onResult={setFeedback}
+        />
+      ) : null}
+
+      {tab === 'catalog' && canManageCatalog ? (
+        <div className="grid gap-7 xl:grid-cols-[310px_minmax(0,1fr)]">
+          <aside className="space-y-3 xl:sticky xl:top-5 xl:self-start">
+            <div className={panelClass}>
+              <div className="flex items-center justify-between gap-3"><h2 className="font-black">أصناف المواد</h2><button type="button" onClick={() => setMaterialId(null)} className="inline-flex size-9 items-center justify-center rounded-xl border border-[#d4af37]/40 text-[#f0d36d]" title="صنف جديد"><Plus className="size-4" aria-hidden="true" /></button></div>
+              <div className="mt-4 space-y-2">
+                {materials.map((material) => <button key={material.id} type="button" onClick={() => setMaterialId(material.id)} className={`w-full rounded-xl border p-3 text-right transition ${selectedMaterial?.id === material.id ? 'border-[#d4af37]/50 bg-[#d4af37]/10' : 'border-white/10 bg-black/20 hover:border-white/25'}`}><span className="flex items-center justify-between gap-3"><span className="truncate text-sm font-bold">{material.nameAr}</span><span className={`size-2 rounded-full ${material.active ? 'bg-emerald-300' : 'bg-neutral-500'}`} /></span><span dir="ltr" className="mt-1 block text-[10px] text-white/40">{material.sku} · {material.unit}</span></button>)}
+              </div>
+            </div>
+          </aside>
+
+          <div className="space-y-7">
+            <section className={panelClass} aria-labelledby="material-editor-title">
+              <div className="mb-5"><p className="text-xs font-bold text-[#d4af37]">كتالوج داخلي</p><h2 id="material-editor-title" className="mt-1 text-xl font-black">{selectedMaterial ? `تعديل ${selectedMaterial.nameAr}` : 'إضافة صنف مادة'}</h2><p className="mt-1 text-xs leading-5 text-white/45">إيقاف الصنف يحافظ على تاريخه ولا يحذف حركات المخزون أو متطلبات الخدمات السابقة.</p></div>
+              <MaterialEditor key={selectedMaterial?.id ?? 'new'} material={selectedMaterial} onResult={setFeedback} />
+            </section>
+
+            <section className={panelClass} aria-labelledby="requirements-title">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-xs font-bold text-[#d4af37]">إعداد الخدمة</p><h2 id="requirements-title" className="mt-1 text-xl font-black">مواد كل خدمة</h2><p className="mt-1 text-xs leading-5 text-white/45">الكميات هنا هي الاحتياج لكل تنفيذ واحد وتظهر للفني مع جاهزية مخزون الفرع.</p></div><select value={selectedService?.id ?? ''} onChange={(event) => { setServiceId(event.target.value); setRequirementId(null); }} className={`${inputClass} mt-0 max-w-sm`}><option value="" disabled>اختر خدمة</option>{services.map((service) => <option key={service.id} value={service.id}>{service.nameAr}{service.active ? '' : ' · متوقفة'}</option>)}</select></div>
+              {selectedService ? <div className="mt-5 space-y-3"><div className="space-y-2">{selectedService.materialRequirements.length ? selectedService.materialRequirements.map((requirement) => <button key={requirement.id} type="button" onClick={() => setRequirementId(requirement.id)} className={`flex w-full items-start justify-between gap-4 rounded-xl border p-4 text-right ${selectedRequirement?.id === requirement.id ? 'border-[#d4af37]/50 bg-[#d4af37]/10' : 'border-white/10 bg-black/20 hover:border-white/25'}`}><span><span className="font-bold">{requirement.material.nameAr}</span><span dir="ltr" className="mr-2 text-xs text-white/40">{requirement.material.sku}</span><span className="mt-1 block text-xs text-white/50">{requirement.notes || 'لا توجد تعليمات إضافية'}</span></span><span className="shrink-0 text-left text-xs"><strong className="block text-[#f0d36d]">{requirement.quantity} {requirement.material.unit}</strong><span className={requirement.required ? 'text-emerald-300' : 'text-white/45'}>{requirement.required ? 'إلزامي' : 'اختياري'}</span></span></button>) : <p className="rounded-xl border border-dashed border-white/15 p-5 text-center text-sm text-white/45">لم تُحدد مواد لهذه الخدمة بعد.</p>}</div><div className="border-t border-white/10 pt-5"><h3 className="mb-3 text-sm font-black">{selectedRequirement ? `تعديل متطلب ${selectedRequirement.material.nameAr}` : 'إضافة متطلب جديد'}</h3><RequirementEditor key={selectedRequirement?.id ?? `new-${selectedService.id}`} service={selectedService} materials={materials} requirement={selectedRequirement} onResult={setFeedback} /></div></div> : null}
+            </section>
+          </div>
+        </div>
+      ) : null}
+
+      {tab === 'stock' ? (
+        <div className="space-y-7">
+          <section className={panelClass}>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><p className="flex items-center gap-2 text-xs font-bold text-[#d4af37]"><Boxes className="size-4" aria-hidden="true" />رصيد ومخصصات الفرع</p><h2 className="mt-1 text-xl font-black">إعداد مخزون الفرع</h2><p className="mt-1 text-xs leading-5 text-white/45">الإعداد يحدد الحجز التشغيلي ونقطة إعادة الطلب. تغيير الرصيد الفعلي يتم من حركة مخزون موثقة.</p></div><select value={stockBranchId} onChange={(event) => { setStockBranchId(event.target.value); setStockId(null); }} className={`${inputClass} mt-0 max-w-sm`}>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.nameAr}</option>)}</select></div>
+            <div className="mt-5"><StockEditor key={selectedStock?.id ?? `new-${stockBranchId}`} stock={selectedStock} branches={branches} materials={materials} defaultBranchId={stockBranchId} onResult={setFeedback} /></div>
+          </section>
+
+          <section aria-labelledby="stock-list-title" className={panelClass}>
+            <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 id="stock-list-title" className="text-xl font-black">أرصدة {branches.find((branch) => branch.id === stockBranchId)?.nameAr}</h2><p className="mt-1 text-xs text-white/45">المتاح = الرصيد الفعلي − الكمية المحجوزة.</p></div><button type="button" onClick={() => setStockId(null)} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-[#d4af37]/40 px-4 text-xs font-bold text-[#f0d36d]"><Plus className="size-4" aria-hidden="true" />إعداد صنف جديد</button></div>
+            <div className="mt-5 grid gap-4 xl:grid-cols-2">{branchStocks.length ? branchStocks.map((stock) => { const available = stock.quantityOnHand - stock.reservedQuantity; return <article key={stock.id} className="rounded-2xl border border-white/10 bg-black/20 p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-black">{stock.material.nameAr}</h3><p dir="ltr" className="mt-1 text-[11px] text-white/40">{stock.material.sku} · {stock.material.unit}</p></div><StockBadge stock={stock} /></div><dl className="mt-4 grid grid-cols-3 gap-2 text-center text-xs"><div className="rounded-xl bg-white/[0.04] p-3"><dt className="text-white/40">فعلي</dt><dd className="mt-1 text-base font-black">{stock.quantityOnHand}</dd></div><div className="rounded-xl bg-white/[0.04] p-3"><dt className="text-white/40">محجوز</dt><dd className="mt-1 text-base font-black">{stock.reservedQuantity}</dd></div><div className="rounded-xl bg-[#d4af37]/10 p-3"><dt className="text-[#f0d36d]/65">متاح</dt><dd className="mt-1 text-base font-black text-[#f0d36d]">{available}</dd></div></dl><div className="mt-4 flex items-center justify-between gap-3 text-[11px] text-white/45"><span>إعادة الطلب: {stock.reorderPoint ?? stock.material.defaultReorderPoint}</span><button type="button" onClick={() => setStockId(stock.id)} className="rounded-lg border border-white/15 px-3 py-1.5 font-bold text-white/75">تعديل الإعداد</button></div><details className="mt-4"><summary className="cursor-pointer rounded-xl border border-white/10 px-3 py-2 text-xs font-bold text-[#f0d36d]">حركة مخزون جديدة وسجل مختصر</summary><div className="mt-4"><InventoryMovementForm stock={stock} bookings={bookings.filter((booking) => booking.branchId === stock.branchId)} onResult={setFeedback} /><ol className="mt-4 space-y-2">{stock.movements.map((movement) => <li key={movement.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-white/[0.035] px-3 py-2 text-[11px]"><span><strong className={movement.quantityChange > 0 ? 'text-emerald-300' : 'text-red-200'}>{movement.quantityChange > 0 ? '+' : ''}{movement.quantityChange}</strong> · {movement.type} · رصيد {movement.balanceAfter}</span><span className="max-w-full truncate text-white/45">{movement.reason ?? 'بدون ملاحظة'}{movement.bookingNumber ? ` · ${movement.bookingNumber}` : ''} · {movement.createdByName}</span></li>)}</ol></div></details></article>; }) : <div className="xl:col-span-2 rounded-2xl border border-dashed border-white/15 p-10 text-center text-sm text-white/45">لا توجد أصناف مهيأة لهذا الفرع بعد.</div>}</div>
+          </section>
+        </div>
+      ) : null}
+
+      {tab === 'fleet' ? (
+        <div className="grid gap-7 xl:grid-cols-[310px_minmax(0,1fr)]">
+          <aside className="space-y-3 xl:sticky xl:top-5 xl:self-start"><div className={panelClass}><div className="flex items-center justify-between gap-3"><h2 className="font-black">سيارات التشغيل</h2><button type="button" onClick={() => setVehicleId(null)} className="inline-flex size-9 items-center justify-center rounded-xl border border-[#d4af37]/40 text-[#f0d36d]" title="سيارة جديدة"><Plus className="size-4" aria-hidden="true" /></button></div><div className="mt-4 space-y-2">{vehicles.map((vehicle) => <button key={vehicle.id} type="button" onClick={() => setVehicleId(vehicle.id)} className={`w-full rounded-xl border p-3 text-right transition ${selectedVehicle?.id === vehicle.id ? 'border-[#d4af37]/50 bg-[#d4af37]/10' : 'border-white/10 bg-black/20 hover:border-white/25'}`}><span className="flex items-center justify-between gap-3"><span className="truncate text-sm font-bold">{vehicle.code}</span><span className={`rounded-full px-2 py-0.5 text-[10px] ${vehicle.status === 'ACTIVE' ? 'bg-emerald-400/10 text-emerald-200' : vehicle.status === 'MAINTENANCE' ? 'bg-amber-400/10 text-amber-200' : 'bg-neutral-500/20 text-neutral-300'}`}>{vehicle.status === 'ACTIVE' ? 'نشطة' : vehicle.status === 'MAINTENANCE' ? 'صيانة' : 'متوقفة'}</span></span><span className="mt-1 block truncate text-[10px] text-white/40">{vehicle.make} {vehicle.model} · {vehicle.branchName}</span></button>)}</div></div></aside>
+          <div className="space-y-7"><section className={panelClass}><div className="mb-5"><p className="text-xs font-bold text-[#d4af37]">Fleet</p><h2 className="mt-1 text-xl font-black">{selectedVehicle ? `تعديل ${selectedVehicle.code}` : 'إضافة سيارة تشغيل'}</h2><p className="mt-1 text-xs leading-5 text-white/45">تستطيع السيارة أن تكون متاحة للفرع كله أو مخصصة لفريق واحد. السيارات في الصيانة أو المتوقفة لا تظهر لتخصيص الحجوزات.</p></div><VehicleEditor key={selectedVehicle?.id ?? 'new'} vehicle={selectedVehicle} branches={branches} onResult={setFeedback} /></section>{selectedVehicle ? <section className={panelClass}><h2 className="flex items-center gap-2 text-lg font-black"><Truck className="size-5 text-[#d4af37]" aria-hidden="true" />ملخص استخدام السيارة</h2><dl className="mt-4 grid gap-3 sm:grid-cols-3 text-sm"><div className="rounded-xl bg-black/25 p-4"><dt className="text-white/45">الفرع</dt><dd className="mt-1 font-bold">{selectedVehicle.branchName}</dd></div><div className="rounded-xl bg-black/25 p-4"><dt className="text-white/45">الفريق</dt><dd className="mt-1 font-bold">{selectedVehicle.teamName ?? 'متاحة للفرع'}</dd></div><div className="rounded-xl bg-black/25 p-4"><dt className="text-white/45">كل الحجوزات المرتبطة</dt><dd className="mt-1 font-bold">{selectedVehicle.bookingCount}</dd></div></dl></section> : null}</div>
+        </div>
+      ) : null}
+
+      {tab === 'assignments' ? (
+        <section className={panelClass} aria-labelledby="booking-resources-title"><div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><p className="flex items-center gap-2 text-xs font-bold text-[#d4af37]"><ClipboardList className="size-4" aria-hidden="true" />بعد إسناد الفريق</p><h2 id="booking-resources-title" className="mt-1 text-xl font-black">تخصيص الفني والسيارة للحجز</h2><p className="mt-1 max-w-3xl text-xs leading-5 text-white/45">يحصر النظام الاختيارات في أعضاء فريق الحجز وسيارات الفرع أو الفريق النشطة، ويتحقق من تعارض وقت الحجز قبل الحفظ.</p></div><span className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white/65">{bookings.length} حجوزات تشغيلية</span></div><div className="mt-5 space-y-4">{bookings.length ? bookings.map((booking) => <article key={booking.id} className="rounded-2xl border border-white/10 bg-black/20 p-4"><div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between"><div><h3 dir="ltr" className="font-black text-[#f0d36d]">{booking.bookingNumber}</h3><p className="mt-1 text-sm font-bold">{booking.serviceName}</p><p className="mt-1 text-xs text-white/50">{booking.branchName} · {booking.teamName} · {formatDateTime(booking.startAt)}</p></div><div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-3"><span className="rounded-xl bg-white/[0.04] px-3 py-2 text-white/65">الحالة: <strong className="text-white">{booking.bookingStatus}</strong></span><span className="rounded-xl bg-white/[0.04] px-3 py-2 text-white/65">الفني: <strong className="text-white">{booking.employeeName ?? 'غير محدد'}</strong></span><span className="rounded-xl bg-white/[0.04] px-3 py-2 text-white/65">السيارة: <strong className="text-white">{booking.operationalVehicleLabel ?? 'غير محددة'}</strong></span></div></div><BookingResourceAssignmentForm booking={booking} branches={branches} vehicles={vehicles} onResult={setFeedback} /></article>) : <div className="rounded-2xl border border-dashed border-white/15 p-10 text-center text-sm text-white/45">لا توجد حجوزات نشطة أسند لها فريق ضمن نطاقك حاليًا.</div>}</div></section>
+      ) : null}
+
+      {!canManageCatalog ? <div className="flex gap-3 rounded-2xl border border-emerald-400/15 bg-emerald-400/[0.045] p-4 text-xs leading-6 text-emerald-100/65"><ShieldCheck className="size-5 shrink-0 text-emerald-300" aria-hidden="true" />أنت تدير مخزون وأسطول الفروع المسموح بها فقط. تعريف الأصناف ومتطلبات الخدمات مركزي ويُدار من حساب المالك أو مدير النظام.</div> : null}
+      {lowStocks.length ? <div className="flex gap-3 rounded-2xl border border-amber-400/20 bg-amber-400/[0.06] p-4 text-xs leading-6 text-amber-100/70"><AlertTriangle className="size-5 shrink-0 text-amber-300" aria-hidden="true" />هناك {lowStocks.length} أصناف عند أو أقل من نقطة إعادة الطلب. راجع صفحة «مخزون الفروع» وسجل توريدًا قبل تشغيل حجوزات جديدة.</div> : null}
+    </>
+  );
+
+  if (embedded) {
+    return <div className="space-y-7">{boardContent}</div>;
   }
 
   return (
@@ -1006,78 +1091,7 @@ export default function OperationsResourcesBoard({
           </div>
         </header>
 
-        <NoticeBox notice={notice} />
-
-        <nav aria-label="أقسام الموارد" className="flex gap-2 overflow-x-auto rounded-2xl border border-white/10 bg-white/[0.02] p-2">
-          {canManageCatalog ? <TabButton active={tab === 'catalog'} onClick={() => setTab('catalog')} icon={<Package className="size-4" aria-hidden="true" />} label="مواد الخدمات" /> : null}
-          <TabButton active={tab === 'employee-stock'} onClick={() => setTab('employee-stock')} icon={<Users className="size-4" aria-hidden="true" />} label="عهدة ومخزون الموظفين" />
-          <TabButton active={tab === 'stock'} onClick={() => setTab('stock')} icon={<Boxes className="size-4" aria-hidden="true" />} label="مخزون الفروع" />
-          <TabButton active={tab === 'fleet'} onClick={() => setTab('fleet')} icon={<CarFront className="size-4" aria-hidden="true" />} label="سيارات التشغيل" />
-          <TabButton active={tab === 'assignments'} onClick={() => setTab('assignments')} icon={<ClipboardList className="size-4" aria-hidden="true" />} label="تخصيص موارد الحجوزات" />
-        </nav>
-
-        {tab === 'employee-stock' ? (
-          <EmployeeStockPanel
-            employees={employees}
-            materials={materials}
-            branches={branches}
-            employeeStocks={employeeStocks}
-            onResult={setFeedback}
-          />
-        ) : null}
-
-        {tab === 'catalog' && canManageCatalog ? (
-          <div className="grid gap-7 xl:grid-cols-[310px_minmax(0,1fr)]">
-            <aside className="space-y-3 xl:sticky xl:top-5 xl:self-start">
-              <div className={panelClass}>
-                <div className="flex items-center justify-between gap-3"><h2 className="font-black">أصناف المواد</h2><button type="button" onClick={() => setMaterialId(null)} className="inline-flex size-9 items-center justify-center rounded-xl border border-[#d4af37]/40 text-[#f0d36d]" title="صنف جديد"><Plus className="size-4" aria-hidden="true" /></button></div>
-                <div className="mt-4 space-y-2">
-                  {materials.map((material) => <button key={material.id} type="button" onClick={() => setMaterialId(material.id)} className={`w-full rounded-xl border p-3 text-right transition ${selectedMaterial?.id === material.id ? 'border-[#d4af37]/50 bg-[#d4af37]/10' : 'border-white/10 bg-black/20 hover:border-white/25'}`}><span className="flex items-center justify-between gap-3"><span className="truncate text-sm font-bold">{material.nameAr}</span><span className={`size-2 rounded-full ${material.active ? 'bg-emerald-300' : 'bg-neutral-500'}`} /></span><span dir="ltr" className="mt-1 block text-[10px] text-white/40">{material.sku} · {material.unit}</span></button>)}
-                </div>
-              </div>
-            </aside>
-
-            <div className="space-y-7">
-              <section className={panelClass} aria-labelledby="material-editor-title">
-                <div className="mb-5"><p className="text-xs font-bold text-[#d4af37]">كتالوج داخلي</p><h2 id="material-editor-title" className="mt-1 text-xl font-black">{selectedMaterial ? `تعديل ${selectedMaterial.nameAr}` : 'إضافة صنف مادة'}</h2><p className="mt-1 text-xs leading-5 text-white/45">إيقاف الصنف يحافظ على تاريخه ولا يحذف حركات المخزون أو متطلبات الخدمات السابقة.</p></div>
-                <MaterialEditor key={selectedMaterial?.id ?? 'new'} material={selectedMaterial} onResult={setFeedback} />
-              </section>
-
-              <section className={panelClass} aria-labelledby="requirements-title">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-xs font-bold text-[#d4af37]">إعداد الخدمة</p><h2 id="requirements-title" className="mt-1 text-xl font-black">مواد كل خدمة</h2><p className="mt-1 text-xs leading-5 text-white/45">الكميات هنا هي الاحتياج لكل تنفيذ واحد وتظهر للفني مع جاهزية مخزون الفرع.</p></div><select value={selectedService?.id ?? ''} onChange={(event) => { setServiceId(event.target.value); setRequirementId(null); }} className={`${inputClass} mt-0 max-w-sm`}><option value="" disabled>اختر خدمة</option>{services.map((service) => <option key={service.id} value={service.id}>{service.nameAr}{service.active ? '' : ' · متوقفة'}</option>)}</select></div>
-                {selectedService ? <div className="mt-5 space-y-3"><div className="space-y-2">{selectedService.materialRequirements.length ? selectedService.materialRequirements.map((requirement) => <button key={requirement.id} type="button" onClick={() => setRequirementId(requirement.id)} className={`flex w-full items-start justify-between gap-4 rounded-xl border p-4 text-right ${selectedRequirement?.id === requirement.id ? 'border-[#d4af37]/50 bg-[#d4af37]/10' : 'border-white/10 bg-black/20 hover:border-white/25'}`}><span><span className="font-bold">{requirement.material.nameAr}</span><span dir="ltr" className="mr-2 text-xs text-white/40">{requirement.material.sku}</span><span className="mt-1 block text-xs text-white/50">{requirement.notes || 'لا توجد تعليمات إضافية'}</span></span><span className="shrink-0 text-left text-xs"><strong className="block text-[#f0d36d]">{requirement.quantity} {requirement.material.unit}</strong><span className={requirement.required ? 'text-emerald-300' : 'text-white/45'}>{requirement.required ? 'إلزامي' : 'اختياري'}</span></span></button>) : <p className="rounded-xl border border-dashed border-white/15 p-5 text-center text-sm text-white/45">لم تُحدد مواد لهذه الخدمة بعد.</p>}</div><div className="border-t border-white/10 pt-5"><h3 className="mb-3 text-sm font-black">{selectedRequirement ? `تعديل متطلب ${selectedRequirement.material.nameAr}` : 'إضافة متطلب جديد'}</h3><RequirementEditor key={selectedRequirement?.id ?? `new-${selectedService.id}`} service={selectedService} materials={materials} requirement={selectedRequirement} onResult={setFeedback} /></div></div> : null}
-              </section>
-            </div>
-          </div>
-        ) : null}
-
-        {tab === 'stock' ? (
-          <div className="space-y-7">
-            <section className={panelClass}>
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><p className="flex items-center gap-2 text-xs font-bold text-[#d4af37]"><Boxes className="size-4" aria-hidden="true" />رصيد ومخصصات الفرع</p><h2 className="mt-1 text-xl font-black">إعداد مخزون الفرع</h2><p className="mt-1 text-xs leading-5 text-white/45">الإعداد يحدد الحجز التشغيلي ونقطة إعادة الطلب. تغيير الرصيد الفعلي يتم من حركة مخزون موثقة.</p></div><select value={stockBranchId} onChange={(event) => { setStockBranchId(event.target.value); setStockId(null); }} className={`${inputClass} mt-0 max-w-sm`}>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.nameAr}</option>)}</select></div>
-              <div className="mt-5"><StockEditor key={selectedStock?.id ?? `new-${stockBranchId}`} stock={selectedStock} branches={branches} materials={materials} defaultBranchId={stockBranchId} onResult={setFeedback} /></div>
-            </section>
-
-            <section aria-labelledby="stock-list-title" className={panelClass}>
-              <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 id="stock-list-title" className="text-xl font-black">أرصدة {branches.find((branch) => branch.id === stockBranchId)?.nameAr}</h2><p className="mt-1 text-xs text-white/45">المتاح = الرصيد الفعلي − الكمية المحجوزة.</p></div><button type="button" onClick={() => setStockId(null)} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-[#d4af37]/40 px-4 text-xs font-bold text-[#f0d36d]"><Plus className="size-4" aria-hidden="true" />إعداد صنف جديد</button></div>
-              <div className="mt-5 grid gap-4 xl:grid-cols-2">{branchStocks.length ? branchStocks.map((stock) => { const available = stock.quantityOnHand - stock.reservedQuantity; return <article key={stock.id} className="rounded-2xl border border-white/10 bg-black/20 p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-black">{stock.material.nameAr}</h3><p dir="ltr" className="mt-1 text-[11px] text-white/40">{stock.material.sku} · {stock.material.unit}</p></div><StockBadge stock={stock} /></div><dl className="mt-4 grid grid-cols-3 gap-2 text-center text-xs"><div className="rounded-xl bg-white/[0.04] p-3"><dt className="text-white/40">فعلي</dt><dd className="mt-1 text-base font-black">{stock.quantityOnHand}</dd></div><div className="rounded-xl bg-white/[0.04] p-3"><dt className="text-white/40">محجوز</dt><dd className="mt-1 text-base font-black">{stock.reservedQuantity}</dd></div><div className="rounded-xl bg-[#d4af37]/10 p-3"><dt className="text-[#f0d36d]/65">متاح</dt><dd className="mt-1 text-base font-black text-[#f0d36d]">{available}</dd></div></dl><div className="mt-4 flex items-center justify-between gap-3 text-[11px] text-white/45"><span>إعادة الطلب: {stock.reorderPoint ?? stock.material.defaultReorderPoint}</span><button type="button" onClick={() => setStockId(stock.id)} className="rounded-lg border border-white/15 px-3 py-1.5 font-bold text-white/75">تعديل الإعداد</button></div><details className="mt-4"><summary className="cursor-pointer rounded-xl border border-white/10 px-3 py-2 text-xs font-bold text-[#f0d36d]">حركة مخزون جديدة وسجل مختصر</summary><div className="mt-4"><InventoryMovementForm stock={stock} bookings={bookings.filter((booking) => booking.branchId === stock.branchId)} onResult={setFeedback} /><ol className="mt-4 space-y-2">{stock.movements.map((movement) => <li key={movement.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-white/[0.035] px-3 py-2 text-[11px]"><span><strong className={movement.quantityChange > 0 ? 'text-emerald-300' : 'text-red-200'}>{movement.quantityChange > 0 ? '+' : ''}{movement.quantityChange}</strong> · {movement.type} · رصيد {movement.balanceAfter}</span><span className="max-w-full truncate text-white/45">{movement.reason ?? 'بدون ملاحظة'}{movement.bookingNumber ? ` · ${movement.bookingNumber}` : ''} · {movement.createdByName}</span></li>)}</ol></div></details></article>; }) : <div className="xl:col-span-2 rounded-2xl border border-dashed border-white/15 p-10 text-center text-sm text-white/45">لا توجد أصناف مهيأة لهذا الفرع بعد.</div>}</div>
-            </section>
-          </div>
-        ) : null}
-
-        {tab === 'fleet' ? (
-          <div className="grid gap-7 xl:grid-cols-[310px_minmax(0,1fr)]">
-            <aside className="space-y-3 xl:sticky xl:top-5 xl:self-start"><div className={panelClass}><div className="flex items-center justify-between gap-3"><h2 className="font-black">سيارات التشغيل</h2><button type="button" onClick={() => setVehicleId(null)} className="inline-flex size-9 items-center justify-center rounded-xl border border-[#d4af37]/40 text-[#f0d36d]" title="سيارة جديدة"><Plus className="size-4" aria-hidden="true" /></button></div><div className="mt-4 space-y-2">{vehicles.map((vehicle) => <button key={vehicle.id} type="button" onClick={() => setVehicleId(vehicle.id)} className={`w-full rounded-xl border p-3 text-right transition ${selectedVehicle?.id === vehicle.id ? 'border-[#d4af37]/50 bg-[#d4af37]/10' : 'border-white/10 bg-black/20 hover:border-white/25'}`}><span className="flex items-center justify-between gap-3"><span className="truncate text-sm font-bold">{vehicle.code}</span><span className={`rounded-full px-2 py-0.5 text-[10px] ${vehicle.status === 'ACTIVE' ? 'bg-emerald-400/10 text-emerald-200' : vehicle.status === 'MAINTENANCE' ? 'bg-amber-400/10 text-amber-200' : 'bg-neutral-500/20 text-neutral-300'}`}>{vehicle.status === 'ACTIVE' ? 'نشطة' : vehicle.status === 'MAINTENANCE' ? 'صيانة' : 'متوقفة'}</span></span><span className="mt-1 block truncate text-[10px] text-white/40">{vehicle.make} {vehicle.model} · {vehicle.branchName}</span></button>)}</div></div></aside>
-            <div className="space-y-7"><section className={panelClass}><div className="mb-5"><p className="text-xs font-bold text-[#d4af37]">Fleet</p><h2 className="mt-1 text-xl font-black">{selectedVehicle ? `تعديل ${selectedVehicle.code}` : 'إضافة سيارة تشغيل'}</h2><p className="mt-1 text-xs leading-5 text-white/45">تستطيع السيارة أن تكون متاحة للفرع كله أو مخصصة لفريق واحد. السيارات في الصيانة أو المتوقفة لا تظهر لتخصيص الحجوزات.</p></div><VehicleEditor key={selectedVehicle?.id ?? 'new'} vehicle={selectedVehicle} branches={branches} onResult={setFeedback} /></section>{selectedVehicle ? <section className={panelClass}><h2 className="flex items-center gap-2 text-lg font-black"><Truck className="size-5 text-[#d4af37]" aria-hidden="true" />ملخص استخدام السيارة</h2><dl className="mt-4 grid gap-3 sm:grid-cols-3 text-sm"><div className="rounded-xl bg-black/25 p-4"><dt className="text-white/45">الفرع</dt><dd className="mt-1 font-bold">{selectedVehicle.branchName}</dd></div><div className="rounded-xl bg-black/25 p-4"><dt className="text-white/45">الفريق</dt><dd className="mt-1 font-bold">{selectedVehicle.teamName ?? 'متاحة للفرع'}</dd></div><div className="rounded-xl bg-black/25 p-4"><dt className="text-white/45">كل الحجوزات المرتبطة</dt><dd className="mt-1 font-bold">{selectedVehicle.bookingCount}</dd></div></dl></section> : null}</div>
-          </div>
-        ) : null}
-
-        {tab === 'assignments' ? (
-          <section className={panelClass} aria-labelledby="booking-resources-title"><div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><p className="flex items-center gap-2 text-xs font-bold text-[#d4af37]"><ClipboardList className="size-4" aria-hidden="true" />بعد إسناد الفريق</p><h2 id="booking-resources-title" className="mt-1 text-xl font-black">تخصيص الفني والسيارة للحجز</h2><p className="mt-1 max-w-3xl text-xs leading-5 text-white/45">يحصر النظام الاختيارات في أعضاء فريق الحجز وسيارات الفرع أو الفريق النشطة، ويتحقق من تعارض وقت الحجز قبل الحفظ.</p></div><span className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white/65">{bookings.length} حجوزات تشغيلية</span></div><div className="mt-5 space-y-4">{bookings.length ? bookings.map((booking) => <article key={booking.id} className="rounded-2xl border border-white/10 bg-black/20 p-4"><div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between"><div><h3 dir="ltr" className="font-black text-[#f0d36d]">{booking.bookingNumber}</h3><p className="mt-1 text-sm font-bold">{booking.serviceName}</p><p className="mt-1 text-xs text-white/50">{booking.branchName} · {booking.teamName} · {formatDateTime(booking.startAt)}</p></div><div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-3"><span className="rounded-xl bg-white/[0.04] px-3 py-2 text-white/65">الحالة: <strong className="text-white">{booking.bookingStatus}</strong></span><span className="rounded-xl bg-white/[0.04] px-3 py-2 text-white/65">الفني: <strong className="text-white">{booking.employeeName ?? 'غير محدد'}</strong></span><span className="rounded-xl bg-white/[0.04] px-3 py-2 text-white/65">السيارة: <strong className="text-white">{booking.operationalVehicleLabel ?? 'غير محددة'}</strong></span></div></div><BookingResourceAssignmentForm booking={booking} branches={branches} vehicles={vehicles} onResult={setFeedback} /></article>) : <div className="rounded-2xl border border-dashed border-white/15 p-10 text-center text-sm text-white/45">لا توجد حجوزات نشطة أسند لها فريق ضمن نطاقك حاليًا.</div>}</div></section>
-        ) : null}
-
-        {!canManageCatalog ? <div className="flex gap-3 rounded-2xl border border-emerald-400/15 bg-emerald-400/[0.045] p-4 text-xs leading-6 text-emerald-100/65"><ShieldCheck className="size-5 shrink-0 text-emerald-300" aria-hidden="true" />أنت تدير مخزون وأسطول الفروع المسموح بها فقط. تعريف الأصناف ومتطلبات الخدمات مركزي ويُدار من حساب المالك أو مدير النظام.</div> : null}
-        {lowStocks.length ? <div className="flex gap-3 rounded-2xl border border-amber-400/20 bg-amber-400/[0.06] p-4 text-xs leading-6 text-amber-100/70"><AlertTriangle className="size-5 shrink-0 text-amber-300" aria-hidden="true" />هناك {lowStocks.length} أصناف عند أو أقل من نقطة إعادة الطلب. راجع صفحة «مخزون الفروع» وسجل توريدًا قبل تشغيل حجوزات جديدة.</div> : null}
+        {boardContent}
       </main>
     </div>
   );

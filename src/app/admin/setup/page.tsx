@@ -215,8 +215,138 @@ export default async function SetupPage() {
           },
         },
       },
+      materialRequirements: {
+        orderBy: [{ required: 'desc' }, { material: { nameAr: 'asc' } }],
+        select: {
+          id: true,
+          materialId: true,
+          quantity: true,
+          required: true,
+          notes: true,
+          material: { select: { nameAr: true, sku: true, unit: true, active: true } },
+        },
+      },
     },
   });
+
+  const materialsPromise = db.material.findMany({
+    orderBy: [{ active: 'desc' }, { nameAr: 'asc' }],
+    select: {
+      id: true,
+      sku: true,
+      nameAr: true,
+      nameEn: true,
+      unit: true,
+      defaultReorderPoint: true,
+      active: true,
+      _count: { select: { serviceRequirements: true, branchStocks: true } },
+    },
+  });
+
+  const stocksPromise = db.branchMaterialStock.findMany({
+    orderBy: [{ branch: { nameAr: 'asc' } }, { material: { nameAr: 'asc' } }],
+    select: {
+      id: true,
+      branchId: true,
+      materialId: true,
+      quantityOnHand: true,
+      reservedQuantity: true,
+      reorderPoint: true,
+      active: true,
+      updatedAt: true,
+      branch: { select: { nameAr: true } },
+      material: { select: { nameAr: true, sku: true, unit: true, defaultReorderPoint: true, active: true } },
+      movements: {
+        take: 6,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          type: true,
+          quantityChange: true,
+          balanceAfter: true,
+          reason: true,
+          createdAt: true,
+          booking: { select: { bookingNumber: true } },
+          createdBy: { select: { fullName: true } },
+        },
+      },
+    },
+  });
+
+  const vehiclesPromise = db.operationalVehicle.findMany({
+    orderBy: [{ branch: { nameAr: 'asc' } }, { status: 'asc' }, { code: 'asc' }],
+    select: {
+      id: true,
+      branchId: true,
+      teamId: true,
+      code: true,
+      plateNumber: true,
+      make: true,
+      model: true,
+      year: true,
+      status: true,
+      notes: true,
+      branch: { select: { nameAr: true } },
+      team: { select: { name: true } },
+      _count: { select: { bookings: true } },
+    },
+  });
+
+  const employeeStocksPromise = db.employeeMaterialStock.findMany({
+    orderBy: [{ employee: { fullName: 'asc' } }, { material: { nameAr: 'asc' } }],
+    select: {
+      id: true,
+      employeeId: true,
+      materialId: true,
+      quantityOnHand: true,
+      minAlertLevel: true,
+      active: true,
+      updatedAt: true,
+      employee: { select: { id: true, fullName: true, phone: true } },
+      material: { select: { nameAr: true, sku: true, unit: true } },
+      movements: {
+        take: 10,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          type: true,
+          quantityChange: true,
+          balanceAfter: true,
+          reason: true,
+          createdAt: true,
+          booking: { select: { bookingNumber: true } },
+          createdBy: { select: { fullName: true } },
+        },
+      },
+    },
+  });
+
+  const resourceBookingsPromise = db.booking.findMany({
+    where: {
+      assignedTeamId: { not: null },
+      deletedAt: null,
+      bookingStatus: { notIn: ['CANCELLED', 'REJECTED', 'EXPIRED', 'CLOSED'] },
+    },
+    take: 120,
+    orderBy: { startAt: 'asc' },
+    select: {
+      id: true,
+      branchId: true,
+      bookingNumber: true,
+      startAt: true,
+      endAt: true,
+      bookingStatus: true,
+      assignedTeamId: true,
+      assignedEmployeeId: true,
+      operationalVehicleId: true,
+      service: { select: { nameAr: true } },
+      branch: { select: { nameAr: true } },
+      assignedTeam: { select: { name: true } },
+      assignedEmployee: { select: { fullName: true } },
+      operationalVehicle: { select: { code: true, plateNumber: true, make: true, model: true } },
+    },
+  });
+
   const travelTimesPromise = db.zoneTravelTime.findMany({
     orderBy: [{ fromZoneId: 'asc' }, { toZoneId: 'asc' }],
     select: {
@@ -232,12 +362,28 @@ export default async function SetupPage() {
     select: { code: true, nameAr: true, description: true },
   });
 
-  const [branchesRaw, employeesRaw, servicesRaw, travelTimesRaw, permissionsRaw] = await Promise.all([
+  const [
+    branchesRaw,
+    employeesRaw,
+    servicesRaw,
+    travelTimesRaw,
+    permissionsRaw,
+    materialsRaw,
+    stocksRaw,
+    vehiclesRaw,
+    employeeStocksRaw,
+    bookingsRaw,
+  ] = await Promise.all([
     branchesPromise,
     employeesPromise,
     servicesPromise,
     travelTimesPromise,
     permissionsPromise,
+    materialsPromise,
+    stocksPromise,
+    vehiclesPromise,
+    employeeStocksPromise,
+    resourceBookingsPromise,
   ]);
 
   const branches: SetupBranchDto[] = branchesRaw.map((branch) => ({
@@ -368,6 +514,117 @@ export default async function SetupPage() {
     checklistTemplates: service.checklistTemplates,
   }));
 
+  const inventoryMaterials = materialsRaw.map((material) => ({
+    id: material.id,
+    sku: material.sku,
+    nameAr: material.nameAr,
+    nameEn: material.nameEn,
+    unit: material.unit,
+    defaultReorderPoint: material.defaultReorderPoint,
+    active: material.active,
+    requirementCount: material._count.serviceRequirements,
+    stockCount: material._count.branchStocks,
+  }));
+
+  const inventoryServices = servicesRaw.map((service) => ({
+    id: service.id,
+    nameAr: service.nameAr,
+    active: service.active,
+    materialRequirements: service.materialRequirements,
+  }));
+
+  const inventoryStocks = stocksRaw.map((stock) => ({
+    id: stock.id,
+    branchId: stock.branchId,
+    materialId: stock.materialId,
+    quantityOnHand: stock.quantityOnHand,
+    reservedQuantity: stock.reservedQuantity,
+    reorderPoint: stock.reorderPoint,
+    active: stock.active,
+    updatedAt: stock.updatedAt.toISOString(),
+    branchName: stock.branch.nameAr,
+    material: stock.material,
+    movements: stock.movements.map((movement) => ({
+      id: movement.id,
+      type: movement.type,
+      quantityChange: movement.quantityChange,
+      balanceAfter: movement.balanceAfter,
+      reason: movement.reason,
+      createdAt: movement.createdAt.toISOString(),
+      bookingNumber: movement.booking?.bookingNumber ?? null,
+      createdByName: movement.createdBy.fullName,
+    })),
+  }));
+
+  const inventoryEmployeeStocks = employeeStocksRaw.map((stock) => ({
+    id: stock.id,
+    employeeId: stock.employeeId,
+    materialId: stock.materialId,
+    quantityOnHand: stock.quantityOnHand,
+    minAlertLevel: stock.minAlertLevel,
+    active: stock.active,
+    updatedAt: stock.updatedAt.toISOString(),
+    employeeName: stock.employee.fullName,
+    employeePhone: stock.employee.phone,
+    materialName: stock.material.nameAr,
+    materialSku: stock.material.sku,
+    materialUnit: stock.material.unit,
+    movements: stock.movements.map((movement) => ({
+      id: movement.id,
+      type: movement.type,
+      quantityChange: movement.quantityChange,
+      balanceAfter: movement.balanceAfter,
+      reason: movement.reason,
+      createdAt: movement.createdAt.toISOString(),
+      bookingNumber: movement.booking?.bookingNumber ?? null,
+      createdByName: movement.createdBy.fullName,
+    })),
+  }));
+
+  const inventoryEmployees = employeesRaw.map((employee) => ({
+    id: employee.id,
+    fullName: employee.fullName,
+    phone: employee.phone,
+    role: employee.role,
+    teamName: undefined,
+    branchName: undefined,
+  }));
+
+  const inventoryVehicles = vehiclesRaw.map((vehicle) => ({
+    id: vehicle.id,
+    branchId: vehicle.branchId,
+    teamId: vehicle.teamId,
+    code: vehicle.code,
+    plateNumber: vehicle.plateNumber,
+    make: vehicle.make,
+    model: vehicle.model,
+    year: vehicle.year,
+    status: vehicle.status,
+    notes: vehicle.notes,
+    branchName: vehicle.branch.nameAr,
+    teamName: vehicle.team?.name ?? null,
+    bookingCount: vehicle._count.bookings,
+  }));
+
+  const inventoryBookings = bookingsRaw.map((booking) => ({
+    id: booking.id,
+    branchId: booking.branchId,
+    bookingNumber: booking.bookingNumber,
+    startAt: booking.startAt.toISOString(),
+    endAt: booking.endAt.toISOString(),
+    bookingStatus: booking.bookingStatus,
+    assignedTeamId: booking.assignedTeamId!,
+    assignedEmployeeId: booking.assignedEmployeeId,
+    operationalVehicleId: booking.operationalVehicleId,
+    branchName: booking.branch.nameAr,
+    serviceName: booking.service.nameAr,
+    teamName: booking.assignedTeam?.name ?? 'فريق غير محدد',
+    employeeName: booking.assignedEmployee?.fullName ?? null,
+    operationalVehicleLabel: booking.operationalVehicle
+      ? `${booking.operationalVehicle.code} · ${booking.operationalVehicle.make} ${booking.operationalVehicle.model}`
+      : null,
+  }));
+
   return (
     <SetupCenter
       actor={{
@@ -381,6 +638,15 @@ export default async function SetupPage() {
       employees={employees}
       permissions={permissions}
       services={services}
+      inventory={{
+        materials: inventoryMaterials,
+        services: inventoryServices,
+        stocks: inventoryStocks,
+        employeeStocks: inventoryEmployeeStocks,
+        employees: inventoryEmployees,
+        vehicles: inventoryVehicles,
+        bookings: inventoryBookings,
+      }}
     />
   );
 }

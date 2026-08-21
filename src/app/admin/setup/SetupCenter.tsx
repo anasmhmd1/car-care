@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
+  Boxes,
   CalendarClock,
   Check,
   ClipboardCheck,
@@ -20,6 +21,16 @@ import {
   UsersRound,
   X,
 } from 'lucide-react';
+import OperationsResourcesBoard, {
+  type EmployeeStockDto,
+  type OperationsEmployeeDto,
+  type ResourceBookingDto,
+  type ResourceBranchDto,
+  type ResourceMaterialDto,
+  type ResourceStockDto,
+  type ResourceVehicleDto,
+  type ServiceMaterialDto,
+} from '@/app/operations/resources/OperationsResourcesBoard';
 import {
   useMemo,
   useRef,
@@ -234,7 +245,7 @@ export interface SetupServiceDto {
   checklistTemplates: SetupChecklistTemplateDto[];
 }
 
-interface SetupCenterProps {
+export interface SetupCenterProps {
   actor: {
     fullName: string;
     role: 'OWNER' | 'SYSTEM_SUPER_ADMIN';
@@ -243,11 +254,21 @@ interface SetupCenterProps {
   employees: SetupEmployeeDto[];
   permissions: SetupPermissionDto[];
   services: SetupServiceDto[];
+  inventory?: {
+    materials: ResourceMaterialDto[];
+    services: ServiceMaterialDto[];
+    stocks: ResourceStockDto[];
+    employeeStocks: EmployeeStockDto[];
+    employees: OperationsEmployeeDto[];
+    vehicles: ResourceVehicleDto[];
+    bookings: ResourceBookingDto[];
+  };
 }
 
 type SetupMutation = (formData: FormData) => Promise<SetupActionResult>;
-type SectionId =
+export type SectionId =
   | 'overview'
+  | 'inventory'
   | 'operations_management'
   | 'workforce'
   | 'teams'
@@ -499,12 +520,14 @@ function OverviewSection({
   branch,
   employees,
   services,
+  inventory,
   tools,
   onNavigate,
 }: {
   branch: SetupBranchDto;
   employees: SetupEmployeeDto[];
   services: SetupServiceDto[];
+  inventory?: SetupCenterProps['inventory'];
   tools: SectionTools;
   onNavigate: (section: SectionId) => void;
 }) {
@@ -517,7 +540,16 @@ function OverviewSection({
   const activePaymentMethods = branch.paymentMethods.filter((method) => method.active).length;
   const checklistServices = services.filter((service) => service.checklistTemplates.length > 0).length;
   const governedServices = services.filter((service) => service.cancellationPolicyActive).length;
+  const branchStocksCount = inventory ? inventory.stocks.filter((s) => s.branchId === branch.id).length : 0;
   const readiness = [
+    {
+      label: 'المخزون والأسطول',
+      value: branchStocksCount,
+      suffix: 'أصناف مهيأة',
+      ready: true,
+      section: 'inventory' as SectionId,
+      icon: Boxes,
+    },
     {
       label: 'إدارة التشغيل',
       value: employees.filter((employee) => employee.role === 'OPERATIONS_MANAGER' && employee.active).length,
@@ -2855,7 +2887,7 @@ function ChecklistEditor({
   );
 }
 
-export default function SetupCenter({ actor, branches, employees, permissions, services }: SetupCenterProps) {
+export default function SetupCenter({ actor, branches, employees, permissions, services, inventory }: SetupCenterProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [section, setSection] = useState<SectionId>('overview');
@@ -2910,6 +2942,7 @@ export default function SetupCenter({ actor, branches, employees, permissions, s
     icon: typeof Gauge;
   }> = [
     { id: 'overview', label: 'خريطة الجاهزية', hint: 'ملخص الفرع', icon: Gauge },
+    { id: 'inventory', label: 'المخزون', hint: 'الخامات والمواد والأسطول', icon: Boxes },
     { id: 'operations_management', label: 'إدارة التشغيل', hint: 'المدراء والفروع المتعددة', icon: ShieldCheck },
     { id: 'workforce', label: 'موظفو التنفيذ', hint: 'الفنيين وحسابات الفرع', icon: UserRoundCog },
     { id: 'teams', label: 'الفرق', hint: 'الأعضاء والقدرات', icon: UsersRound },
@@ -2930,6 +2963,38 @@ export default function SetupCenter({ actor, branches, employees, permissions, s
     content = <EmptyState title="لا يوجد فرع قابل للإعداد" text="أنشئ فرعًا من إدارة النظام أولًا." />;
   } else {
     switch (section) {
+      case 'inventory':
+        content = inventory ? (
+          <OperationsResourcesBoard
+            actorRole={actor.role}
+            canManageCatalog={true}
+            branches={branches.map((b) => ({
+              id: b.id,
+              code: b.code,
+              nameAr: b.nameAr,
+              status: b.status,
+              teams: b.teams.map((t) => ({
+                id: t.id,
+                name: t.name,
+                members: employees
+                  .filter((e) => t.memberIds.includes(e.id))
+                  .map((e) => ({ id: e.id, fullName: e.fullName })),
+              })),
+            }))}
+            materials={inventory.materials}
+            services={inventory.services}
+            stocks={inventory.stocks}
+            employeeStocks={inventory.employeeStocks}
+            employees={inventory.employees}
+            vehicles={inventory.vehicles}
+            bookings={inventory.bookings}
+            embedded={true}
+            defaultBranchId={branch.id}
+          />
+        ) : (
+          <EmptyState title="لا توجد بيانات مخزون" text="تعذر تحميل بيانات المواد والمخزون." />
+        );
+        break;
       case 'operations_management':
         content = <OperationsManagementSection key={branch.id} branch={branch} allBranches={branches} employees={employees} permissions={permissions} tools={sectionTools} />;
         break;
@@ -2952,7 +3017,7 @@ export default function SetupCenter({ actor, branches, employees, permissions, s
         content = <ChecklistsSection services={services} tools={sectionTools} />;
         break;
       default:
-        content = <OverviewSection branch={branch} employees={branchEmployees} services={services} tools={sectionTools} onNavigate={setSection} />;
+        content = <OverviewSection branch={branch} employees={branchEmployees} services={services} inventory={inventory} tools={sectionTools} onNavigate={setSection} />;
     }
   }
 
