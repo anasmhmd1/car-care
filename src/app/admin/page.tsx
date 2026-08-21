@@ -672,7 +672,7 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
   const isSubscriptions = currentSection === 'subscriptions';
   const isCustomers = currentSection === 'customers';
   const isAudit = currentSection === 'audit';
-  const isReports = currentSection === 'reports' || isOverview;
+  const isReports = currentSection === 'reports';
   const isRevenue = isOverview;
 
   // Overview quick cards & Bookings list
@@ -892,127 +892,145 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
       )
     : undefined;
 
-  // Reporting Analytics (Calculated for the exact selected date range)
-  const [
-    reportStatusGroups,
-    reportBookingAggregate,
-    reportDueAggregate,
-    reportPaymentAggregate,
-    reportRefundAggregate,
-    reportByServiceRaw,
-    reportByBranchRaw,
-    reportByTeamRaw,
-    reportCancellationReasonsRaw,
-    reportNewSubscriptions,
-    reportVisits,
-    reportComplaintCount,
-    reportNewCustomers,
-    reportRepeatCustomerGroups,
-    reportQualityOpenBookings,
-    reportActiveSubscriptions,
-    reportRemainingVisitsAggregate,
-    reportTeamAssignedBookings,
-  ] = isReports
-    ? await Promise.all([
-        db.booking.groupBy({
-          by: ['bookingStatus'],
-          where: { deletedAt: null, createdAt: reportRange },
-          _count: { _all: true },
-        }),
-        db.booking.aggregate({
-          where: { deletedAt: null, createdAt: reportRange },
-          _avg: { totalPrice: true },
-        }),
-        db.booking.aggregate({
-          where: {
-            deletedAt: null,
-            createdAt: reportRange,
-            bookingStatus: { notIn: TERMINAL_BOOKING_STATUSES },
-            terminalReopenSourceStatus: null,
-          },
-          _sum: { amountDue: true },
-        }),
-        db.payment.aggregate({
-          where: { createdAt: reportRange },
-          _sum: { amount: true },
-          _count: { _all: true },
-        }),
-        db.refund.aggregate({
-          where: {
-            createdAt: reportRange,
-            status: { in: [RefundStatus.PARTIALLY_REFUNDED, RefundStatus.REFUNDED] },
-          },
-          _sum: { amount: true },
-        }),
-        db.booking.groupBy({
-          by: ['serviceId'],
-          where: { deletedAt: null, createdAt: reportRange },
-          _count: { _all: true },
-          _sum: { totalPrice: true, amountPaid: true },
-        }),
-        db.booking.groupBy({
-          by: ['branchId'],
-          where: { deletedAt: null, createdAt: reportRange },
-          _count: { _all: true },
-          _sum: { totalPrice: true, amountPaid: true },
-        }),
-        db.booking.groupBy({
-          by: ['assignedTeamId'],
-          where: { deletedAt: null, createdAt: reportRange, assignedTeamId: { not: null } },
-          _count: { _all: true },
-          _sum: { totalPrice: true, amountPaid: true },
-        }),
-        db.cancellationRequest.groupBy({
-          by: ['reason'],
-          where: { createdAt: reportRange },
-          _count: { _all: true },
-        }),
-        db.customerSubscription.count({ where: { createdAt: reportRange } }),
-        db.subscriptionVisitLedger.aggregate({
-          where: { action: 'BOOKING_COMPLETED', createdAt: reportRange },
-          _sum: { visitChange: true },
-        }),
-        db.complaint.count({ where: { createdAt: reportRange } }),
-        db.customerProfile.count({ where: { createdAt: reportRange } }),
-        db.booking.groupBy({
-          by: ['customerId'],
-          where: { deletedAt: null, createdAt: reportRange },
-          _count: { _all: true },
-        }),
-        db.booking.count({
-          where: { deletedAt: null, createdAt: reportRange, bookingStatus: BookingStatus.QUALITY_REVIEW },
-        }),
-        db.customerSubscription.count({
-          where: { status: SubscriptionStatus.ACTIVE, createdAt: reportRange },
-        }),
-        db.customerSubscription.aggregate({
-          where: { status: SubscriptionStatus.ACTIVE, createdAt: reportRange },
-          _sum: { remainingVisits: true },
-        }),
-        db.booking.count({
-          where: { deletedAt: null, createdAt: reportRange, assignedTeamId: { not: null } },
-        }),
-      ])
-    : [
-        [],
-        { _avg: { totalPrice: null } },
-        { _sum: { amountDue: null } },
-        { _sum: { amount: null }, _count: { _all: 0 } },
-        { _sum: { amount: null } },
-        [],
-        [],
-        [],
-        [],
-        0,
-        { _sum: { visitChange: null } },
-        0,
-        0,
-        [],
-        0,
-        0,
-        { _sum: { remainingVisits: null } },
-        0,
-      ];
+  // Reporting Analytics (Calculated for the exact selected date range when viewing Reports section)
+  let reportStatusGroups: Array<{ bookingStatus: BookingStatus; _count: { _all: number } }> = [];
+  let reportBookingAggregate = { _avg: { totalPrice: null as number | null } };
+  let reportDueAggregate = { _sum: { amountDue: null as number | null } };
+  let reportPaymentAggregate = { _sum: { amount: null as number | null }, _count: { _all: 0 } };
+  let reportRefundAggregate = { _sum: { amount: null as number | null } };
+  let reportByServiceRaw: Array<{ serviceId: string; _count: { _all: number }; _sum: { totalPrice: number | null; amountPaid: number | null } }> = [];
+  let reportByBranchRaw: Array<{ branchId: string; _count: { _all: number }; _sum: { totalPrice: number | null; amountPaid: number | null } }> = [];
+  let reportByTeamRaw: Array<{ assignedTeamId: string | null; _count: { _all: number }; _sum: { totalPrice: number | null; amountPaid: number | null } }> = [];
+  let reportCancellationReasonsRaw: Array<{ reason: string; _count: { _all: number } }> = [];
+  let reportNewSubscriptions = 0;
+  let reportVisits = { _sum: { visitChange: null as number | null } };
+  let reportComplaintCount = 0;
+  let reportNewCustomers = 0;
+  let reportRepeatCustomerGroups: Array<{ customerId: string; _count: { _all: number } }> = [];
+  let reportQualityOpenBookings = 0;
+  let reportActiveSubscriptions = 0;
+  let reportRemainingVisitsAggregate = { _sum: { remainingVisits: null as number | null } };
+  let reportTeamAssignedBookings = 0;
+
+  if (isReports) {
+    // Batch 1: Core Financial & Booking aggregates (5 queries)
+    const [statusGroups, bookingAgg, dueAgg, paymentAgg, refundAgg] = await Promise.all([
+      db.booking.groupBy({
+        by: ['bookingStatus'],
+        where: { deletedAt: null, createdAt: reportRange },
+        _count: { _all: true },
+      }),
+      db.booking.aggregate({
+        where: { deletedAt: null, createdAt: reportRange },
+        _avg: { totalPrice: true },
+      }),
+      db.booking.aggregate({
+        where: {
+          deletedAt: null,
+          createdAt: reportRange,
+          bookingStatus: { notIn: TERMINAL_BOOKING_STATUSES },
+          terminalReopenSourceStatus: null,
+        },
+        _sum: { amountDue: true },
+      }),
+      db.payment.aggregate({
+        where: { createdAt: reportRange },
+        _sum: { amount: true },
+        _count: { _all: true },
+      }),
+      db.refund.aggregate({
+        where: {
+          createdAt: reportRange,
+          status: { in: [RefundStatus.PARTIALLY_REFUNDED, RefundStatus.REFUNDED] },
+        },
+        _sum: { amount: true },
+      }),
+    ]);
+    reportStatusGroups = statusGroups;
+    reportBookingAggregate = bookingAgg;
+    reportDueAggregate = dueAgg;
+    reportPaymentAggregate = paymentAgg;
+    reportRefundAggregate = refundAgg;
+
+    // Batch 2: Groupings by Service, Branch, Team, Cancellation (4 queries)
+    const [byService, byBranch, byTeam, cancelReasons] = await Promise.all([
+      db.booking.groupBy({
+        by: ['serviceId'],
+        where: { deletedAt: null, createdAt: reportRange },
+        _count: { _all: true },
+        _sum: { totalPrice: true, amountPaid: true },
+      }),
+      db.booking.groupBy({
+        by: ['branchId'],
+        where: { deletedAt: null, createdAt: reportRange },
+        _count: { _all: true },
+        _sum: { totalPrice: true, amountPaid: true },
+      }),
+      db.booking.groupBy({
+        by: ['assignedTeamId'],
+        where: { deletedAt: null, createdAt: reportRange, assignedTeamId: { not: null } },
+        _count: { _all: true },
+        _sum: { totalPrice: true, amountPaid: true },
+      }),
+      db.cancellationRequest.groupBy({
+        by: ['reason'],
+        where: { createdAt: reportRange },
+        _count: { _all: true },
+      }),
+    ]);
+    reportByServiceRaw = byService;
+    reportByBranchRaw = byBranch;
+    reportByTeamRaw = byTeam;
+    reportCancellationReasonsRaw = cancelReasons;
+
+    // Batch 3: Customers, Subscriptions & Quality (9 queries)
+    const [
+      newSubs,
+      visitsAgg,
+      complaints,
+      newCust,
+      repeatCust,
+      qualityOpen,
+      activeSubs,
+      remainingVisits,
+      teamAssigned,
+    ] = await Promise.all([
+      db.customerSubscription.count({ where: { createdAt: reportRange } }),
+      db.subscriptionVisitLedger.aggregate({
+        where: { action: 'BOOKING_COMPLETED', createdAt: reportRange },
+        _sum: { visitChange: true },
+      }),
+      db.complaint.count({ where: { createdAt: reportRange } }),
+      db.customerProfile.count({ where: { createdAt: reportRange } }),
+      db.booking.groupBy({
+        by: ['customerId'],
+        where: { deletedAt: null, createdAt: reportRange },
+        _count: { _all: true },
+      }),
+      db.booking.count({
+        where: { deletedAt: null, createdAt: reportRange, bookingStatus: BookingStatus.QUALITY_REVIEW },
+      }),
+      db.customerSubscription.count({
+        where: { status: SubscriptionStatus.ACTIVE, createdAt: reportRange },
+      }),
+      db.customerSubscription.aggregate({
+        where: { status: SubscriptionStatus.ACTIVE, createdAt: reportRange },
+        _sum: { remainingVisits: true },
+      }),
+      db.booking.count({
+        where: { deletedAt: null, createdAt: reportRange, assignedTeamId: { not: null } },
+      }),
+    ]);
+    reportNewSubscriptions = newSubs;
+    reportVisits = visitsAgg;
+    reportComplaintCount = complaints;
+    reportNewCustomers = newCust;
+    reportRepeatCustomerGroups = repeatCust;
+    reportQualityOpenBookings = qualityOpen;
+    reportActiveSubscriptions = activeSubs;
+    reportRemainingVisitsAggregate = remainingVisits;
+    reportTeamAssignedBookings = teamAssigned;
+  }
 
   const branches = branchesRaw.map((branch) => ({
     id: branch.id,
@@ -1082,6 +1100,11 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
     .filter((team) => team.active)
     .reduce((total, team) => total + team.todayBookingCount, 0);
 
+  const totalAllCount = allStatusGroups.reduce((total, group) => total + group._count._all, 0);
+  const totalCompletedCount = allStatusGroups
+    .filter((group) => COMPLETED_BOOKING_STATUSES.includes(group.bookingStatus))
+    .reduce((total, group) => total + group._count._all, 0);
+
   const metrics = {
     todayBookings: todayStatusGroups.reduce((total, group) => total + group._count._all, 0),
     upcomingBookings,
@@ -1127,6 +1150,8 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
       ),
     completionRate: reportTotalBookings > 0
       ? Math.round((completedInRange / reportTotalBookings) * 100)
+      : totalAllCount > 0
+      ? Math.round((totalCompletedCount / totalAllCount) * 100)
       : 0,
     visitsRemaining: activeVisitTotals._sum.remainingVisits ?? 0,
   };
