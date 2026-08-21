@@ -672,8 +672,8 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
   const isSubscriptions = currentSection === 'subscriptions';
   const isCustomers = currentSection === 'customers';
   const isAudit = currentSection === 'audit';
-  const isReports = currentSection === 'reports' || (isOverview && overviewTab === 'analytics');
-  const isRevenue = isOverview && overviewTab === 'revenue';
+  const isReports = currentSection === 'reports' || isOverview;
+  const isRevenue = isOverview;
 
   // Overview quick cards & Bookings list
   const [pendingProofsRaw, operationsReviewRaw, unassignedRaw, bookingsRaw] = await Promise.all([
