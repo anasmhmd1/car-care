@@ -164,6 +164,9 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
   if (rawSection === 'payments') {
     redirect('/operations?tab=proofs');
   }
+  if (rawSection === 'cancellations') {
+    redirect('/operations?tab=cancellations');
+  }
   if (rawSection === 'quality') {
     redirect('/operations');
   }
@@ -412,7 +415,6 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
   const isOverview = currentSection === 'overview';
   const isBookings = currentSection === 'bookings';
   const isSubscriptions = currentSection === 'subscriptions';
-  const isCancellations = currentSection === 'cancellations';
   const isCustomers = currentSection === 'customers';
   const isAudit = currentSection === 'audit';
   const isReports = currentSection === 'reports';
@@ -474,48 +476,6 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
           take: 100,
           orderBy: { createdAt: 'desc' },
           select: bookingSummarySelect,
-        })
-      : Promise.resolve([]),
-  ]);
-
-  // Cancellations
-  const [cancellationsRaw, refundsRaw] = await Promise.all([
-    isCancellations
-      ? db.cancellationRequest.findMany({
-          where: {
-            status: { in: ['PENDING', 'ESCALATED'] },
-            booking: { terminalReopenSourceStatus: null },
-          },
-          take: 30,
-          orderBy: { createdAt: 'asc' },
-          select: {
-            id: true,
-            reason: true,
-            preferredAction: true,
-            customerNotes: true,
-            status: true,
-            createdAt: true,
-            booking: { select: bookingSummarySelect },
-          },
-        })
-      : Promise.resolve([]),
-    isCancellations
-      ? db.refund.findMany({
-          where: {
-            status: { in: [RefundStatus.REFUND_PENDING, RefundStatus.REFUND_PROCESSING] },
-            booking: { terminalReopenSourceStatus: null },
-          },
-          take: 30,
-          orderBy: { createdAt: 'asc' },
-          select: {
-            id: true,
-            amount: true,
-            refundMethod: true,
-            referenceNumber: true,
-            status: true,
-            createdAt: true,
-            booking: { select: bookingSummarySelect },
-          },
         })
       : Promise.resolve([]),
   ]);
@@ -927,24 +887,6 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
       }))}
       operationsReviewBookings={operationsReviewRaw.map(toBookingDto)}
       unassignedBookings={unassignedRaw.map(toBookingDto)}
-      cancellationRequests={cancellationsRaw.map((request) => ({
-        id: request.id,
-        reason: request.reason,
-        preferredAction: request.preferredAction,
-        customerNotes: request.customerNotes,
-        status: request.status,
-        createdAt: request.createdAt.toISOString(),
-        booking: toBookingDto(request.booking),
-      }))}
-      pendingRefunds={refundsRaw.map((refund) => ({
-        id: refund.id,
-        amount: refund.amount,
-        refundMethod: refund.refundMethod,
-        referenceNumber: refund.referenceNumber,
-        status: refund.status,
-        createdAt: refund.createdAt.toISOString(),
-        booking: toBookingDto(refund.booking),
-      }))}
       bookings={bookingsRaw.map(toBookingDto)}
       managedSubscriptions={managedSubscriptions}
       teams={teams}

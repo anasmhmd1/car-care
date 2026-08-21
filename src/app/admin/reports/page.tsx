@@ -783,10 +783,31 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
             </section>
 
             {/* Exceptions */}
-            <section aria-labelledby="cancellations-report" className="space-y-6 rounded-[1.75rem] border border-rose-400/15 bg-[#11110f] p-5 [content-visibility:auto] sm:p-7">
-              <SectionHeading code="05 / EXCEPTION LOG" title="الإلغاءات وإعادة الجدولة" description="طلبات الإلغاء والاستردادات وإعادات الجدولة المعتمدة." />
-              <div className="grid gap-3 sm:grid-cols-3"><MetricCard label="طلبات الإلغاء" value={number(report.cancellations.totalRequests)} tone="rose" /><MetricCard label="إجمالي الاسترداد" value={money(report.cancellations.refundTotal)} tone="rose" /><MetricCard label="أُعيدت جدولتها" value={number(report.cancellations.rescheduledCount)} tone="gold" /></div>
-              <div className="grid gap-4 lg:grid-cols-2"><CountRail title="أسباب الإلغاء" rows={report.cancellations.byReason} /><CountRail title="الطرف المسؤول" rows={report.cancellations.byResponsibleParty} labelFor={(row) => responsiblePartyLabels[row.id] ?? row.label} /></div>
+            <section aria-labelledby="cancellations-report" className="space-y-6 rounded-[1.75rem] border border-rose-400/20 bg-[#11110f] p-5 [content-visibility:auto] sm:p-7">
+              <SectionHeading
+                code="05 / CANCELLATION & REFUND LOG"
+                title="سجل الإلغاء والاستردادات المالية"
+                description="إحصائيات دقيقة لعدد الحجوزات الملغاة، نسبة الإلغاء، المبالغ المستردة للعملاء، وتوزيع الأسباب والأطراف المسؤولة."
+              />
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+                <MetricCard label="الحجوزات الملغاة" value={number(report.bookings.cancelled)} note={`معدل الإلغاء: ${rate(report.bookings.cancellationRate)}`} tone="rose" />
+                <MetricCard label="طلبات الإلغاء" value={number(report.cancellations.totalRequests)} note="الطلبات المسجلة بالفترة" tone="rose" />
+                <MetricCard label="إجمالي المبالغ المستردة" value={money(report.financial.refunds || report.cancellations.refundTotal)} note={`${number(report.financial.refundCount)} عملية استرداد مكتملة`} tone="rose" />
+                <MetricCard label="أُعيدت جدولتها" value={number(report.cancellations.rescheduledCount)} note="حجوزات تم تعديل موعدها" tone="gold" />
+                <MetricCard label="الحجوزات المرفوضة" value={number(report.bookings.rejected)} note="رفض تشغيلي" tone="rose" />
+                <MetricCard label="حالات عدم الحضور" value={number(report.bookings.noShow + report.bookings.accessDenied)} note="عدم حضور أو تعذر الدخول" tone="neutral" />
+              </div>
+              <div className="rounded-2xl border border-rose-500/20 bg-rose-500/[0.04] p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs leading-6 text-neutral-300">
+                <div className="flex items-center gap-2.5">
+                  <ShieldAlert className="size-5 text-rose-400 shrink-0" />
+                  <span>يتم خصم مبالغ الاستردادات الفعلية (<strong>{money(report.financial.refunds || report.cancellations.refundTotal)}</strong>) مباشرة من إجمالي المقبوضات لاحتساب صافي الأرباح.</span>
+                </div>
+                <span className="font-mono font-bold text-rose-300 shrink-0">صافي الأرباح: {money(report.financial.netCollected)}</span>
+              </div>
+              <div className="grid gap-4 lg:grid-cols-2">
+                <CountRail title="أسباب الإلغاء وتكرارها" rows={report.cancellations.byReason} emptyText="لا توجد أسباب إلغاء مسجلة بالفترة." />
+                <CountRail title="الطرف المسؤول عن الإلغاء" rows={report.cancellations.byResponsibleParty} labelFor={(row) => responsiblePartyLabels[row.id] ?? row.label} emptyText="لا توجد أطراف مسؤولة مسجلة." />
+              </div>
             </section>
 
             {/* Ratings */}

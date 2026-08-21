@@ -47,10 +47,6 @@ import {
   reviewBookingAction,
 } from '@/app/actions/operations';
 import { updateBranchAction } from '@/app/actions/owner-brand';
-import {
-  approveRefundAction,
-  reviewCancellationAction,
-} from '@/app/actions/cancellation';
 import { logoutAction } from '@/app/actions/auth';
 import { type ManagedSubscription } from './subscriptions/SubscriptionManagementPanel';
 
@@ -377,11 +373,11 @@ export interface OwnerCommandCenterProps {
   metrics: DashboardMetricsDto;
   filters: OwnerFiltersDto;
   customerQuery: string;
-  pendingProofs: PaymentProofDto[];
+  pendingProofs?: PaymentProofDto[];
   operationsReviewBookings: BookingSummaryDto[];
   unassignedBookings: BookingSummaryDto[];
-  cancellationRequests: CancellationRequestDto[];
-  pendingRefunds: RefundDto[];
+  cancellationRequests?: CancellationRequestDto[];
+  pendingRefunds?: RefundDto[];
   qualityBookings?: QualityBookingDto[];
   complaints?: ComplaintDto[];
   bookings: BookingSummaryDto[];
@@ -395,20 +391,9 @@ export interface OwnerCommandCenterProps {
 }
 
 type BookingDecision = 'ACCEPT' | 'REJECT';
-type CancellationDecision = 'APPROVE' | 'REJECT';
-type CancellationResolution =
-  | 'REFUND_FULL'
-  | 'REFUND_PARTIAL'
-  | 'NO_REFUND'
-  | 'KEEP_DEPOSIT'
-  | 'VISIT_FEE'
-  | 'CREDIT'
-  | 'ESCALATE';
 type ModalState =
   | { type: 'booking-review'; booking: BookingSummaryDto }
   | { type: 'assignment'; booking: BookingSummaryDto }
-  | { type: 'cancellation'; request: CancellationRequestDto }
-  | { type: 'refund-approval'; refund: RefundDto }
   | { type: 'edit-branch'; branch: BranchDto }
   | null;
 
@@ -421,7 +406,6 @@ const sectionNav: Array<{
   { id: 'overview', label: 'الرئيسية', icon: LayoutDashboard },
   { id: 'bookings', label: 'الحجوزات', icon: CalendarDays },
   { id: 'subscriptions', label: 'الاشتراكات', icon: PackageCheck },
-  { id: 'cancellations', label: 'الإلغاء والاسترداد', icon: ShieldAlert },
   { id: 'reports', label: 'التقارير', icon: BarChart3 },
   { href: '/admin/reports', label: 'الإيرادات', icon: DollarSign },
   { id: 'customers', label: 'العملاء', icon: UserRound },
@@ -778,9 +762,9 @@ function OverviewSection({
             <QueueLink href="/operations?tab=proofs" label="إثباتات الدفع (مركز التشغيل)" count={metrics.pendingProofs} urgent />
             <QueueLink href="/admin?section=bookings" label="بانتظار مراجعة التشغيل" count={metrics.operationsReview} urgent />
             <QueueLink href="/admin?section=bookings" label="حجوزات بانتظار الإسناد" count={metrics.unassignedBookings} urgent />
-            <QueueLink href="/admin?section=cancellations" label="طلبات الإلغاء" count={metrics.pendingCancellations} urgent />
-            <QueueLink href="/admin?section=cancellations" label="استردادات معلقة" count={metrics.pendingRefunds} />
-            <QueueLink href="/admin?section=quality" label="مراجعات الجودة والشكاوى" count={metrics.qualityOpen} />
+            <QueueLink href="/operations?tab=cancellations" label="طلبات الإلغاء (مركز التشغيل)" count={metrics.pendingCancellations} urgent />
+            <QueueLink href="/admin/reports" label="الاستردادات والتقارير" count={metrics.pendingRefunds} />
+            <QueueLink href="/admin/reports" label="مراجعات الجودة والشكاوى" count={metrics.qualityOpen} />
           </div>
         </section>
 
@@ -889,34 +873,7 @@ function BookingsSection({
 
 
 
-function CancellationsSection({
-  requests,
-  refunds,
-  onReviewRequest,
-  onApproveRefund,
-}: {
-  requests: CancellationRequestDto[];
-  refunds: RefundDto[];
-  onReviewRequest: (request: CancellationRequestDto) => void;
-  onApproveRefund: (refund: RefundDto) => void;
-}) {
-  return (
-    <div className="space-y-6">
-      <SectionHeader eyebrow="الإلغاء والاسترداد" title="الطلبات المالية الحساسة" description="بيانات فعلية للطلبات المفتوحة والاستردادات المعلقة على مستوى البراند." />
-      <CapabilityNotice>طلبات الإلغاء المفتوحة قابلة للمراجعة عبر العقد المحمي الحالي. اعتماد الاسترداد يظهر فقط لسجل REFUND_PROCESSING تم تسجيل إثباته مسبقًا؛ لا تنشئ اللوحة عملية استرداد أو إثباتًا ماليًا من تلقاء نفسها.</CapabilityNotice>
-      <div className="grid gap-6 xl:grid-cols-2">
-        <section aria-labelledby="cancellation-requests-title" className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-lg">
-          <div className="mb-4 flex items-center justify-between gap-4 border-b border-neutral-800/60 pb-3"><h3 id="cancellation-requests-title" className="text-base font-bold text-white">طلبات الإلغاء المعلقة</h3><span className="rounded-full bg-neutral-800 px-3 py-1 text-xs font-bold text-neutral-300 tabular-nums">{formatNumber(requests.length)}</span></div>
-          {requests.length === 0 ? <EmptyState title="لا توجد طلبات إلغاء" description="لا توجد طلبات بحالة PENDING حاليًا." /> : <div className="space-y-3">{requests.map((request) => <article key={request.id} className="rounded-xl border border-neutral-800/80 bg-neutral-950/40 p-4"><div className="flex items-center justify-between gap-3"><p dir="ltr" translate="no" className="font-mono font-bold text-white">{request.booking.bookingNumber}</p><StatusBadge status={request.status} /></div><p className="mt-2.5 break-words text-xs sm:text-sm leading-6 text-neutral-300">{request.reason}</p><dl className="mt-3 grid gap-1.5 text-xs text-neutral-400 border-t border-neutral-800/60 pt-2.5"><div><dt className="inline">العميل: </dt><dd className="inline text-neutral-200 font-medium">{request.booking.customerName}</dd></div><div><dt className="inline">الإجراء المفضل: </dt><dd className="inline text-neutral-200 font-medium">{request.preferredAction}</dd></div><div><dt className="inline">المدفوع: </dt><dd className="inline tabular-nums text-[#f3e4a8] font-bold">{formatCurrency(request.booking.amountPaid)}</dd></div><div><dt className="inline">تاريخ الطلب: </dt><dd className="inline text-neutral-400">{formatDateTime(request.createdAt)}</dd></div></dl><button type="button" onClick={() => onReviewRequest(request)} className={`${primaryButtonClass} mt-4 w-full`}>مراجعة طلب الإلغاء</button></article>)}</div>}
-        </section>
-        <section aria-labelledby="refunds-title" className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-lg">
-          <div className="mb-4 flex items-center justify-between gap-4 border-b border-neutral-800/60 pb-3"><h3 id="refunds-title" className="text-base font-bold text-white">الاستردادات المالية المعلقة</h3><span className="rounded-full bg-neutral-800 px-3 py-1 text-xs font-bold text-neutral-300 tabular-nums">{formatNumber(refunds.length)}</span></div>
-          {refunds.length === 0 ? <EmptyState title="لا توجد استردادات معلقة" description="لا توجد سجلات REFUND_PENDING أو REFUND_PROCESSING حاليًا." /> : <div className="space-y-3">{refunds.map((refund) => <article key={refund.id} className="rounded-xl border border-neutral-800/80 bg-neutral-950/40 p-4"><div className="flex items-center justify-between gap-3"><p dir="ltr" translate="no" className="font-mono font-bold text-white">{refund.booking.bookingNumber}</p><StatusBadge status={refund.status} /></div><p className="mt-2.5 text-xl font-black tabular-nums text-[#f3e4a8]">{formatCurrency(refund.amount)}</p><p className="mt-1 text-xs text-neutral-400">{refund.refundMethod}{refund.referenceNumber ? ` · المرجع: ${refund.referenceNumber}` : ''}</p><p className="mt-1 text-[11px] text-neutral-500">سُجل {formatDateTime(refund.createdAt)}</p>{refund.status === 'REFUND_PROCESSING' ? <button type="button" onClick={() => onApproveRefund(refund)} className={`${primaryButtonClass} mt-4 w-full`}>اعتماد الاسترداد المسجل</button> : <p className="mt-4 rounded-lg bg-neutral-900 border border-neutral-800 p-3 text-xs leading-5 text-neutral-400">بانتظار تسجيل تنفيذ الاسترداد وإثباته قبل الاعتماد.</p>}</article>)}</div>}
-        </section>
-      </div>
-    </div>
-  );
-}
+
 
 
 
@@ -1036,9 +993,17 @@ function ReportTable({ title, rows }: { title: string; rows: ReportRowDto[] }) {
 }
 
 function ReportsSection({ reports }: { reports: ReportsDto }) {
+  const cancellationRate = reports.totalBookings > 0
+    ? Math.round((reports.cancelledBookings / reports.totalBookings) * 100)
+    : 0;
+
   return (
     <div className="space-y-6">
-      <SectionHeader eyebrow="تقارير داخلية" title="التقرير التشغيلي والمالي" description="ملخص مبني على الفترة المحددة. صافي التحصيل هنا مدفوعات مسجلة ناقص استردادات مسجلة، وليس صافي ربح محاسبي." />
+      <SectionHeader
+        eyebrow="التحليلات والمؤشرات"
+        title="ملخص الأداء والتقارير المالية"
+        description="نظرة شاملة على مؤشرات الحجوزات، الإيرادات المحصلة، الحجوزات الملغاة، والمبالغ المستردة للعملاء."
+      />
       <form action="/admin" method="get" className="grid gap-3 rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-4 sm:grid-cols-[1fr_1fr_auto] shadow-md">
         <input type="hidden" name="section" value="reports" />
         <div><label htmlFor="report-from" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">من تاريخ</label><input id="report-from" name="from" type="date" defaultValue={reports.from} className={inputClass} /></div>
@@ -1067,16 +1032,54 @@ function ReportsSection({ reports }: { reports: ReportsDto }) {
       </div>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="إجمالي الحجوزات" value={formatNumber(reports.totalBookings)} icon={<CalendarDays aria-hidden="true" className="size-5" />} />
-        <MetricCard label="المحصل الفعلي" value={formatCurrency(reports.collectedAmount)} icon={<Banknote aria-hidden="true" className="size-5" />} tone="green" />
-        <MetricCard label="الاستردادات" value={formatCurrency(reports.refundedAmount)} icon={<ShieldAlert aria-hidden="true" className="size-5" />} tone="red" />
-        <MetricCard label="صافي التحصيل" value={formatCurrency(reports.netCollected)} hint="ليس صافي ربح محاسبي" icon={<Activity aria-hidden="true" className="size-5" />} tone="blue" />
-        <MetricCard label="متوسط قيمة الحجز" value={formatCurrency(reports.averageBookingValue)} icon={<Gauge aria-hidden="true" className="size-5" />} />
+        <MetricCard label="الحجوزات المكتملة" value={formatNumber(reports.completedBookings)} icon={<CheckCircle2 aria-hidden="true" className="size-5" />} tone="green" />
+        <MetricCard label="الحجوزات الملغاة" value={formatNumber(reports.cancelledBookings)} hint={`معدل الإلغاء: ${cancellationRate}٪`} icon={<ShieldAlert aria-hidden="true" className="size-5" />} tone="red" />
+        <MetricCard label="المحصل الفعلي (الإيراد)" value={formatCurrency(reports.collectedAmount)} icon={<Banknote aria-hidden="true" className="size-5" />} tone="green" />
+        <MetricCard label="إجمالي المبالغ المستردة" value={formatCurrency(reports.refundedAmount)} hint="مستردة للعملاء" icon={<ShieldAlert aria-hidden="true" className="size-5" />} tone="red" />
+        <MetricCard label="صافي التحصيل والأرباح" value={formatCurrency(reports.netCollected)} hint="المحصل ناقص المسترد" icon={<Activity aria-hidden="true" className="size-5" />} tone="blue" />
         <MetricCard label="المبالغ المستحقة" value={formatCurrency(reports.amountDue)} icon={<WalletCards aria-hidden="true" className="size-5" />} tone="red" />
-        <MetricCard label="اشتراكات جديدة" value={formatNumber(reports.newSubscriptions)} hint={`زيارات مستهلكة: ${formatNumber(reports.visitsConsumed)}`} icon={<PackageCheck aria-hidden="true" className="size-5" />} />
-        <MetricCard label="الشكاوى المسجلة" value={formatNumber(reports.complaintCount)} icon={<AlertTriangle aria-hidden="true" className="size-5" />} tone="red" />
+        <MetricCard label="متوسط قيمة الحجز" value={formatCurrency(reports.averageBookingValue)} icon={<Gauge aria-hidden="true" className="size-5" />} />
       </div>
-      <div className="grid gap-6 xl:grid-cols-2"><ReportTable title="حسب الخدمة" rows={reports.byService} /><ReportTable title="حسب الفرع" rows={reports.byBranch} /><ReportTable title="حسب الفريق" rows={reports.byTeam} /><section className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-lg"><h3 className="text-base font-bold text-white border-b border-neutral-800/60 pb-3 mb-4">أسباب الإلغاء</h3>{reports.cancellationReasons.length === 0 ? <EmptyState title="لا توجد إلغاءات" description="لا توجد طلبات إلغاء في الفترة المحددة." /> : <ol className="space-y-2.5">{reports.cancellationReasons.map((item) => <li key={item.reason} className="flex items-start justify-between gap-4 rounded-xl border border-neutral-800/80 bg-neutral-950/40 p-3"><span className="break-words text-xs sm:text-sm text-neutral-300">{item.reason}</span><span className="shrink-0 rounded-full bg-neutral-800 border border-neutral-700 px-2.5 py-1 text-xs font-black tabular-nums text-white">{formatNumber(item.count)}</span></li>)}</ol>}</section></div>
-      <section aria-labelledby="status-breakdown-title" className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-lg"><h3 id="status-breakdown-title" className="text-base font-bold text-white border-b border-neutral-800/60 pb-3 mb-4">توزيع حالات الحجز</h3>{reports.byStatus.length === 0 ? <EmptyState title="لا توجد حالات" description="لا توجد حجوزات في الفترة المحددة." /> : <div className="flex flex-wrap gap-2.5">{reports.byStatus.map((item) => <div key={item.status} className="flex items-center gap-2 rounded-xl border border-neutral-800 bg-neutral-950/50 px-3 py-2"><StatusBadge status={item.status} label={bookingStatusLabel(item.status)} /><span className="font-bold text-xs tabular-nums text-white">{formatNumber(item.count)}</span></div>)}</div>}</section>
+      <div className="grid gap-6 xl:grid-cols-2">
+        <ReportTable title="حسب الخدمة" rows={reports.byService} />
+        <ReportTable title="حسب الفرع" rows={reports.byBranch} />
+        <ReportTable title="حسب الفريق" rows={reports.byTeam} />
+        <section className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-lg">
+          <div className="border-b border-neutral-800/60 pb-3 mb-4 flex items-center justify-between">
+            <h3 className="text-base font-bold text-white">تفصيل أسباب الإلغاء</h3>
+            <span className="text-xs text-rose-400 font-bold">{formatNumber(reports.cancelledBookings)} حجز ملغي</span>
+          </div>
+          {reports.cancellationReasons.length === 0 ? (
+            <EmptyState title="لا توجد إلغاءات" description="لا توجد طلبات إلغاء في الفترة المحددة." />
+          ) : (
+            <ol className="space-y-2.5">
+              {reports.cancellationReasons.map((item) => (
+                <li key={item.reason} className="flex items-start justify-between gap-4 rounded-xl border border-neutral-800/80 bg-neutral-950/40 p-3">
+                  <span className="break-words text-xs sm:text-sm text-neutral-300">{item.reason}</span>
+                  <span className="shrink-0 rounded-full bg-neutral-800 border border-neutral-700 px-2.5 py-1 text-xs font-black tabular-nums text-white">
+                    {formatNumber(item.count)}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          )}
+        </section>
+      </div>
+      <section aria-labelledby="status-breakdown-title" className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-lg">
+        <h3 id="status-breakdown-title" className="text-base font-bold text-white border-b border-neutral-800/60 pb-3 mb-4">توزيع حالات الحجز</h3>
+        {reports.byStatus.length === 0 ? (
+          <EmptyState title="لا توجد حالات" description="لا توجد حجوزات في الفترة المحددة." />
+        ) : (
+          <div className="flex flex-wrap gap-2.5">
+            {reports.byStatus.map((item) => (
+              <div key={item.status} className="flex items-center gap-2 rounded-xl border border-neutral-800 bg-neutral-950/50 px-3 py-2">
+                <StatusBadge status={item.status} label={bookingStatusLabel(item.status)} />
+                <span className="font-bold text-xs tabular-nums text-white">{formatNumber(item.count)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
@@ -1096,12 +1099,8 @@ function OwnerActionDialog({
   pending,
   error,
   bookingDecision,
-  cancellationDecision,
-  cancellationResolution,
   dialogRef,
   onBookingDecision,
-  onCancellationDecision,
-  onCancellationResolution,
   onClose,
   onSubmit,
 }: {
@@ -1110,12 +1109,8 @@ function OwnerActionDialog({
   pending: boolean;
   error: string;
   bookingDecision: BookingDecision | '';
-  cancellationDecision: CancellationDecision | '';
-  cancellationResolution: CancellationResolution | '';
   dialogRef: React.RefObject<HTMLDivElement | null>;
   onBookingDecision: (decision: BookingDecision | '') => void;
-  onCancellationDecision: (decision: CancellationDecision | '') => void;
-  onCancellationResolution: (resolution: CancellationResolution | '') => void;
   onClose: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
@@ -1123,11 +1118,7 @@ function OwnerActionDialog({
     ? 'تأكيد مراجعة الحجز'
     : modal.type === 'assignment'
       ? 'تأكيد إسناد الفريق'
-      : modal.type === 'cancellation'
-        ? 'تأكيد قرار طلب الإلغاء'
-        : modal.type === 'refund-approval'
-          ? 'اعتماد الاسترداد المسجل'
-          : 'تعديل بيانات الفرع';
+      : 'تعديل بيانات الفرع';
   const eligibleTeams = modal.type === 'assignment'
     ? teams.filter((team) => team.active && team.branchId === modal.booking.branchId)
     : [];
@@ -1152,8 +1143,6 @@ function OwnerActionDialog({
         <form onSubmit={onSubmit} className="mt-5 space-y-4">
           {modal.type === 'booking-review' ? <><input type="hidden" name="bookingId" value={modal.booking.id} /><div className="rounded-xl bg-neutral-950/60 border border-neutral-800 p-4 text-xs sm:text-sm"><p dir="ltr" translate="no" className="font-mono font-bold text-white text-base">{modal.booking.bookingNumber}</p><p className="mt-1.5 text-neutral-400">{modal.booking.customerName} · {modal.booking.serviceName}</p></div><div><label htmlFor="booking-decision" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">القرار</label><select id="booking-decision" name="decision" required value={bookingDecision} onChange={(event) => onBookingDecision(event.target.value as BookingDecision | '')} className={inputClass}><option value="" className="bg-[#111]">اختر القرار</option><option value="ACCEPT" className="bg-[#111]">قبول تشغيلي</option><option value="REJECT" className="bg-[#111]">رفض الحجز</option></select></div><div><label htmlFor="booking-review-reason" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">سبب القرار</label><textarea id="booking-review-reason" name="reason" required minLength={3} maxLength={1000} rows={3} autoComplete="off" className={inputClass} /></div></> : null}
           {modal.type === 'assignment' ? <><input type="hidden" name="bookingId" value={modal.booking.id} /><div className="rounded-xl bg-neutral-950/60 border border-neutral-800 p-4 text-xs sm:text-sm"><p dir="ltr" translate="no" className="font-mono font-bold text-white text-base">{modal.booking.bookingNumber}</p><p className="mt-1.5 text-neutral-400">{modal.booking.branchName} · {formatDateTime(modal.booking.startAt)}</p></div>{eligibleTeams.length ? <><div><label htmlFor="assignment-team" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">الفريق المستهدف</label><select id="assignment-team" name="teamId" required defaultValue="" className={inputClass}><option value="" className="bg-[#111]">اختر فريقًا من نفس الفرع</option>{eligibleTeams.map((team) => <option key={team.id} value={team.id} className="bg-[#111]">{team.name} — الحمل: {team.todayBookingCount}/{team.dailyCapacity}</option>)}</select></div><div><label htmlFor="assignment-reason" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">سبب الإسناد اليدوي</label><textarea id="assignment-reason" name="reason" required minLength={3} maxLength={500} rows={3} autoComplete="off" className={inputClass} /></div></> : <CapabilityNotice>لا يوجد فريق نشط في نفس الفرع يمكن اختياره.</CapabilityNotice>}</> : null}
-          {modal.type === 'cancellation' ? <><input type="hidden" name="cancellationId" value={modal.request.id} /><div className="rounded-xl bg-neutral-950/60 border border-neutral-800 p-4 text-xs sm:text-sm"><p dir="ltr" translate="no" className="font-mono font-bold text-white text-base">{modal.request.booking.bookingNumber}</p><p className="mt-1 text-neutral-400">المدفوع: <span className="text-[#f3e4a8] font-bold">{formatCurrency(modal.request.booking.amountPaid)}</span> · تفضيل العميل: {modal.request.preferredAction}</p><p className="mt-2 break-words text-neutral-300">{modal.request.reason}</p></div><div><label htmlFor="cancellation-decision" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">القرار</label><select id="cancellation-decision" name="decision" required value={cancellationDecision} onChange={(event) => { onCancellationDecision(event.target.value as CancellationDecision | ''); onCancellationResolution(''); }} className={inputClass}><option value="" className="bg-[#111]">اختر القرار</option><option value="APPROVE" className="bg-[#111]">اعتماد الطلب</option><option value="REJECT" className="bg-[#111]">رفض الطلب واستعادة حالة الحجز</option></select></div>{cancellationDecision === 'APPROVE' ? <><div><label htmlFor="cancellation-resolution" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">نوع الحل المالي</label><select id="cancellation-resolution" name="resolutionType" required value={cancellationResolution} onChange={(event) => onCancellationResolution(event.target.value as CancellationResolution | '')} className={inputClass}><option value="" className="bg-[#111]">اختر نوع الحل</option><option value="REFUND_FULL" className="bg-[#111]">استرداد كامل</option><option value="REFUND_PARTIAL" className="bg-[#111]">استرداد جزئي</option><option value="NO_REFUND" className="bg-[#111]">إلغاء دون استرداد</option><option value="KEEP_DEPOSIT" className="bg-[#111]">الاحتفاظ بالعربون</option><option value="ESCALATE" className="bg-[#111]">تصعيد للمراجعة</option></select></div><div><label htmlFor="cancellation-party" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">الطرف المسؤول</label><select id="cancellation-party" name="responsibleParty" required defaultValue="" className={inputClass}><option value="" className="bg-[#111]">اختر الطرف</option><option value="CUSTOMER" className="bg-[#111]">العميل</option><option value="TEAM" className="bg-[#111]">الفريق</option><option value="BRANCH" className="bg-[#111]">الفرع</option><option value="ACCESS" className="bg-[#111]">تعذر الوصول</option><option value="FORCE_MAJEURE" className="bg-[#111]">ظرف قهري</option></select></div>{cancellationResolution === 'REFUND_PARTIAL' ? <div><label htmlFor="approved-refund-amount" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">مبلغ الاسترداد الجزئي</label><input id="approved-refund-amount" name="approvedRefundAmount" type="number" min={1} max={modal.request.booking.amountPaid} step={1} inputMode="numeric" required className={inputClass} /></div> : null}</> : null}<div><label htmlFor="cancellation-notes" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">ملاحظات القرار</label><textarea id="cancellation-notes" name="resolutionNotes" required minLength={3} maxLength={1000} rows={3} autoComplete="off" className={inputClass} /></div></> : null}
-          {modal.type === 'refund-approval' ? <><input type="hidden" name="refundId" value={modal.refund.id} /><div className="rounded-xl bg-neutral-950/60 border border-neutral-800 p-4 text-xs sm:text-sm"><p dir="ltr" translate="no" className="font-mono font-bold text-white text-base">{modal.refund.booking.bookingNumber}</p><p className="mt-2 text-2xl font-black tabular-nums text-[#f3e4a8]">{formatCurrency(modal.refund.amount)}</p><p className="mt-1 text-neutral-400">{modal.refund.refundMethod}{modal.refund.referenceNumber ? ` · ${modal.refund.referenceNumber}` : ''}</p></div><div><label htmlFor="refund-approval-reason" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">سبب الاعتماد</label><textarea id="refund-approval-reason" name="reason" required minLength={3} maxLength={1000} rows={3} autoComplete="off" className={inputClass} /></div></> : null}
           {modal.type === 'edit-branch' ? (
             <>
               <input type="hidden" name="branchId" value={modal.branch.id} />
@@ -1235,8 +1224,6 @@ export default function OwnerCommandCenter(props: OwnerCommandCenterProps) {
     customerQuery,
     operationsReviewBookings,
     unassignedBookings,
-    cancellationRequests,
-    pendingRefunds,
     bookings,
     managedSubscriptions = [],
     teams,
@@ -1252,8 +1239,6 @@ export default function OwnerCommandCenter(props: OwnerCommandCenterProps) {
   const [actionError, setActionError] = useState('');
   const [feedback, setFeedback] = useState('');
   const [bookingDecision, setBookingDecision] = useState<BookingDecision | ''>('');
-  const [cancellationDecision, setCancellationDecision] = useState<CancellationDecision | ''>('');
-  const [cancellationResolution, setCancellationResolution] = useState<CancellationResolution | ''>('');
   const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -1277,8 +1262,6 @@ export default function OwnerCommandCenter(props: OwnerCommandCenterProps) {
   function openModal(nextModal: Exclude<ModalState, null>) {
     setActionError('');
     setBookingDecision('');
-    setCancellationDecision('');
-    setCancellationResolution('');
     setModal(nextModal);
   }
 
@@ -1299,11 +1282,7 @@ export default function OwnerCommandCenter(props: OwnerCommandCenterProps) {
         ? await reviewBookingAction(formData)
         : modal.type === 'assignment'
           ? await assignTeamManuallyAction(formData)
-          : modal.type === 'cancellation'
-            ? await reviewCancellationAction(formData)
-            : modal.type === 'refund-approval'
-              ? await approveRefundAction(formData)
-              : await updateBranchAction(formData);
+          : await updateBranchAction(formData);
       if ('error' in result && result.error) {
         setActionError(result.error);
         return;
@@ -1313,11 +1292,7 @@ export default function OwnerCommandCenter(props: OwnerCommandCenterProps) {
           ? 'تم حفظ قرار مراجعة الحجز.'
           : modal.type === 'assignment'
             ? 'تم إسناد الفريق بعد إعادة فحص التعارض.'
-            : modal.type === 'cancellation'
-              ? 'تم حفظ قرار طلب الإلغاء.'
-              : modal.type === 'refund-approval'
-                ? 'تم اعتماد الاسترداد المسجل.'
-                : 'تم تحديث بيانات الفرع بنجاح.',
+            : 'تم تحديث بيانات الفرع بنجاح.',
       );
       setModal(null);
       router.refresh();
@@ -1353,9 +1328,6 @@ export default function OwnerCommandCenter(props: OwnerCommandCenterProps) {
           <SubscriptionManagementPanel subscriptions={managedSubscriptions} />
         </div>
       );
-      break;
-    case 'cancellations':
-      sectionContent = <CancellationsSection requests={cancellationRequests} refunds={pendingRefunds} onReviewRequest={(request) => openModal({ type: 'cancellation', request })} onApproveRefund={(refund) => openModal({ type: 'refund-approval', refund })} />;
       break;
     case 'branches':
       sectionContent = <BranchesSection branches={branches} onEditBranch={(branch) => openModal({ type: 'edit-branch', branch })} />;
@@ -1469,9 +1441,7 @@ export default function OwnerCommandCenter(props: OwnerCommandCenterProps) {
                   const linkHref = item.href ?? `/admin?section=${item.id}`;
 
                   let badgeCount = 0;
-                  if (item.id === 'payments') badgeCount = metrics.pendingProofs;
-                  else if (item.id === 'bookings') badgeCount = metrics.operationsReview + metrics.unassignedBookings;
-                  else if (item.id === 'cancellations') badgeCount = metrics.pendingCancellations + metrics.pendingRefunds;
+                  if (item.id === 'bookings') badgeCount = metrics.operationsReview + metrics.unassignedBookings;
 
                   return (
                     <Link
@@ -1534,9 +1504,7 @@ export default function OwnerCommandCenter(props: OwnerCommandCenterProps) {
               const linkHref = item.href ?? `/admin?section=${item.id}`;
 
               let badgeCount = 0;
-              if (item.id === 'payments') badgeCount = metrics.pendingProofs;
-              else if (item.id === 'bookings') badgeCount = metrics.operationsReview + metrics.unassignedBookings;
-              else if (item.id === 'cancellations') badgeCount = metrics.pendingCancellations + metrics.pendingRefunds;
+              if (item.id === 'bookings') badgeCount = metrics.operationsReview + metrics.unassignedBookings;
 
               return (
                 <Link
@@ -1597,7 +1565,7 @@ export default function OwnerCommandCenter(props: OwnerCommandCenterProps) {
         </div>
       </main>
 
-      {modal ? <OwnerActionDialog modal={modal} teams={teams} pending={pending} error={actionError} bookingDecision={bookingDecision} cancellationDecision={cancellationDecision} cancellationResolution={cancellationResolution} dialogRef={dialogRef} onBookingDecision={setBookingDecision} onCancellationDecision={setCancellationDecision} onCancellationResolution={setCancellationResolution} onClose={closeModal} onSubmit={submitAction} /> : null}
+      {modal ? <OwnerActionDialog modal={modal} teams={teams} pending={pending} error={actionError} bookingDecision={bookingDecision} dialogRef={dialogRef} onBookingDecision={setBookingDecision} onClose={closeModal} onSubmit={submitAction} /> : null}
     </div>
   );
 }
