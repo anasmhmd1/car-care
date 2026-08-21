@@ -5,16 +5,20 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState, useTransition } from 'react';
 import {
+  Boxes,
   Car,
+  CheckSquare,
   Clock,
   ExternalLink,
   ImagePlus,
+  ListChecks,
   PackagePlus,
   Pencil,
   Plus,
   Save,
   Search,
   Sparkles,
+  Trash2,
 } from 'lucide-react';
 import { saveServiceProductAction } from '@/app/actions/catalog';
 import { prepareImageForUpload } from '@/lib/client/image-upload';
@@ -39,6 +43,16 @@ export interface CatalogMaterialDto {
   nameAr: string;
   unit: string;
   active: boolean;
+}
+
+export interface ChecklistTemplateItemDto {
+  id?: string;
+  labelAr: string;
+  descriptionAr?: string | null;
+  required: boolean;
+  requiresPhoto: boolean;
+  requiresNote: boolean;
+  active?: boolean;
 }
 
 export interface SiteServiceDto {
@@ -71,6 +85,7 @@ export interface SiteServiceDto {
   minimumAfterPhotos: number;
   branchOverrides: BranchOverrideDto[];
   materialRequirements: CatalogMaterialRequirementDto[];
+  checklistItems?: ChecklistTemplateItemDto[];
 }
 
 export interface ServicesManagerProps {
@@ -135,12 +150,35 @@ function ServiceEditor({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [notice, setNotice] = useState<Notice | null>(null);
+  const [nameEn, setNameEn] = useState(service?.nameEn ?? '');
+  const autoSlug = useMemo(() => {
+    return nameEn
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+  }, [nameEn]);
+
   const [coverImage, setCoverImage] = useState(service?.coverImage ?? '/images/service-care.svg');
   const [galleryImages, setGalleryImages] = useState(service?.galleryImages ?? []);
   const [branchOverrides, setBranchOverrides] = useState<BranchOverrideDto[]>(service?.branchOverrides ?? []);
   const [materialRequirements, setMaterialRequirements] = useState<CatalogMaterialRequirementDto[]>(
     service?.materialRequirements ?? [],
   );
+
+  const [checklistItems, setChecklistItems] = useState<ChecklistTemplateItemDto[]>(() => {
+    if (service?.checklistItems && service.checklistItems.length > 0) {
+      return service.checklistItems;
+    }
+    return [
+      { labelAr: 'فحص وتصوير حالة السيارة وتأكيد بيانات الحجز', required: true, requiresPhoto: false, requiresNote: false, active: true },
+      { labelAr: 'تنظيف وتلميع الهيكل الخارجي والجنوط والإطارات', required: true, requiresPhoto: false, requiresNote: false, active: true },
+      { labelAr: 'تجفيف الزجاج وفتحات الأبواب واللمسات الدقيقة', required: true, requiresPhoto: false, requiresNote: false, active: true },
+      { labelAr: 'فحص الجودة النهائي وتأكيد إتمام الخدمة', required: true, requiresPhoto: false, requiresNote: false, active: true },
+    ];
+  });
+  const [newChecklistLabel, setNewChecklistLabel] = useState('');
+
   const [depositType, setDepositType] = useState<string>(service?.depositType ?? 'PERCENTAGE');
   const [slotCount, setSlotCount] = useState<number>(() => {
     if (service?.slotCount && service.slotCount >= 1) return service.slotCount;
@@ -149,6 +187,31 @@ function ServiceEditor({
   });
   const calculatedDurationMinutes = slotCount * 60;
   const [isUploading, setIsUploading] = useState(false);
+
+  function addChecklistItem() {
+    if (!newChecklistLabel.trim()) return;
+    setChecklistItems((current) => [
+      ...current,
+      {
+        labelAr: newChecklistLabel.trim(),
+        required: true,
+        requiresPhoto: false,
+        requiresNote: false,
+        active: true,
+      },
+    ]);
+    setNewChecklistLabel('');
+  }
+
+  function removeChecklistItem(index: number) {
+    setChecklistItems((current) => current.filter((_, i) => i !== index));
+  }
+
+  function updateChecklistItem(index: number, patch: Partial<ChecklistTemplateItemDto>) {
+    setChecklistItems((current) =>
+      current.map((item, i) => (i === index ? { ...item, ...patch } : item)),
+    );
+  }
 
   function toggleBranch(branchId: string, enabled: boolean) {
     setBranchOverrides((current) =>
@@ -212,12 +275,18 @@ function ServiceEditor({
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
+    data.set('nameEn', nameEn.trim());
+    data.set('slug', autoSlug || service?.slug || 'service');
+    data.set('priceType', 'FIXED');
     data.set('coverImage', coverImage);
     data.set('galleryImages', JSON.stringify(galleryImages));
     data.set('variants', JSON.stringify([]));
     data.set('addonIds', JSON.stringify([]));
     data.set('branchOverrides', JSON.stringify(branchOverrides));
     data.set('materialRequirements', JSON.stringify(materialRequirements));
+    data.set('checklistItems', JSON.stringify(checklistItems));
+    data.set('includedItems', JSON.stringify([]));
+    data.set('excludedItems', JSON.stringify([]));
     data.set('slotCount', String(slotCount));
     data.set('durationMinutes', String(calculatedDurationMinutes));
     if (service?.cancellationPolicyId) {
@@ -244,6 +313,7 @@ function ServiceEditor({
       {service?.cancellationPolicyId ? (
         <input type="hidden" name="cancellationPolicyId" value={service.cancellationPolicyId} />
       ) : null}
+      <input type="hidden" name="priceType" value="FIXED" />
       <NoticeBox notice={notice} />
 
       {/* Header bar of editor */}
@@ -257,7 +327,7 @@ function ServiceEditor({
               {service ? `تعديل خدمة: ${service.nameAr}` : 'إضافة خدمة جديدة للمنصة'}
             </h2>
             <p className="text-xs leading-5 text-neutral-400">
-              تعديل الاسم، الأسعار، المدد بالسلوتات، الوصف، الصور، وتجهيزات التنفيذ.
+              تعديل الاسم، السعر الثابت، المدة، الصور، قائمة مهام الموظفين، والمواد المستهلكة من المخزون.
             </p>
           </div>
         </div>
@@ -283,29 +353,30 @@ function ServiceEditor({
         <div className="mt-4 grid gap-4 md:grid-cols-2">
           <label className="text-xs font-bold text-neutral-300">
             الاسم بالعربية
-            <input name="nameAr" required minLength={2} defaultValue={service?.nameAr ?? ''} className={inputClass} />
-          </label>
-          <label className="text-xs font-bold text-neutral-300">
-            الاسم بالإنجليزية
-            <input name="nameEn" defaultValue={service?.nameEn ?? ''} className={inputClass} dir="ltr" />
-          </label>
-          <label className="text-xs font-bold text-neutral-300">
-            الرابط المختصر (Slug)
             <input
-              name="slug"
+              name="nameAr"
               required
-              pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
-              defaultValue={service?.slug ?? ''}
+              minLength={2}
+              defaultValue={service?.nameAr ?? ''}
+              placeholder="مثال: غسيل بريق الخارجي الأساسي"
               className={inputClass}
-              dir="ltr"
             />
           </label>
           <label className="text-xs font-bold text-neutral-300">
-            نوع عرض السعر
-            <select name="priceType" defaultValue={service?.priceType ?? 'FIXED'} className={inputClass}>
-              <option value="FIXED">سعر ثابت</option>
-              <option value="STARTS_FROM">يبدأ من</option>
-            </select>
+            الاسم بالإنجليزية (يحدد الرابط المختصر تلقائيًا)
+            <input
+              name="nameEn"
+              value={nameEn}
+              onChange={(e) => setNameEn(e.target.value)}
+              placeholder="e.g. Bareeq Essential Exterior"
+              className={inputClass}
+              dir="ltr"
+            />
+            {autoSlug ? (
+              <span className="mt-1.5 block text-[11px] font-mono text-[#edce8b]" dir="ltr">
+                رابط الخدمة: /services/{autoSlug}
+              </span>
+            ) : null}
           </label>
         </div>
         <label className="mt-4 block text-xs font-bold text-neutral-300">
@@ -316,6 +387,7 @@ function ServiceEditor({
             minLength={5}
             maxLength={300}
             defaultValue={service?.shortDescriptionAr ?? ''}
+            placeholder="وصف مختصر يظهر في كروت الخدمات وقائمة الحجز..."
             className={areaClass}
           />
         </label>
@@ -327,18 +399,11 @@ function ServiceEditor({
             minLength={10}
             maxLength={5000}
             defaultValue={service?.fullDescriptionAr ?? ''}
-            className={`${areaClass} min-h-36`}
+            placeholder="تفاصيل الخدمة والخطوات والمواصفات الكاملة..."
+            className={`${areaClass} min-h-32`}
           />
         </label>
-        <div className="mt-4 grid gap-4 md:grid-cols-3">
-          <label className="text-xs font-bold text-neutral-300">
-            المشمول — سطر لكل عنصر
-            <textarea name="includedItems" defaultValue={service?.includedItems.join('\n') ?? ''} className={areaClass} />
-          </label>
-          <label className="text-xs font-bold text-neutral-300">
-            غير المشمول
-            <textarea name="excludedItems" defaultValue={service?.excludedItems.join('\n') ?? ''} className={areaClass} />
-          </label>
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
           <label className="text-xs font-bold text-neutral-300">
             مميزات الخدمة الرئيسية (سطر لكل ميزة)
             <textarea
@@ -348,15 +413,16 @@ function ServiceEditor({
               className={areaClass}
             />
           </label>
+          <label className="text-xs font-bold text-neutral-300">
+            تعليمات التحضير والتجهيز (اختياري)
+            <textarea
+              name="preparationInstructions"
+              placeholder="مثال: يرجى ترك مساحة مناسبة حول السيارة وتأكيد إغلاق النوافذ."
+              defaultValue={service?.preparationInstructions ?? ''}
+              className={areaClass}
+            />
+          </label>
         </div>
-        <label className="mt-4 block text-xs font-bold text-neutral-300">
-          تعليمات التحضير (اختياري)
-          <textarea
-            name="preparationInstructions"
-            defaultValue={service?.preparationInstructions ?? ''}
-            className={areaClass}
-          />
-        </label>
       </section>
 
       {/* 2. Media */}
@@ -428,11 +494,11 @@ function ServiceEditor({
       <section className="rounded-2xl border border-neutral-800 bg-[#111114]/90 p-5 shadow-xl">
         <h3 className="text-sm font-black text-white flex items-center gap-2">
           <Clock className="size-4 text-[#cea355]" />
-          التسعير والمدة وقواعد التنفيذ
+          السعر الثابت والمدة وقواعد التنفيذ
         </h3>
         <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <label className="text-xs font-bold text-neutral-300">
-            السعر الأساسي (ج.م)
+            السعر الثابت للخدمة (ج.م)
             <input name="basePrice" type="number" min="0" required defaultValue={service?.basePrice ?? 0} className={inputClass} />
           </label>
 
@@ -538,17 +604,121 @@ function ServiceEditor({
         </div>
       </section>
 
-      {/* 4. Materials and Branch Overrides */}
+      {/* 4. Employee Execution Checklist */}
+      <section className="rounded-2xl border border-neutral-800 bg-[#111114]/90 p-5 shadow-xl">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[#cea355]/20 border border-[#cea355]/40 text-[#edce8b]">
+              <ListChecks className="size-4" />
+            </div>
+            <div>
+              <h3 className="text-sm font-black text-white">قائمة مهام وتشيك ليست التنفيذ للموظفين</h3>
+              <p className="mt-0.5 text-xs text-neutral-400">
+                تظهر للفنيين وموظفي التنفيذ في تطبيق الميدان أثناء تنفيذ الحجز، ولا تظهر للعميل. إتمام جميع البنود مطلوب لاكتمال الحجز وخصم المخزون.
+              </p>
+            </div>
+          </div>
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-[11px] font-bold text-amber-200 shrink-0">
+            خاص بالموظفين فقط
+          </span>
+        </div>
+
+        {/* Add new checklist item form */}
+        <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+          <input
+            type="text"
+            value={newChecklistLabel}
+            onChange={(e) => setNewChecklistLabel(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                addChecklistItem();
+              }
+            }}
+            placeholder="اكتب خطوة أو مهمة جديدة للموظف (مثال: تنظيف وتلميع الهيكل الخارجي)..."
+            className="flex-1 min-h-11 rounded-xl border border-white/10 bg-black/40 px-3.5 text-xs text-white outline-none transition focus:border-[#cea355] focus:ring-2 focus:ring-[#cea355]/20"
+          />
+          <button
+            type="button"
+            onClick={addChecklistItem}
+            className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-[#cea355] px-4 text-xs font-bold text-neutral-950 hover:bg-[#edce8b] transition-all shrink-0"
+          >
+            <Plus className="size-4" />
+            <span>إضافة بند للمهمة</span>
+          </button>
+        </div>
+
+        {/* Checklist items list */}
+        {checklistItems.length ? (
+          <div className="mt-4 space-y-2.5">
+            {checklistItems.map((item, index) => (
+              <div
+                key={item.id ?? `checklist-${index}`}
+                className="flex flex-col gap-3 rounded-xl border border-neutral-800 bg-black/30 p-3.5 transition-all hover:border-neutral-700 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="flex flex-1 items-center gap-3">
+                  <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-[#cea355]/20 text-[11px] font-black text-[#edce8b]">
+                    {index + 1}
+                  </span>
+                  <input
+                    type="text"
+                    value={item.labelAr}
+                    onChange={(e) => updateChecklistItem(index, { labelAr: e.target.value })}
+                    className="flex-1 rounded-lg border border-white/5 bg-transparent px-2.5 py-1.5 text-xs font-medium text-white transition focus:border-[#cea355] focus:bg-black/60 focus:outline-none"
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-3 sm:justify-end">
+                  <label className="flex items-center gap-1.5 text-[11px] font-semibold text-neutral-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={item.required}
+                      onChange={(e) => updateChecklistItem(index, { required: e.target.checked })}
+                    />
+                    <span>إلزامية</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 text-[11px] font-semibold text-neutral-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={item.requiresNote}
+                      onChange={(e) => updateChecklistItem(index, { requiresNote: e.target.checked })}
+                    />
+                    <span>تتطلب ملاحظة</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => removeChecklistItem(index)}
+                    title="حذف هذا البند"
+                    className="flex size-8 items-center justify-center rounded-lg border border-red-500/20 bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300 transition-all"
+                  >
+                    <Trash2 className="size-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="mt-4 rounded-xl border border-dashed border-neutral-800 p-5 text-center text-xs text-neutral-400">
+            لم تتم إضافة أي بنود في قائمة مهام الموظفين بعد. أضف خطوات العمل أعلاه.
+          </div>
+        )}
+      </section>
+
+      {/* 5. Materials and Inventory Link */}
       <section className="grid gap-6 xl:grid-cols-2">
         <div className="rounded-2xl border border-neutral-800 bg-[#111114]/90 p-5 shadow-xl xl:col-span-2">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <h3 className="text-sm font-black text-white">مواد ومستلزمات التنفيذ</h3>
-              <p className="mt-1 text-xs leading-5 text-neutral-400">
-                تُحفظ الكميات والملاحظات مع الخدمة، وتظهر تلقائيًا للفريق الفني في قائمة تنفيذ الحجز.
-              </p>
+            <div className="flex items-center gap-2.5">
+              <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[#cea355]/20 border border-[#cea355]/40 text-[#edce8b]">
+                <Boxes className="size-4" />
+              </div>
+              <div>
+                <h3 className="text-sm font-black text-white">مواد ومستلزمات التنفيذ من المخزون</h3>
+                <p className="mt-0.5 text-xs leading-5 text-neutral-400">
+                  حدد المواد المستهلكة لكل تنفيذ. يتم خصم هذه الكميات تلقائيًا من رصيد عهدة الموظف ومخزون الفرع بمجرد إتمام خطوات الخدمة واكتمال الحجز.
+                </p>
+              </div>
             </div>
-            <Link href="/operations/resources" className="text-xs font-bold text-[#edce8b] hover:underline">
+            <Link href="/operations/resources" className="text-xs font-bold text-[#edce8b] hover:underline shrink-0">
               إدارة الأصناف والمخزون
             </Link>
           </div>
@@ -583,7 +753,7 @@ function ServiceEditor({
                     {requirement ? (
                       <div className="mt-4 grid gap-3 sm:grid-cols-[130px_1fr]">
                         <label className="text-[11px] font-bold text-neutral-300">
-                          الكمية لكل تنفيذ
+                          الكمية المستهلكة لكل حجز ({material.unit})
                           <input
                             type="number"
                             min="1"
@@ -597,10 +767,11 @@ function ServiceEditor({
                           />
                         </label>
                         <label className="text-[11px] font-bold text-neutral-300">
-                          ملاحظات للفريق (اختياري)
+                          ملاحظات للموظف (اختياري)
                           <input
                             value={requirement.notes ?? ''}
                             maxLength={1000}
+                            placeholder="مثال: استخدام الفوطة المايكروفايبر الزرقاء"
                             onChange={(event) =>
                               updateMaterialRequirement(material.id, { notes: event.target.value || null })
                             }
@@ -630,6 +801,7 @@ function ServiceEditor({
           )}
         </div>
 
+        {/* 6. Branch Customization */}
         <div className="rounded-2xl border border-neutral-800 bg-[#111114]/90 p-5 shadow-xl xl:col-span-2">
           <h3 className="text-sm font-black text-white">تخصيص الخدمة حسب الفرع</h3>
           <div className="mt-4 space-y-3">

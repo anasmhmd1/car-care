@@ -1,6 +1,6 @@
 'use server';
 
-import { Prisma, UserRole, VehicleSize } from '@prisma/client';
+import { ChecklistStage, Prisma, UserRole, VehicleSize } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { requireRole } from '@/lib/auth/session';
@@ -58,6 +58,24 @@ const cancellationPolicySchema = z.object({
   }
 });
 
+function slugify(text: string): string {
+  return text
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+const checklistItemInputSchema = z.object({
+  id: databaseIdSchema.optional(),
+  labelAr: z.string().trim().min(2).max(200),
+  descriptionAr: z.string().trim().max(500).optional().nullable(),
+  required: z.boolean().default(true),
+  requiresPhoto: z.boolean().default(false),
+  requiresNote: z.boolean().default(false),
+  active: z.boolean().default(true),
+});
+
 const serviceProductSchema = z.object({
   serviceId: databaseIdSchema.optional(),
   cancellationPolicyId: databaseIdSchema.optional(),
@@ -68,9 +86,9 @@ const serviceProductSchema = z.object({
   fullDescriptionAr: z.string().trim().min(10).max(5_000),
   coverImage: safeMediaUrl,
   galleryImages: z.array(safeMediaUrl).max(10),
-  includedItems: z.array(z.string().trim().min(1).max(200)).max(30),
-  excludedItems: z.array(z.string().trim().min(1).max(200)).max(30),
-  benefits: z.array(z.string().trim().min(1).max(200)).max(30),
+  includedItems: z.array(z.string().trim().min(1).max(200)).max(30).default([]),
+  excludedItems: z.array(z.string().trim().min(1).max(200)).max(30).default([]),
+  benefits: z.array(z.string().trim().min(1).max(200)).max(30).default([]),
   preparationInstructions: z.string().trim().max(2_000).optional(),
   basePrice: z.coerce.number().int().min(0).max(1_000_000),
   priceType: z.enum(['FIXED', 'STARTS_FROM', 'VARIANT_BASED']).default('FIXED'),
@@ -90,6 +108,7 @@ const serviceProductSchema = z.object({
   addonIds: z.array(databaseIdSchema).max(50).default([]),
   branchOverrides: z.array(branchOverrideSchema).max(100).default([]),
   materialRequirements: catalogMaterialRequirementsSchema,
+  checklistItems: z.array(checklistItemInputSchema).default([]),
 }).superRefine((value, context) => {
   if (value.depositType === 'PERCENTAGE' && value.depositValue > 100) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ['depositValue'], message: 'نسبة العربون لا تتجاوز 100%.' });
@@ -157,12 +176,16 @@ export async function saveServiceProductAction(formData: FormData) {
   );
   if (!materialRequirementsPayload.success) return { error: materialRequirementsPayload.error };
 
+  const rawNameEn = (formData.get('nameEn') as string | null)?.trim() || '';
+  const rawSlug = (formData.get('slug') as string | null)?.trim() || '';
+  const resolvedSlug = rawSlug ? slugify(rawSlug) : (rawNameEn ? slugify(rawNameEn) : `service-${Date.now()}`);
+
   const parsed = serviceProductSchema.safeParse({
     serviceId: formData.get('serviceId') || undefined,
     cancellationPolicyId: formData.get('cancellationPolicyId'),
     nameAr: formData.get('nameAr'),
-    nameEn: formData.get('nameEn') || undefined,
-    slug: formData.get('slug'),
+    nameEn: rawNameEn || undefined,
+    slug: resolvedSlug,
     shortDescriptionAr: formData.get('shortDescriptionAr'),
     fullDescriptionAr: formData.get('fullDescriptionAr'),
     coverImage: formData.get('coverImage'),
@@ -172,7 +195,7 @@ export async function saveServiceProductAction(formData: FormData) {
     benefits: stringList(formData.get('benefits')),
     preparationInstructions: formData.get('preparationInstructions') || undefined,
     basePrice: formData.get('basePrice'),
-    priceType: formData.get('priceType'),
+    priceType: 'FIXED',
     durationMinutes: formData.get('durationMinutes'),
     slotCount: formData.get('slotCount'),
     requiredTeamSize: formData.get('requiredTeamSize'),
@@ -189,6 +212,7 @@ export async function saveServiceProductAction(formData: FormData) {
     addonIds: jsonArray(formData.get('addonIds')),
     branchOverrides: jsonArray(formData.get('branchOverrides')),
     materialRequirements: materialRequirementsPayload.data,
+    checklistItems: jsonArray(formData.get('checklistItems')),
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? 'بيانات الخدمة غير مكتملة.' };
@@ -315,6 +339,54 @@ export async function saveServiceProductAction(formData: FormData) {
             notes: requirement.notes || null,
           })),
         });
+      }
+
+      if (parsed.data.checklistItems.length > 0) {
+        const template = await tx.checklistTemplate.upsert({
+          where: {
+            serviceId_stage: {
+              serviceId: service.id,
+              stage: ChecklistStage.SERVICE_EXECUTION,
+            },
+          },
+          update: {
+            name: `قائمة تنفيذ ${service.nameAr}`,
+          },
+          create: {
+            serviceId: service.id,
+            stage: ChecklistStage.SERVICE_EXECUTION,
+            name: `قائمة تنفيذ ${service.nameAr}`,
+          },
+        });
+
+        const suppliedItemIds = parsed.data.checklistItems.flatMap((item) => (item.id ? [item.id] : []));
+        await tx.checklistTemplateItem.deleteMany({
+          where: {
+            templateId: template.id,
+            ...(suppliedItemIds.length ? { id: { notIn: suppliedItemIds } } : {}),
+          },
+        });
+
+        for (let i = 0; i < parsed.data.checklistItems.length; i++) {
+          const item = parsed.data.checklistItems[i];
+          if (!item.labelAr?.trim()) continue;
+          const data = {
+            labelAr: item.labelAr.trim(),
+            descriptionAr: item.descriptionAr?.trim() || null,
+            required: item.required ?? true,
+            requiresPhoto: item.requiresPhoto ?? false,
+            requiresNote: item.requiresNote ?? false,
+            displayOrder: i + 1,
+            active: item.active ?? true,
+          };
+          if (item.id) {
+            await tx.checklistTemplateItem.update({ where: { id: item.id }, data });
+          } else {
+            await tx.checklistTemplateItem.create({
+              data: { templateId: template.id, ...data },
+            });
+          }
+        }
       }
       await tx.auditLog.create({
         data: {
