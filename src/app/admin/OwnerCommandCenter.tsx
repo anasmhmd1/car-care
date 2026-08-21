@@ -752,6 +752,7 @@ function CapabilityNotice({ children }: { children: ReactNode }) {
 }
 
 function OverviewSection({
+  metrics,
   reports,
   monthlyRevenue,
 }: {
@@ -843,17 +844,17 @@ function OverviewSection({
       </section>
 
       {/* ========================================================================= */}
-      {/* 1. مؤشرات الأداء والنشاط والمالية للفترة المحددة */}
+      {/* 1. المؤشرات المالية وصافي الأرباح للفترة المحددة */}
       {/* ========================================================================= */}
-      <section aria-labelledby="kpi-metrics-heading" className="space-y-4">
+      <section aria-labelledby="financial-kpi-heading" className="space-y-4">
         <div className="flex items-center justify-between border-b border-neutral-800/70 pb-3">
           <div className="flex items-center gap-2.5">
-            <div className="flex size-8 items-center justify-center rounded-xl bg-[#d4af37]/10 text-[#d4af37] border border-[#d4af37]/20">
-              <Activity className="size-4" />
+            <div className="flex size-8 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              <DollarSign className="size-4" />
             </div>
             <div>
-              <h3 id="kpi-metrics-heading" className="text-base sm:text-lg font-black text-white">مؤشرات الأداء والنشاط المالي والتشغيلي</h3>
-              <p className="text-xs text-neutral-400">الحساب التراكمي للفترة من {reports.from} إلى {reports.to}</p>
+              <h3 id="financial-kpi-heading" className="text-base sm:text-lg font-black text-white">المؤشرات المالية وصافي الأرباح</h3>
+              <p className="text-xs text-neutral-400">ملخص الإيرادات وصافي الربح والمقبوضات والمستحقات للفترة المحددة</p>
             </div>
           </div>
           <span className="inline-flex items-center gap-1.5 rounded-full bg-[#d4af37]/10 px-3 py-1 text-xs font-bold text-[#f3e4a8] border border-[#d4af37]/25">
@@ -861,29 +862,39 @@ function OverviewSection({
           </span>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-2xl border border-[#d4af37]/40 bg-gradient-to-br from-[#d4af37]/15 to-transparent p-5 shadow-xl sm:col-span-2 lg:col-span-1">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+          <div className="rounded-2xl border border-[#d4af37]/40 bg-gradient-to-br from-[#d4af37]/15 to-transparent p-5 shadow-xl sm:col-span-2 lg:col-span-1 xl:col-span-2">
             <div className="flex items-center justify-between text-xs font-bold text-[#f3e4a8]">
               <span>صافي الإيراد والأرباح</span>
               <Sparkles className="size-4 text-[#d4af37]" />
             </div>
-            <p className="mt-3 text-2xl lg:text-3xl font-black text-white">{formatCurrency(reports.netCollected)}</p>
-            <p className="mt-1 text-[11px] text-neutral-400">المحصل الفعلي ناقص المبالغ المستردة</p>
+            <p className="mt-3 text-2xl lg:text-3xl font-black text-white">
+              {formatCurrency(monthlyRevenue ? monthlyRevenue.netRevenue : reports.netCollected)}
+            </p>
+            <p className="mt-1 text-[11px] text-neutral-400">إجمالي المقبوضات ناقص الاستردادات</p>
           </div>
 
           <MetricCard
             label="إجمالي المقبوضات"
             value={formatCurrency(monthlyRevenue ? monthlyRevenue.grossRevenue : reports.collectedAmount)}
-            hint={monthlyRevenue ? `حجوزات: ${formatCurrency(monthlyRevenue.bookingRevenue)} · باقات: ${formatCurrency(monthlyRevenue.subscriptionRevenue)}` : 'إجمالي التدفقات الواردة'}
-            icon={<DollarSign aria-hidden="true" className="size-5" />}
+            hint="الحجوزات + الاشتراكات"
+            icon={<DollarSign aria-hidden="true" className="size-5 text-neutral-400" />}
           />
 
           <MetricCard
-            label="المحصل الفعلي (الإيراد)"
-            value={formatCurrency(reports.collectedAmount)}
-            hint="إجمالي المبالغ المسددة فعلياً"
+            label="إيراد الحجوزات"
+            value={formatCurrency(monthlyRevenue ? monthlyRevenue.bookingRevenue : reports.collectedAmount)}
+            hint={monthlyRevenue ? `${monthlyRevenue.bookingPaymentsCount} حركة دفع حجز` : 'مدفوعات الحجوزات'}
             icon={<Banknote aria-hidden="true" className="size-5" />}
             tone="green"
+          />
+
+          <MetricCard
+            label="إيراد باقات الاشتراكات"
+            value={formatCurrency(monthlyRevenue ? monthlyRevenue.subscriptionRevenue : 0)}
+            hint={monthlyRevenue ? `${monthlyRevenue.subscriptionProofsCount} اشتراك مفعل في الفترة` : 'مدفوعات الباقات'}
+            icon={<PackageCheck aria-hidden="true" className="size-5" />}
+            tone="blue"
           />
 
           <MetricCard
@@ -895,34 +906,91 @@ function OverviewSection({
           />
 
           <MetricCard
+            label="الاستردادات المعتمدة"
+            value={`-${formatCurrency(monthlyRevenue ? monthlyRevenue.refundsTotal : reports.refundedAmount)}`}
+            hint={monthlyRevenue ? `${monthlyRevenue.refundsCount} حركة استرداد` : 'مستردة للعملاء'}
+            icon={<ShieldAlert aria-hidden="true" className="size-5" />}
+            tone="red"
+          />
+        </div>
+      </section>
+
+      {/* ========================================================================= */}
+      {/* 2. المؤشرات التشغيلية ونشاط الفرق والجودة */}
+      {/* ========================================================================= */}
+      <section aria-labelledby="operations-kpi-heading" className="space-y-4">
+        <div className="flex items-center justify-between border-b border-neutral-800/70 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="flex size-8 items-center justify-center rounded-xl bg-[#d4af37]/10 text-[#d4af37] border border-[#d4af37]/20">
+              <Activity className="size-4" />
+            </div>
+            <div>
+              <h3 id="operations-kpi-heading" className="text-base sm:text-lg font-black text-white">المؤشرات التشغيلية ونشاط الفرق والجودة</h3>
+              <p className="text-xs text-neutral-400">حركة الحجوزات ونسب الإنجاز وسعة الفرق والعملاء وملاحظات الجودة</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <MetricCard
             label="إجمالي الحجوزات"
             value={formatNumber(reports.totalBookings)}
-            hint={`متوسط الحجز: ${formatCurrency(reports.averageBookingValue)}`}
+            hint={`قيد التنفيذ: ${formatNumber(metrics.inProgress)}`}
             icon={<CalendarDays aria-hidden="true" className="size-5" />}
           />
 
           <MetricCard
             label="الحجوزات المكتملة"
             value={formatNumber(reports.completedBookings)}
-            hint={`نسبة الإكمال: ${completionRate}٪`}
+            hint={`معدل إكمال الفترة: ${completionRate}٪`}
             icon={<CheckCircle2 aria-hidden="true" className="size-5" />}
             tone="green"
           />
 
           <MetricCard
-            label="الحجوزات الملغاة والمستردات"
+            label="الحجوزات الملغاة"
             value={formatNumber(reports.cancelledBookings)}
-            hint={`معدل الإلغاء: ${cancellationRate}٪ · مسترد: ${formatCurrency(reports.refundedAmount)}`}
+            hint={`معدل الإلغاء: ${cancellationRate}٪`}
             icon={<ShieldAlert aria-hidden="true" className="size-5" />}
             tone="red"
           />
 
           <MetricCard
-            label="الاشتراكات والعملاء الجدد"
-            value={`${formatNumber(reports.newSubscriptions)} اشتراك`}
-            hint={monthlyRevenue ? `${monthlyRevenue.subscriptionProofsCount} باقة مفعلة في الفترة` : 'النشاط التراكمي في الفترة'}
-            icon={<PackageCheck aria-hidden="true" className="size-5" />}
+            label="متوسط قيمة الحجز"
+            value={formatCurrency(reports.averageBookingValue)}
+            hint="متوسط قيمة الخدمة للحجز"
+            icon={<Gauge aria-hidden="true" className="size-5" />}
+          />
+
+          <MetricCard
+            label="إشغال الفرق التشغيلية"
+            value={`${formatNumber(metrics.teamUtilization)}٪`}
+            hint="الحجوزات المسندة ÷ السعة اليومية"
+            icon={<Gauge aria-hidden="true" className="size-5" />}
             tone="blue"
+          />
+
+          <MetricCard
+            label="الاشتراكات النشطة"
+            value={formatNumber(metrics.activeSubscriptions)}
+            hint={`زيارات متبقية: ${formatNumber(metrics.visitsRemaining)}`}
+            icon={<PackageCheck aria-hidden="true" className="size-5" />}
+          />
+
+          <MetricCard
+            label="عملاء جدد في الفترة"
+            value={formatNumber(metrics.newCustomersMonth)}
+            hint={`عملاء متكررون: ${formatNumber(metrics.repeatCustomers)}`}
+            icon={<UserRound aria-hidden="true" className="size-5" />}
+            tone="blue"
+          />
+
+          <MetricCard
+            label="مشكلات الجودة والشكاوى"
+            value={formatNumber(metrics.qualityOpen)}
+            hint="حجوزات جودة وشكاوى مفتوحة"
+            icon={<ShieldAlert aria-hidden="true" className="size-5" />}
+            tone="red"
           />
         </div>
       </section>
