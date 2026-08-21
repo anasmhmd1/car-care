@@ -3,17 +3,17 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import {
-  Car,
   Layers,
-  FileText,
+  Repeat,
+  PackageCheck,
+  ImageIcon,
+  Share2,
+  ShieldCheck,
+  Compass,
   HelpCircle,
   ExternalLink,
-  ArrowRight,
-  Compass,
-  Images,
-  FileCheck2,
-  PackageCheck,
-  Share2,
+  ArrowLeft,
+  Sparkles,
 } from 'lucide-react';
 import CollectionsManager from './CollectionsManager';
 import GalleryManager from './GalleryManager';
@@ -60,7 +60,6 @@ export type TabKey =
   | 'policies'
   | 'social'
   | 'zones'
-  | 'content'
   | 'faqs';
 
 interface AdminSiteClientProps {
@@ -115,7 +114,6 @@ export default function AdminSiteClient({
       'policies',
       'social',
       'zones',
-      'content',
       'faqs',
     ];
     if (initialTab && validTabs.includes(initialTab as TabKey)) {
@@ -129,42 +127,44 @@ export default function AdminSiteClient({
       className="min-h-screen bg-[#050505] px-4 py-10 text-white sm:px-6 lg:px-8 font-sans selection:bg-[#cea355] selection:text-black"
       dir="rtl"
     >
-      <div className="mx-auto max-w-6xl space-y-8">
+      <div className="mx-auto max-w-7xl space-y-8">
         {/* Header */}
-        <header className="flex flex-col gap-5 border-b border-neutral-800 pb-6 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <div className="flex items-center gap-2 text-xs font-bold text-[#edce8b]">
-              <FileText className="w-4 h-4 text-[#cea355]" aria-hidden="true" />
-              <span>إدارة واجهة وهوية المنصة</span>
-            </div>
-            <h1 className="mt-2 text-3xl font-black text-white">إدارة محتوى الموقع والتغطية والسياسات</h1>
-            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-neutral-300">
+        <header className="flex flex-col gap-6 border-b border-neutral-800 pb-8 sm:flex-row sm:items-end sm:justify-between">
+          <div className="space-y-2">
+            <p className="flex items-center gap-2 text-xs font-bold text-[#cea355] tracking-wider uppercase">
+              <Sparkles className="size-4" aria-hidden="true" />
+              إدارة واجهة وهوية المنصة
+            </p>
+            <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
+              إدارة محتوى الموقع والتغطية والسياسات
+            </h1>
+            <p className="max-w-3xl text-xs sm:text-sm text-neutral-400 leading-relaxed">
               تحكم كامل في الخدمات والمنتجات، باقات الاشتراكات، مجموعات الخدمات، معرض الصور، روابط السوشيال والتواصل، شروط الاستخدام والخصوصية، ونطاقات التغطية.
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <Link
               href="/"
               target="_blank"
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#cea355]/40 bg-[#cea355]/10 px-4 text-xs font-bold text-[#edce8b] hover:bg-[#cea355]/20 transition-all"
+              className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-neutral-700 bg-neutral-900/80 px-4 text-xs font-bold text-neutral-200 hover:border-[#cea355]/40 hover:text-white transition-all shadow-sm"
             >
-              <ExternalLink className="w-4 h-4" />
+              <ExternalLink className="size-3.5 text-[#cea355]" />
               <span>معاينة الموقع</span>
             </Link>
             <Link
               href="/admin"
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-neutral-800 bg-[#121212] px-4 text-xs font-bold text-neutral-300 hover:text-white hover:border-neutral-700 transition-all"
+              className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-neutral-800 bg-neutral-950 px-4 text-xs font-bold text-neutral-300 hover:text-white hover:border-neutral-700 transition-all shadow-sm"
             >
-              <ArrowRight className="w-4 h-4" />
+              <ArrowLeft className="size-3.5" />
               <span>لوحة المالك</span>
             </Link>
           </div>
         </header>
 
-        {/* Navigation Tabs */}
-        <div className="flex items-center gap-2 border-b border-neutral-800/80 pb-3 overflow-x-auto">
-          {/* Tab: Services */}
+        {/* Horizontal Navigation Tabs */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none border-b border-neutral-800/80">
+          {/* Tab 0: Services */}
           <button
             type="button"
             onClick={() => setActiveTab('services')}
@@ -174,8 +174,8 @@ export default function AdminSiteClient({
                 : 'bg-[#121212] text-neutral-300 hover:text-white hover:bg-[#1a1a1a] border border-neutral-800'
             }`}
           >
-            <Car className="w-4 h-4" />
-            <span>إدارة وتعديل الخدمات</span>
+            <Layers className="w-4 h-4" />
+            <span>الخدمات والمنتجات</span>
             <span
               className={`px-2 py-0.5 rounded-full text-[10px] ${
                 activeTab === 'services' ? 'bg-black/30 text-black font-black' : 'bg-[#1a1a1a] text-[#edce8b]'
@@ -185,7 +185,7 @@ export default function AdminSiteClient({
             </span>
           </button>
 
-          {/* Tab: Subscriptions */}
+          {/* Tab 1: Subscriptions */}
           <button
             type="button"
             onClick={() => setActiveTab('subscriptions')}
@@ -195,7 +195,7 @@ export default function AdminSiteClient({
                 : 'bg-[#121212] text-neutral-300 hover:text-white hover:bg-[#1a1a1a] border border-neutral-800'
             }`}
           >
-            <PackageCheck className="w-4 h-4" />
+            <Repeat className="w-4 h-4" />
             <span>باقات الاشتراكات</span>
             <span
               className={`px-2 py-0.5 rounded-full text-[10px] ${
@@ -206,7 +206,7 @@ export default function AdminSiteClient({
             </span>
           </button>
 
-          {/* Tab: Collections */}
+          {/* Tab 2: Collections */}
           <button
             type="button"
             onClick={() => setActiveTab('collections')}
@@ -216,8 +216,8 @@ export default function AdminSiteClient({
                 : 'bg-[#121212] text-neutral-300 hover:text-white hover:bg-[#1a1a1a] border border-neutral-800'
             }`}
           >
-            <Layers className="w-4 h-4" />
-            <span>مجموعات العناية (الكوليكشن)</span>
+            <PackageCheck className="w-4 h-4" />
+            <span>مجموعات الخدمات (Collections)</span>
             <span
               className={`px-2 py-0.5 rounded-full text-[10px] ${
                 activeTab === 'collections' ? 'bg-black/30 text-black font-black' : 'bg-[#1a1a1a] text-[#edce8b]'
@@ -227,7 +227,7 @@ export default function AdminSiteClient({
             </span>
           </button>
 
-          {/* Tab: Gallery */}
+          {/* Tab 3: Gallery */}
           <button
             type="button"
             onClick={() => setActiveTab('gallery')}
@@ -237,7 +237,7 @@ export default function AdminSiteClient({
                 : 'bg-[#121212] text-neutral-300 hover:text-white hover:bg-[#1a1a1a] border border-neutral-800'
             }`}
           >
-            <Images className="w-4 h-4" />
+            <ImageIcon className="w-4 h-4" />
             <span>معرض الصور (Gallery)</span>
             <span
               className={`px-2 py-0.5 rounded-full text-[10px] ${
@@ -248,7 +248,7 @@ export default function AdminSiteClient({
             </span>
           </button>
 
-          {/* Tab: Social & Contact */}
+          {/* Tab 4: Social & Contact */}
           <button
             type="button"
             onClick={() => setActiveTab('social')}
@@ -262,7 +262,7 @@ export default function AdminSiteClient({
             <span>روابط السوشيال والتواصل</span>
           </button>
 
-          {/* Tab: Policies */}
+          {/* Tab 5: Policies */}
           <button
             type="button"
             onClick={() => setActiveTab('policies')}
@@ -272,11 +272,11 @@ export default function AdminSiteClient({
                 : 'bg-[#121212] text-neutral-300 hover:text-white hover:bg-[#1a1a1a] border border-neutral-800'
             }`}
           >
-            <FileCheck2 className="w-4 h-4" />
+            <ShieldCheck className="w-4 h-4" />
             <span>السياسات والشروط (Policies)</span>
           </button>
 
-          {/* Tab: Zones & Coverage */}
+          {/* Tab 6: Zones */}
           <button
             type="button"
             onClick={() => setActiveTab('zones')}
@@ -295,20 +295,6 @@ export default function AdminSiteClient({
             >
               {initialZones.length}
             </span>
-          </button>
-
-          {/* Tab: Homepage Content */}
-          <button
-            type="button"
-            onClick={() => setActiveTab('content')}
-            className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-xs font-black transition-all shrink-0 cursor-pointer ${
-              activeTab === 'content'
-                ? 'gold-gradient text-black shadow-lg shadow-[#cea355]/20'
-                : 'bg-[#121212] text-neutral-300 hover:text-white hover:bg-[#1a1a1a] border border-neutral-800'
-            }`}
-          >
-            <FileText className="w-4 h-4" />
-            <span>نصوص الصفحة الرئيسية</span>
           </button>
 
           {/* Tab: FAQs */}
@@ -388,12 +374,12 @@ export default function AdminSiteClient({
           />
         )}
 
-        {/* Tab 7 & 8: Content & FAQs */}
-        {(activeTab === 'content' || activeTab === 'faqs') && (
+        {/* Tab 7: FAQs */}
+        {activeTab === 'faqs' && (
           <SiteContentManager
             initialContent={initialContent}
             initialFaqs={initialFaqs}
-            defaultSection={activeTab}
+            defaultSection="faqs"
           />
         )}
       </div>
