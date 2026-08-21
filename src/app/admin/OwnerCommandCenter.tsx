@@ -1809,15 +1809,6 @@ export default function OwnerCommandCenter(props: OwnerCommandCenterProps) {
 
             {/* Bottom Actions in Drawer */}
             <div className="mt-6 space-y-2 border-t border-neutral-800 pt-4">
-              <Link
-                href="/system-admin"
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-xs font-bold text-[#f3e4a8] hover:bg-[#d4af37]/15 transition-all border border-[#d4af37]/20 bg-[#d4af37]/5"
-              >
-                <ShieldCheck className="size-4 text-[#d4af37]" />
-                <span>حوكمة النظام</span>
-              </Link>
-
               <form action={logoutAction}>
                 <button
                   type="submit"
@@ -1874,16 +1865,8 @@ export default function OwnerCommandCenter(props: OwnerCommandCenterProps) {
               );
             })}
 
-            {/* حوكمة النظام وتسجيل الخروج في أسفل القائمة الجانبية */}
-            <div className="pt-2 mt-2 border-t border-neutral-800/80 space-y-1">
-              <Link
-                href="/system-admin"
-                className="flex items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-bold text-[#f3e4a8] hover:bg-[#d4af37]/15 transition-all border border-[#d4af37]/20 bg-[#d4af37]/5"
-              >
-                <ShieldCheck className="size-4 text-[#d4af37]" />
-                <span>حوكمة النظام</span>
-              </Link>
-
+            {/* تسجيل الخروج في أسفل القائمة الجانبية */}
+            <div className="pt-2 mt-2 border-t border-neutral-800/80">
               <form action={logoutAction}>
                 <button
                   type="submit"
