@@ -10,20 +10,26 @@ import {
   Check,
   CheckCircle2,
   LoaderCircle,
-  RotateCcw,
   Eye,
   EyeOff,
   MoveUp,
   MoveDown,
   HelpCircle,
+  ImagePlus,
 } from 'lucide-react';
 import PublicImage from '@/components/PublicImage';
-import {
-  DEFAULT_GALLERY_ITEMS,
-  PRESET_GALLERY_IMAGES,
-  type GalleryItem,
-} from '@/lib/gallery-items';
-import { saveGalleryAction, resetGalleryAction } from '@/app/actions/owner-gallery';
+import { prepareImageForUpload } from '@/lib/client/image-upload';
+import { type GalleryItem } from '@/lib/gallery-items';
+import { saveGalleryAction } from '@/app/actions/owner-gallery';
+
+function responseMessage(value: unknown): { url?: string; error?: string } {
+  if (!value || typeof value !== 'object') return { error: 'استجابة رفع غير صالحة.' };
+  const record = value as Record<string, unknown>;
+  return {
+    url: typeof record.url === 'string' ? record.url : undefined,
+    error: typeof record.error === 'string' ? record.error : undefined,
+  };
+}
 
 interface GalleryManagerProps {
   initialGallery: GalleryItem[];
@@ -33,6 +39,7 @@ export default function GalleryManager({ initialGallery }: GalleryManagerProps) 
   const router = useRouter();
   const [gallery, setGallery] = useState<GalleryItem[]>(initialGallery);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ kind: 'error' | 'success'; message: string } | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -68,6 +75,26 @@ export default function GalleryManager({ initialGallery }: GalleryManagerProps) 
     );
   }
 
+  async function handleUploadGalleryImage(itemId: string, file: File | null) {
+    if (!file) return;
+    setUploadingId(itemId);
+    setFeedback(null);
+    try {
+      const preparedFile = await prepareImageForUpload(file, { maxDimension: 2200, quality: 0.86 });
+      const data = new FormData();
+      data.set('file', preparedFile);
+      const response = await fetch('/api/catalog-media', { method: 'POST', body: data });
+      const payload = responseMessage(await response.json());
+      if (!response.ok || !payload.url) throw new Error(payload.error ?? 'تعذر رفع الصورة.');
+      handleUpdateField(itemId, 'image', payload.url);
+      setFeedback({ kind: 'success', message: 'تم رفع الصورة بنجاح! اضغط "حفظ ونشر التعديلات" لتثبيتها في الموقع.' });
+    } catch (error) {
+      setFeedback({ kind: 'error', message: error instanceof Error ? error.message : 'تعذر رفع الصورة.' });
+    } finally {
+      setUploadingId(null);
+    }
+  }
+
   function movePriority(index: number, direction: 'up' | 'down') {
     const targetIndex = direction === 'up' ? index - 1 : index + 1;
     if (targetIndex < 0 || targetIndex >= gallery.length) return;
@@ -99,22 +126,6 @@ export default function GalleryManager({ initialGallery }: GalleryManagerProps) 
     });
   }
 
-  function handleReset() {
-    if (!window.confirm('هل أنت متأكد من استعادة الصور الافتراضية للمعرض؟')) return;
-    setFeedback(null);
-    startTransition(async () => {
-      const res = await resetGalleryAction();
-      if (res.error) {
-        setFeedback({ kind: 'error', message: res.error });
-      } else {
-        setGallery(DEFAULT_GALLERY_ITEMS);
-        setEditingId(null);
-        setFeedback({ kind: 'success', message: 'تمت استعادة الصور الافتراضية بنجاح.' });
-        router.refresh();
-      }
-    });
-  }
-
   return (
     <div className="space-y-8" dir="rtl">
       
@@ -126,7 +137,7 @@ export default function GalleryManager({ initialGallery }: GalleryManagerProps) 
             <span>معرض الصور والنتائج الحقيقية (Gallery)</span>
           </h2>
           <p className="text-xs text-neutral-400 mt-1 leading-relaxed">
-            تحكم كامل في الصور المعروضة بقسم &quot;لمسات بريق — نتائج حقيقية&quot;، مع إمكانية تعديل أسماء الصور، استبدال الروابط، وإعادة الترتيب.
+            تحكم كامل في الصور المعروضة بقسم &quot;لمسات بريق — نتائج حقيقية&quot;، رفع الصور من الجهاز، تعديل الأسماء، وإعادة الترتيب.
           </p>
         </div>
 
@@ -138,17 +149,6 @@ export default function GalleryManager({ initialGallery }: GalleryManagerProps) 
           >
             <Plus className="w-4 h-4 text-[#cea355]" />
             <span>إضافة صورة للمعرض</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handleReset}
-            disabled={isPending}
-            className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-neutral-900 border border-neutral-800 text-neutral-400 hover:text-white text-xs font-medium transition-all"
-            title="استعادة الصور الافتراضية"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span>استعادة الافتراضي</span>
           </button>
 
           <button
@@ -297,42 +297,40 @@ export default function GalleryManager({ initialGallery }: GalleryManagerProps) 
                       />
                     </div>
 
-                    {/* Image URL Input */}
+                    {/* Image Upload / URL Input */}
                     <div>
-                      <label className="block text-[11px] font-bold text-neutral-300 mb-1">
-                        رابط الصورة
-                      </label>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-[11px] font-bold text-neutral-300">
+                          صورة المعرض
+                        </label>
+                        <label className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#cea355]/40 bg-[#cea355]/15 text-[#edce8b] text-[11px] font-bold transition hover:bg-[#cea355]/25 cursor-pointer ${uploadingId === item.id ? 'opacity-60 pointer-events-none' : ''}`}>
+                          {uploadingId === item.id ? (
+                            <>
+                              <LoaderCircle className="size-3.5 animate-spin text-[#cea355]" />
+                              <span>جاري الرفع...</span>
+                            </>
+                          ) : (
+                            <>
+                              <ImagePlus className="size-3.5 text-[#cea355]" />
+                              <span>رفع صورة من جهازك</span>
+                            </>
+                          )}
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp,image/svg+xml"
+                            className="hidden"
+                            onChange={(e) => void handleUploadGalleryImage(item.id, e.target.files?.[0] ?? null)}
+                          />
+                        </label>
+                      </div>
                       <input
                         type="text"
                         value={item.image}
                         onChange={(e) => handleUpdateField(item.id, 'image', e.target.value)}
-                        placeholder="/images/bareeq_hero_car.png أو رابط مباشر"
+                        placeholder="/images/bareeq_hero_car.png أو رابط الصورة المرفوعة"
                         dir="ltr"
                         className="w-full rounded-xl bg-[#0a0a0a] border border-neutral-700 px-3 py-2 text-xs text-white placeholder:text-neutral-600 focus:border-[#cea355] focus:outline-none font-mono"
                       />
-                    </div>
-
-                    {/* Presets Picker */}
-                    <div>
-                      <label className="block text-[10px] font-semibold text-neutral-400 mb-1.5">
-                        أو اختر صورة جاهزة من مكتبة المنصة:
-                      </label>
-                      <div className="grid grid-cols-2 gap-1.5">
-                        {PRESET_GALLERY_IMAGES.map((preset, pIdx) => (
-                          <button
-                            key={pIdx}
-                            type="button"
-                            onClick={() => handleUpdateField(item.id, 'image', preset.url)}
-                            className={`p-1.5 rounded-lg border text-[10px] text-right truncate transition-all ${
-                              item.image === preset.url
-                                ? 'bg-[#cea355]/20 border-[#cea355] text-[#edce8b] font-bold'
-                                : 'bg-[#0a0a0a] border-neutral-800 text-neutral-400 hover:text-white'
-                            }`}
-                          >
-                            {preset.label}
-                          </button>
-                        ))}
-                      </div>
                     </div>
 
                     {/* Alt Text (SEO) */}
