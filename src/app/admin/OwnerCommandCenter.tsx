@@ -823,86 +823,6 @@ function OverviewSection({
           <MetricCard label="عملاء جدد هذا الشهر" value={formatNumber(metrics.newCustomersMonth)} hint={`عملاء متكررون: ${formatNumber(metrics.repeatCustomers)}`} icon={<UserRound aria-hidden="true" className="size-5" />} tone="blue" />
           <MetricCard label="مشكلات الجودة المفتوحة" value={formatNumber(metrics.qualityOpen)} hint="حجوزات جودة وشكاوى مفتوحة" icon={<ShieldAlert aria-hidden="true" className="size-5" />} tone="red" />
         </div>
-
-        <div className="grid gap-6 xl:grid-cols-2">
-          <section aria-labelledby="priority-queues-title" className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-lg">
-            <div className="flex items-center justify-between border-b border-neutral-800/60 pb-3.5 mb-4">
-              <h4 id="priority-queues-title" className="text-sm font-bold text-white flex items-center gap-2">
-                <Activity className="size-4 text-[#d4af37]" />
-                قوائم التدخل السريع والأولوية
-              </h4>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <QueueLink href="/operations?tab=proofs" label="إثباتات الدفع (مركز التشغيل)" count={metrics.pendingProofs} urgent />
-              <QueueLink href="/admin?section=bookings" label="بانتظار مراجعة التشغيل" count={metrics.operationsReview} urgent />
-              <QueueLink href="/admin?section=bookings" label="حجوزات بانتظار الإسناد" count={metrics.unassignedBookings} urgent />
-              <QueueLink href="/operations?tab=cancellations" label="طلبات الإلغاء (مركز التشغيل)" count={metrics.pendingCancellations} urgent />
-              <QueueLink href="/admin#financial-reports-section" label="الاستردادات المعتمدة" count={metrics.pendingRefunds} />
-              <QueueLink href="/admin#financial-reports-section" label="مراجعات الجودة والشكاوى" count={metrics.qualityOpen} />
-            </div>
-          </section>
-
-          <section aria-labelledby="branch-capacity-title" className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-lg">
-            <div className="flex items-center justify-between border-b border-neutral-800/60 pb-3.5 mb-4">
-              <h4 id="branch-capacity-title" className="text-sm font-bold text-white flex items-center gap-2">
-                <Building2 className="size-4 text-[#d4af37]" />
-                سعة الفروع التشغيلية اليوم
-              </h4>
-            </div>
-            {branches.length === 0 ? (
-              <div className="mt-4"><EmptyState title="لا توجد فروع" description="أنشئ الفرع من إعداد التشغيل." /></div>
-            ) : (
-              <div className="space-y-4">
-                {branches.map((branch) => {
-                  const capacity = branch.dailyBookingLimit > 0
-                    ? Math.min(100, Math.round((branch.todayBookings / branch.dailyBookingLimit) * 100))
-                    : 0;
-                  return (
-                    <div key={branch.id} className="rounded-xl bg-neutral-950/40 border border-neutral-800/60 p-3.5">
-                      <div className="mb-2 flex items-center justify-between gap-4 text-xs sm:text-sm">
-                        <span className="font-bold text-neutral-200">{branch.nameAr}</span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-[11px] text-neutral-400 font-medium">الحمل:</span>
-                          <span className="tabular-nums font-bold text-white bg-neutral-900 px-2 py-0.5 rounded border border-neutral-800">
-                            {formatNumber(branch.todayBookings)} / {formatNumber(branch.dailyBookingLimit)}
-                          </span>
-                          <span className="text-xs font-black text-[#d4af37]">{capacity}٪</span>
-                        </div>
-                      </div>
-                      <div className="h-2 overflow-hidden rounded-full bg-neutral-800" aria-label={`استخدام سعة ${branch.nameAr}: ${capacity}٪`}>
-                        <div className="h-full rounded-full bg-gradient-to-r from-[#d4af37] to-[#f0d879] transition-all duration-500" style={{ width: `${capacity}%` }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </section>
-        </div>
-
-        <section aria-labelledby="oldest-bookings-title" className="mt-4">
-          <div className="mb-4 flex items-center justify-between gap-4 border-b border-neutral-800/60 pb-3.5">
-            <h4 id="oldest-bookings-title" className="text-sm font-bold text-white flex items-center gap-2">
-              <Clock className="size-4 text-[#d4af37]" />
-              أقدم حجوزات تحتاج تدخلاً إدارياً
-            </h4>
-            <Link href="/admin?section=bookings" className="text-xs sm:text-sm font-bold text-[#d4af37] hover:text-[#f3e4a8] hover:underline">
-              عرض كل الحجوزات ←
-            </Link>
-          </div>
-          {operationsReviewBookings.length === 0 && unassignedBookings.length === 0 ? (
-            <EmptyState title="لا توجد حجوزات متوقفة" description="لا توجد حجوزات تنتظر مراجعة التشغيل أو إسناد فريق." />
-          ) : (
-            <div className="space-y-3">
-              {operationsReviewBookings.slice(0, 2).map((booking) => (
-                <BookingCard key={booking.id} booking={booking} onReview={onReview} />
-              ))}
-              {unassignedBookings.slice(0, 2).map((booking) => (
-                <BookingCard key={booking.id} booking={booking} onAssign={onAssign} />
-              ))}
-            </div>
-          )}
-        </section>
       </section>
 
       {/* ========================================================================= */}
@@ -1227,48 +1147,6 @@ function OverviewSection({
           <MetricCard label="المبالغ المستحقة" value={formatCurrency(reports.amountDue)} icon={<WalletCards aria-hidden="true" className="size-5" />} tone="red" />
           <MetricCard label="متوسط قيمة الحجز" value={formatCurrency(reports.averageBookingValue)} icon={<Gauge aria-hidden="true" className="size-5" />} />
         </div>
-
-        <div className="grid gap-6 xl:grid-cols-2">
-          <ReportTable title="حسب الخدمة" rows={reports.byService} />
-          <ReportTable title="حسب الفرع" rows={reports.byBranch} />
-          <ReportTable title="حسب الفريق" rows={reports.byTeam} />
-          <section className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-lg">
-            <div className="border-b border-neutral-800/60 pb-3 mb-4 flex items-center justify-between">
-              <h4 className="text-sm font-bold text-white">تفصيل أسباب الإلغاء</h4>
-              <span className="text-xs text-rose-400 font-bold">{formatNumber(reports.cancelledBookings)} حجز ملغي</span>
-            </div>
-            {reports.cancellationReasons.length === 0 ? (
-              <EmptyState title="لا توجد إلغاءات" description="لا توجد طلبات إلغاء في الفترة المحددة." />
-            ) : (
-              <ol className="space-y-2.5">
-                {reports.cancellationReasons.map((item) => (
-                  <li key={item.reason} className="flex items-start justify-between gap-4 rounded-xl border border-neutral-800/80 bg-neutral-950/40 p-3">
-                    <span className="break-words text-xs sm:text-sm text-neutral-300">{item.reason}</span>
-                    <span className="shrink-0 rounded-full bg-neutral-800 border border-neutral-700 px-2.5 py-1 text-xs font-black tabular-nums text-white">
-                      {formatNumber(item.count)}
-                    </span>
-                  </li>
-                ))}
-              </ol>
-            )}
-          </section>
-        </div>
-
-        <section aria-labelledby="status-breakdown-title" className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-lg">
-          <h4 id="status-breakdown-title" className="text-sm font-bold text-white border-b border-neutral-800/60 pb-3 mb-4">توزيع حالات الحجز</h4>
-          {reports.byStatus.length === 0 ? (
-            <EmptyState title="لا توجد حالات" description="لا توجد حجوزات في الفترة المحددة." />
-          ) : (
-            <div className="flex flex-wrap gap-2.5">
-              {reports.byStatus.map((item) => (
-                <div key={item.status} className="flex items-center gap-2 rounded-xl border border-neutral-800 bg-neutral-950/50 px-3 py-2">
-                  <StatusBadge status={item.status} label={bookingStatusLabel(item.status)} />
-                  <span className="font-bold text-xs tabular-nums text-white">{formatNumber(item.count)}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
       </section>
     </div>
   );
@@ -1420,18 +1298,6 @@ function BranchesSection({
   );
 }
 
-
-
-
-
-function ReportTable({ title, rows }: { title: string; rows: ReportRowDto[] }) {
-  return (
-    <section className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-lg">
-      <h3 className="text-base font-bold text-white border-b border-neutral-800/60 pb-3 mb-4">{title}</h3>
-      {rows.length === 0 ? <EmptyState title="لا توجد بيانات" description="لا توجد سجلات في الفترة المحددة لهذا التصنيف." /> : <div className="overflow-x-auto"><table className="w-full min-w-[620px] text-right text-xs sm:text-sm"><caption className="sr-only">{title}</caption><thead className="text-neutral-400 border-b border-neutral-800"><tr><th scope="col" className="px-3 py-3 font-semibold">التصنيف</th><th scope="col" className="px-3 py-3 font-semibold">عدد الحجوزات</th><th scope="col" className="px-3 py-3 font-semibold">إجمالي القيمة</th><th scope="col" className="px-3 py-3 font-semibold">المحصل الفعلي</th></tr></thead><tbody className="divide-y divide-neutral-800/60">{rows.map((row) => <tr key={row.id} className="hover:bg-white/[0.02] transition"><th scope="row" className="px-3 py-3 font-semibold text-white">{row.label}</th><td className="px-3 py-3 tabular-nums text-neutral-300">{formatNumber(row.count)}</td><td className="px-3 py-3 tabular-nums font-semibold text-neutral-200">{formatCurrency(row.totalPrice)}</td><td className="px-3 py-3 tabular-nums font-bold text-emerald-300">{formatCurrency(row.amountPaid)}</td></tr>)}</tbody></table></div>}
-    </section>
-  );
-}
 
 
 
