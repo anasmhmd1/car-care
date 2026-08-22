@@ -998,7 +998,7 @@ function EmployeeStockPanel({
                         <h3 className="text-lg font-black text-white">{employee.fullName}</h3>
                         {employee.isLeader && (
                           <span className="rounded-full border border-[#d4af37]/50 bg-[#d4af37]/20 px-2.5 py-0.5 text-[10px] font-black text-[#f0d36d]">
-                            👑 قائد الفريق
+                            قائد الفريق
                           </span>
                         )}
                       </div>

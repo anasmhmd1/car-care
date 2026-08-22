@@ -103,7 +103,7 @@ function CustomerCard({
                     : 'bg-red-500/20 border border-red-500/40 text-red-300'
                 }`}
               >
-                {customer.active ? '🟢 حساب نشط' : '🔴 محظور من النظام'}
+                {customer.active ? 'حساب نشط' : 'محظور من النظام'}
               </span>
             </div>
             <p className="text-xs text-white/40 mt-0.5">انضم {formatDate(customer.createdAt)}</p>

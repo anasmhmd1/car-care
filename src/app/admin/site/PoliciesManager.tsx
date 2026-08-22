@@ -13,6 +13,7 @@ import {
   Shield,
   FileText,
   HelpCircle,
+  X,
 } from 'lucide-react';
 import {
   DEFAULT_POLICIES_CONTENT,
@@ -164,8 +165,9 @@ export default function PoliciesManager({ initialPolicies }: PoliciesManagerProp
             type="button"
             onClick={() => setFeedback(null)}
             className="text-neutral-400 hover:text-white"
+            aria-label="إغلاق التنبيه"
           >
-            ✕
+            <X className="size-4" aria-hidden="true" />
           </button>
         </div>
       )}

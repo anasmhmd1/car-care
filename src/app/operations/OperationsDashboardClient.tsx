@@ -683,7 +683,7 @@ export default function OperationsDashboardClient({
                     <div>
                       <span className="font-bold text-white">{branch.nameAr}:</span>{' '}
                       <span className={isLocked ? 'text-red-400 font-semibold' : 'text-emerald-400 font-semibold'}>
-                        {isLocked ? '🔴 مقفل مؤقتًا (لا يستقبل حجوزات)' : '🟢 مفتوح ويستقبل الحجوزات'}
+                        {isLocked ? 'مقفل مؤقتًا (لا يستقبل حجوزات)' : 'مفتوح ويستقبل الحجوزات'}
                       </span>
                     </div>
                     <button
@@ -1040,7 +1040,7 @@ export default function OperationsDashboardClient({
               </a>
             ) : (
               <p className="rounded-xl border border-neutral-800 bg-[#080808] p-3 text-xs text-neutral-400">
-                🗑️ تم حذف صورة الإيصال تلقائيًا بعد القبول لتوفير المساحة.
+                تم حذف صورة الإيصال تلقائيًا بعد القبول لتوفير المساحة.
               </p>
             )}
             <div>

@@ -1055,7 +1055,7 @@ export default function BookingWizardClient({
 
         <div className="space-y-3">
           <span className="text-xs font-bold px-3 py-1 rounded-full bg-[#cea355]/15 text-[#edce8b] border border-[#cea355]/30">
-            تم استلام وتأكيد طلبك بنجاح ✨
+            تم استلام وتأكيد طلبك بنجاح
           </span>
           <h1 className="text-2xl sm:text-4xl font-black text-white">
             شكراً لك! تم حجز خدمتك بنجاح
@@ -1343,7 +1343,7 @@ export default function BookingWizardClient({
                           </span>
                           {!area && (
                             <span className="mt-1.5 block text-[11px] text-amber-400/80">
-                              ⚠️ هذا العنوان مسجل خارج نطاق التغطية لفروع هذه الخدمة
+                              هذا العنوان مسجل خارج نطاق التغطية لفروع هذه الخدمة
                             </span>
                           )}
                         </div>
@@ -1721,7 +1721,7 @@ export default function BookingWizardClient({
                   <div className="flex items-center justify-between gap-4">
                     <span className="text-sm font-bold text-white">طريقة المحاسبة</span>
                     <span className="rounded-full bg-emerald-500/20 border border-emerald-500/30 px-3 py-1 text-xs font-black text-emerald-300">
-                      مشمول بالاشتراك النشط ✨
+                      مشمول بالاشتراك النشط
                     </span>
                   </div>
                   <div className="flex items-center justify-between gap-4 text-xs font-bold text-white/80">

@@ -405,7 +405,7 @@ export default function AddressManagerClient({
                 type="submit"
                 className="gold-gradient text-[#080808] font-bold px-6 py-2.5 rounded-xl text-xs shadow-md hover:brightness-110 transition-all"
               >
-                حفظ العنوان 📍
+                حفظ العنوان
               </button>
             </div>
           </form>
@@ -447,7 +447,7 @@ export default function AddressManagerClient({
                           )}
                           {matchedArea ? (
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-                              ✓ نطاق خدمة معتمد
+                              نطاق خدمة معتمد
                             </span>
                           ) : (
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/30 flex items-center gap-1">
@@ -457,7 +457,7 @@ export default function AddressManagerClient({
                           )}
                         </div>
                         <h3 className="text-base sm:text-lg font-bold text-white mt-2">
-                          📍 {a.street} - مبنى/فيلا {a.buildingNumber}
+                          {a.street} - مبنى/فيلا {a.buildingNumber}
                         </h3>
                       </div>
                     </div>
@@ -498,7 +498,7 @@ export default function AddressManagerClient({
 
                     {!matchedArea && (
                       <p className="text-[11px] text-amber-300/90 bg-amber-950/20 border border-amber-800/30 p-2.5 rounded-xl">
-                        ⚠️ هذا العنوان مسجل بنطاق قديم أو غير محدد. اضغط «تعديل بيانات العنوان» بالأسفل واختر النطاق والكمبوند المعتمد لتتمكن من الحجز به فوراً.
+                        هذا العنوان مسجل بنطاق قديم أو غير محدد. اضغط «تعديل بيانات العنوان» بالأسفل واختر النطاق والكمبوند المعتمد لتتمكن من الحجز به فوراً.
                       </p>
                     )}
                   </div>

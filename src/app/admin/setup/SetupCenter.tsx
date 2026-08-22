@@ -1119,7 +1119,7 @@ function FieldEmployeeForm({
           </label>
         </div>
         <div className="rounded-xl border border-white/8 bg-black/20 p-3 text-xs text-white/50">
-          📍 الفرع المسند: <span className="font-bold text-white/80">{branch.nameAr}</span> ({branch.code})
+          الفرع المسند: <span className="font-bold text-white/80">{branch.nameAr}</span> ({branch.code})
         </div>
         <BooleanField
           name="active"
@@ -2012,7 +2012,7 @@ function ScheduleSection({ branch, employees, tools }: {
             </label>
           </div>
           <div className="rounded-xl border border-[#cea355]/20 bg-[#cea355]/[0.04] p-4 text-xs leading-5 text-white/70 space-y-1.5">
-            <p className="font-bold text-[#edce8b]">💡 تخصيص وقت البريك والراحة بين كل سلوت وآخر (Rest Buffer):</p>
+            <p className="font-bold text-[#edce8b]">تخصيص وقت البريك والراحة بين كل سلوت وآخر (Rest Buffer):</p>
             <p className="text-white/65">
               يمكنك تحديد وقت فاصل (بريك) بين السلوتات والحجوزات المتتالية لنفس الفريق:
             </p>

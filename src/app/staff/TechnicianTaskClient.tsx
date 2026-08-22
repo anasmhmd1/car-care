@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   Car,
   Boxes,
+  Check,
   CheckCircle2,
   CheckSquare,
   Clock,
@@ -338,7 +339,7 @@ export default function TechnicianTaskClient({
                   ? 'border border-[#d4af37]/60 bg-[#d4af37]/20 text-[#f0d36d]'
                   : 'border border-neutral-700 bg-neutral-800 text-neutral-300'
               }`}>
-                {isLeader ? '👑 قائد الفريق المسؤول' : 'فني تنفيذ'}
+                {isLeader ? 'قائد الفريق المسؤول' : 'فني تنفيذ'}
               </span>
               {teamName && (
                 <span className="text-xs font-bold text-neutral-400">
@@ -464,7 +465,10 @@ export default function TechnicianTaskClient({
                   onClick={() => handleStatusChange(step.to)}
                   className="rounded-xl border border-neutral-800 bg-[#080808] p-3 text-right disabled:cursor-not-allowed disabled:opacity-45 enabled:hover:border-[#c9a227] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e5c45a]"
                 >
-                  <span className="block text-xs font-bold text-white">{completed ? '✓ ' : `${index + 1}. `}{step.label}</span>
+                  <span className="flex items-center gap-1 text-xs font-bold text-white">
+                    {completed ? <Check className="size-3.5 text-emerald-400" aria-hidden="true" /> : <span>{index + 1}.</span>}
+                    {step.label}
+                  </span>
                   <span className="mt-1 block text-[10px] text-neutral-400">{blockedByMaterials ? 'استكمل المواد المطلوبة أو تواصل مع مدير التشغيل.' : step.helper}</span>
                 </button>
               );

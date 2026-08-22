@@ -16,6 +16,7 @@ import {
   MoveDown,
   HelpCircle,
   ImagePlus,
+  X,
 } from 'lucide-react';
 import PublicImage from '@/components/PublicImage';
 import { prepareImageForUpload } from '@/lib/client/image-upload';
@@ -193,8 +194,9 @@ export default function GalleryManager({ initialGallery }: GalleryManagerProps) 
             type="button"
             onClick={() => setFeedback(null)}
             className="text-neutral-400 hover:text-white"
+            aria-label="إغلاق التنبيه"
           >
-            ✕
+            <X className="size-4" aria-hidden="true" />
           </button>
         </div>
       )}
