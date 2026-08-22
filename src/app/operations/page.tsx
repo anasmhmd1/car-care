@@ -2,7 +2,7 @@ import BareeqLogo from '@/components/BareeqLogo';
 import Link from 'next/link';
 import { requireRole } from '@/lib/auth/session';
 import { logoutAction } from '@/app/actions/auth';
-import { BadgeDollarSign, Boxes, ClipboardList, LogOut, MessageSquareText, UsersRound } from 'lucide-react';
+import { BadgeDollarSign, Boxes, ClipboardList, Crown, LogOut, MessageSquareText, UsersRound } from 'lucide-react';
 import { db } from '@/lib/db';
 import { BookingStatus, FileType, Prisma, UserRole } from '@prisma/client';
 import {
@@ -869,6 +869,15 @@ export default async function OperationsDashboardPage({ searchParams }: Operatio
           </div>
 
           <div className="flex items-center gap-3">
+            {manager.role === UserRole.OWNER || manager.role === UserRole.SYSTEM_SUPER_ADMIN ? (
+              <Link
+                href="/admin"
+                className="flex items-center gap-2 rounded-xl border border-[#c9a227]/40 bg-[#c9a227]/10 px-4 py-2 text-xs font-bold text-[#e5c45a] transition hover:bg-[#c9a227]/20"
+              >
+                <Crown className="size-4 text-[#d4af37]" aria-hidden="true" />
+                لوحة المالك
+              </Link>
+            ) : null}
             {canOpenWorkforce ? (
               <Link
                 href="/operations/resources?tab=assignments"
