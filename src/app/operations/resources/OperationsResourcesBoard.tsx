@@ -1184,7 +1184,7 @@ export default function OperationsResourcesBoard({
         {canManageCatalog ? <TabButton active={tab === 'catalog'} onClick={() => setTab('catalog')} icon={<Package className="size-4" aria-hidden="true" />} label="مواد الخدمات" /> : null}
         <TabButton active={tab === 'vehicle-stock'} onClick={() => setTab('vehicle-stock')} icon={<CarFront className="size-4" aria-hidden="true" />} label="مخزون سيارات التشغيل" />
         <TabButton active={tab === 'fleet'} onClick={() => setTab('fleet')} icon={<Truck className="size-4" aria-hidden="true" />} label="أسطول السيارات والفرق" />
-        {!embedded ? (
+        {actorRole === 'OPERATIONS_MANAGER' && !embedded ? (
           <TabButton active={tab === 'assignments'} onClick={() => setTab('assignments')} icon={<ClipboardList className="size-4" aria-hidden="true" />} label="تخصيص موارد الحجوزات" />
         ) : null}
       </nav>
@@ -1233,7 +1233,7 @@ export default function OperationsResourcesBoard({
         </div>
       ) : null}
 
-      {tab === 'assignments' && !embedded ? (
+      {tab === 'assignments' && actorRole === 'OPERATIONS_MANAGER' && !embedded ? (
         <section className={panelClass} aria-labelledby="booking-resources-title"><div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><p className="flex items-center gap-2 text-xs font-bold text-[#d4af37]"><ClipboardList className="size-4" aria-hidden="true" />بعد إسناد الفريق</p><h2 id="booking-resources-title" className="mt-1 text-xl font-black">تخصيص الفني والسيارة للحجز</h2><p className="mt-1 max-w-3xl text-xs leading-5 text-white/45">يحصر النظام الاختيارات في أعضاء فريق الحجز وسيارات الفرع أو الفريق النشطة، ويتحقق من تعارض وقت الحجز قبل الحفظ.</p></div><span className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white/65">{bookings.length} حجوزات تشغيلية</span></div><div className="mt-5 space-y-4">{bookings.length ? bookings.map((booking) => <article key={booking.id} className="rounded-2xl border border-white/10 bg-black/20 p-4"><div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between"><div><h3 dir="ltr" className="font-black text-[#f0d36d]">{booking.bookingNumber}</h3><p className="mt-1 text-sm font-bold">{booking.serviceName}</p><p className="mt-1 text-xs text-white/50">{booking.branchName} · {booking.teamName} · {formatDateTime(booking.startAt)}</p></div><div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-3"><span className="rounded-xl bg-white/[0.04] px-3 py-2 text-white/65">الحالة: <strong className="text-white">{booking.bookingStatus}</strong></span><span className="rounded-xl bg-white/[0.04] px-3 py-2 text-white/65">الفني: <strong className="text-white">{booking.employeeName ?? 'غير محدد'}</strong></span><span className="rounded-xl bg-white/[0.04] px-3 py-2 text-white/65">السيارة: <strong className="text-white">{booking.operationalVehicleLabel ?? 'غير محددة'}</strong></span></div></div><BookingResourceAssignmentForm booking={booking} branches={branches} vehicles={vehicles} onResult={setFeedback} /></article>) : <div className="rounded-2xl border border-dashed border-white/15 p-10 text-center text-sm text-white/45">لا توجد حجوزات نشطة أسند لها فريق ضمن نطاقك حاليًا.</div>}</div></section>
       ) : null}
 

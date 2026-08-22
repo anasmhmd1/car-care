@@ -449,7 +449,6 @@ const sectionNav: Array<{
   icon: typeof LayoutDashboard;
 }> = [
   { id: 'overview', label: 'الرئيسية', icon: LayoutDashboard },
-  { href: '/operations', label: 'مركز إدارة التشغيل', icon: Activity },
   { id: 'bookings', label: 'الحجوزات', icon: CalendarDays },
   { id: 'subscriptions', label: 'الاشتراكات', icon: PackageCheck },
   { id: 'customers', label: 'العملاء', icon: UserRound },
