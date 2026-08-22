@@ -798,11 +798,11 @@ function EmployeeStockAllocationForm({
 
   return (
     <form onSubmit={submit} className="grid gap-4 rounded-2xl border border-[#d4af37]/20 bg-black/25 p-5 md:grid-cols-2 xl:grid-cols-3">
-      <label className="text-xs font-bold text-white/70">الموظف / الفني
+      <label className="text-xs font-bold text-white/70">قائد الفريق / مستلم العهدة
         <select value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} required className={inputClass}>
           {employees.map((emp) => (
             <option key={emp.id} value={emp.id}>
-              {emp.fullName} {emp.teamName ? `(${emp.teamName})` : ''} - {emp.phone}
+              {emp.fullName} {emp.isLeader ? `(قائد ${emp.teamName ? `فريق ${emp.teamName}` : 'الفريق'})` : emp.teamName ? `(${emp.teamName})` : ''} {emp.vehicleLabel ? `· سيارة ${emp.vehicleLabel}` : ''} - {emp.phone}
             </option>
           ))}
         </select>
@@ -900,10 +900,24 @@ function EmployeeStockPanel({
     return map;
   }, [employeeStocks]);
 
+  const custodyEmployees = useMemo(() => {
+    // Only display:
+    // 1. Team Leaders who hold custody for their team and vehicle
+    // 2. Employees who have an active recorded stock balance
+    // 3. Standalone staff not assigned to a team
+    return employees.filter((e) => {
+      const hasStock = (employeeStockMap.get(e.id)?.length ?? 0) > 0;
+      if (e.isLeader) return true;
+      if (hasStock) return true;
+      if (!e.teamId) return true;
+      return false;
+    });
+  }, [employees, employeeStockMap]);
+
   const filteredEmployees = useMemo(() => {
-    if (selectedEmpId === 'ALL') return employees;
-    return employees.filter((e) => e.id === selectedEmpId);
-  }, [employees, selectedEmpId]);
+    if (selectedEmpId === 'ALL') return custodyEmployees;
+    return custodyEmployees.filter((e) => e.id === selectedEmpId);
+  }, [custodyEmployees, selectedEmpId]);
 
   function handleDeleteStock(stockId: string) {
     if (!confirm('هل أنت متأكد من حذف بند العهدة؟')) return;
@@ -925,9 +939,9 @@ function EmployeeStockPanel({
               <Users className="size-4" aria-hidden="true" />
               توزيع وحركات العهدة الميدانية
             </p>
-            <h2 className="mt-1 text-xl font-black">مخزون وعهدة الموظفين</h2>
+            <h2 className="mt-1 text-xl font-black">عهدة ومخزون الفرق وسيارات التشغيل</h2>
             <p className="mt-1 text-xs leading-5 text-white/45">
-              تحديد أرصدة المواد لكل موظف (سوائل، أوزان، عدد). يتم الخصم التلقائي عند إتمام الحجز حسب استهلاك الخدمة المحدد.
+              يتم تسليم العهدة التشغيلية لقائد الفريق وتخزينها في سيارة التشغيل الخاصة بالفريق، وتُخصم تلقائياً عند إتمام الحجز.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -936,10 +950,10 @@ function EmployeeStockPanel({
               onChange={(e) => setSelectedEmpId(e.target.value)}
               className={`${inputClass} mt-0 max-w-xs`}
             >
-              <option value="ALL">عرض جميع الموظفين ({employees.length})</option>
-              {employees.map((emp) => (
+              <option value="ALL">عرض جميع قادة الفرق والعهدة ({custodyEmployees.length})</option>
+              {custodyEmployees.map((emp) => (
                 <option key={emp.id} value={emp.id}>
-                  {emp.fullName} {emp.teamName ? `(${emp.teamName})` : ''}
+                  {emp.fullName} {emp.isLeader ? `(قائد ${emp.teamName ? `فريق ${emp.teamName}` : 'الفريق'})` : emp.teamName ? `(${emp.teamName})` : ''}
                 </option>
               ))}
             </select>
@@ -952,7 +966,7 @@ function EmployeeStockPanel({
               className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#d4af37] px-4 text-xs font-black text-black transition hover:bg-[#e5c45a]"
             >
               <Plus className="size-4" aria-hidden="true" />
-              {showAllocateForm ? 'إخفاء نموذج العهدة' : 'تسليم عهدة جديدة / تسوية'}
+              {showAllocateForm ? 'إخفاء نموذج العهدة' : 'تسليم عهدة لقائد الفريق / تسوية'}
             </button>
           </div>
         </div>
@@ -960,10 +974,10 @@ function EmployeeStockPanel({
         {showAllocateForm && (
           <div className="mt-6 border-t border-white/10 pt-6">
             <h3 className="mb-3 text-sm font-black text-[#f0d36d]">
-              تسليم عهدة جديدة أو تسوية رصيد موظف
+              تسليم عهدة جديدة لقائد الفريق أو تسوية رصيد سيارة التشغيل
             </h3>
             <EmployeeStockAllocationForm
-              employees={employees}
+              employees={custodyEmployees}
               materials={materials}
               branches={branches}
               defaultEmployeeId={quickEmpId}
@@ -1029,7 +1043,7 @@ function EmployeeStockPanel({
                   <div className="mt-5 space-y-3">
                     {stocks.length === 0 ? (
                       <p className="rounded-2xl border border-dashed border-white/10 p-5 text-center text-xs text-white/40">
-                        لم تُخصص أي مواد في عهدة هذا الموظف بعد. اضغط &quot;شحن / تسوية&quot; لتسليم العهدة.
+                        لم تُخصص أي مواد في عهدة سيارة هذا الفريق بعد. اضغط &quot;شحن / تسوية&quot; لتسليم العهدة لقائد الفريق.
                       </p>
                     ) : (
                       stocks.map((stock) => {
