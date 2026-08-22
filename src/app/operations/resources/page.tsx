@@ -36,7 +36,15 @@ const TERMINAL_BOOKING_STATUSES = [
   'CLOSED',
 ] as const;
 
-export default async function OperationsResourcesPage() {
+interface OperationsResourcesPageProps {
+  searchParams?: Promise<{ tab?: string }>;
+}
+
+export default async function OperationsResourcesPage(props: OperationsResourcesPageProps) {
+  const searchParams = props.searchParams ? await props.searchParams : undefined;
+  const initialTab = searchParams?.tab === 'assignments' || searchParams?.tab === 'fleet' || searchParams?.tab === 'vehicle-stock' || searchParams?.tab === 'catalog'
+    ? searchParams.tab
+    : undefined;
   const actor = await requireRole([...RESOURCE_ROLES]);
   const accessibleBranchIds = await getAccessibleBranchIds(actor);
   const candidateBranchIds = accessibleBranchIds ?? (
@@ -379,6 +387,7 @@ export default async function OperationsResourcesPage() {
       employees={employees}
       vehicles={vehicles}
       bookings={bookings}
+      initialTab={initialTab as any}
     />
   );
 }

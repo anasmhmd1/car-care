@@ -2,7 +2,7 @@ import BareeqLogo from '@/components/BareeqLogo';
 import Link from 'next/link';
 import { requireRole } from '@/lib/auth/session';
 import { logoutAction } from '@/app/actions/auth';
-import { BadgeDollarSign, Boxes, LogOut, MessageSquareText, UsersRound } from 'lucide-react';
+import { BadgeDollarSign, Boxes, ClipboardList, LogOut, MessageSquareText, UsersRound } from 'lucide-react';
 import { db } from '@/lib/db';
 import { BookingStatus, FileType, Prisma, UserRole } from '@prisma/client';
 import {
@@ -871,20 +871,29 @@ export default async function OperationsDashboardPage({ searchParams }: Operatio
           <div className="flex items-center gap-3">
             {canOpenWorkforce ? (
               <Link
-                href="/operations/workforce"
-                className="flex items-center gap-2 rounded-xl border border-[#c9a227]/35 bg-[#c9a227]/10 px-4 py-2 text-xs font-bold text-[#e5c45a] transition hover:bg-[#c9a227]/15"
+                href="/operations/resources?tab=assignments"
+                className="flex items-center gap-2 rounded-xl border border-[#c9a227]/45 bg-[#c9a227]/15 px-4 py-2 text-xs font-bold text-[#f0d36d] shadow-sm transition hover:bg-[#c9a227]/25"
               >
-                <UsersRound className="size-4" aria-hidden="true" />
-                القوى العاملة
+                <ClipboardList className="size-4" aria-hidden="true" />
+                تخصيص سيارات الحجوزات
               </Link>
             ) : null}
             {canOpenWorkforce ? (
               <Link
                 href="/operations/resources"
-                className="flex items-center gap-2 rounded-xl border border-[#c9a227]/35 bg-[#c9a227]/10 px-4 py-2 text-xs font-bold text-[#e5c45a] transition hover:bg-[#c9a227]/15"
+                className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-bold text-white/80 transition hover:bg-white/[0.08]"
               >
                 <Boxes className="size-4" aria-hidden="true" />
-                الموارد
+                المخزون والأسطول
+              </Link>
+            ) : null}
+            {canOpenWorkforce ? (
+              <Link
+                href="/operations/workforce"
+                className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-bold text-white/80 transition hover:bg-white/[0.08]"
+              >
+                <UsersRound className="size-4" aria-hidden="true" />
+                القوى العاملة
               </Link>
             ) : null}
             {canOpenPricing ? (
