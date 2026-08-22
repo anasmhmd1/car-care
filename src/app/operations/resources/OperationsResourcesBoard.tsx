@@ -30,7 +30,12 @@ import {
   saveServiceMaterialRequirementAction,
   type OperationsResourceActionResult,
 } from '@/app/actions/operations-resources';
-import { formatMaterialQuantityWithUnit } from '@/lib/inventory/units';
+import {
+  formatMaterialQuantityWithUnit,
+  detectMaterialUnitMeta,
+  convertToDatabaseQuantity,
+  resolveDisplayQuantityFromDatabase,
+} from '@/lib/inventory/units';
 
 export interface ResourceBranchDto {
   id: string;
@@ -329,9 +334,62 @@ function RequirementEditor({ service, materials, requirement, onResult }: {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
+  const [selectedMaterialId, setSelectedMaterialId] = useState<string>(
+    requirement?.materialId ?? materials.find((m) => m.active)?.id ?? ''
+  );
+
+  const selectedMaterial = useMemo(
+    () => materials.find((m) => m.id === selectedMaterialId),
+    [materials, selectedMaterialId]
+  );
+
+  const meta = useMemo(
+    () => detectMaterialUnitMeta(selectedMaterial?.unit ?? 'عدد'),
+    [selectedMaterial?.unit]
+  );
+
+  const initialDisplay = useMemo(() => {
+    return resolveDisplayQuantityFromDatabase(
+      requirement?.quantity ?? 1,
+      selectedMaterial?.unit ?? 'عدد'
+    );
+  }, [requirement?.quantity, selectedMaterial?.unit]);
+
+  const [selectedSubUnit, setSelectedSubUnit] = useState<string>(initialDisplay.subUnit);
+  const [displayQty, setDisplayQty] = useState<string>(String(initialDisplay.displayValue));
+
+  function handleMaterialChange(matId: string) {
+    setSelectedMaterialId(matId);
+    const newMat = materials.find((m) => m.id === matId);
+    const newMeta = detectMaterialUnitMeta(newMat?.unit ?? 'عدد');
+    setSelectedSubUnit(newMeta.defaultSubUnit);
+    setDisplayQty(newMeta.category === 'VOLUME' ? '250' : newMeta.category === 'WEIGHT' ? '50' : '1');
+  }
+
+  function handleSubUnitChange(newSubUnit: string) {
+    const currentOption = meta.options.find((o) => o.value === selectedSubUnit) ?? meta.options[0];
+    const targetOption = meta.options.find((o) => o.value === newSubUnit) ?? meta.options[0];
+    const currentVal = parseFloat(displayQty);
+
+    if (Number.isFinite(currentVal) && currentVal > 0) {
+      const baseQty = currentVal * currentOption.factorToBase;
+      const converted = baseQty / targetOption.factorToBase;
+      const rounded = Math.round(converted * 1000) / 1000;
+      setDisplayQty(String(rounded));
+    }
+    setSelectedSubUnit(newSubUnit);
+  }
+
+  const currentOption = meta.options.find((o) => o.value === selectedSubUnit) ?? meta.options[0];
+  const parsedDisplay = parseFloat(displayQty);
+  const baseQty = Number.isFinite(parsedDisplay) && parsedDisplay > 0
+    ? convertToDatabaseQuantity(parsedDisplay, selectedSubUnit, selectedMaterial?.unit ?? 'عدد')
+    : 0;
+
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
+    formData.set('quantity', String(baseQty));
     startTransition(async () => {
       const result = await saveServiceMaterialRequirementAction(formData);
       onResult(noticeFromResult(result, 'تم حفظ متطلب الخدمة.'));
@@ -340,30 +398,92 @@ function RequirementEditor({ service, materials, requirement, onResult }: {
   }
 
   return (
-    <form key={requirement?.id ?? `new-${service.id}`} onSubmit={submit} className="grid gap-3 rounded-2xl border border-white/10 bg-black/20 p-4 md:grid-cols-[minmax(0,1.5fr)_120px_1fr_auto]">
+    <form key={requirement?.id ?? `new-${service.id}`} onSubmit={submit} className="space-y-4 rounded-2xl border border-white/10 bg-black/20 p-4">
       <input type="hidden" name="serviceId" value={service.id} />
       {requirement ? <input type="hidden" name="requirementId" value={requirement.id} /> : null}
-      <label className="text-xs font-bold text-white/70">الصنف
-        <select name="materialId" required defaultValue={requirement?.materialId ?? ''} className={inputClass}>
-          <option value="" disabled>اختر المادة</option>
-          {materials.filter((material) => material.active || material.id === requirement?.materialId).map((material) => (
-            <option key={material.id} value={material.id}>{material.nameAr} · {material.unit}</option>
-          ))}
-        </select>
-      </label>
-      <label className="text-xs font-bold text-white/70">الكمية
-        <input name="quantity" type="number" step="any" min="0.0001" max="1000000" required defaultValue={requirement?.quantity ?? 1} className={inputClass} />
-      </label>
-      <label className="text-xs font-bold text-white/70">ملاحظة للفريق
-        <input name="notes" maxLength={1000} defaultValue={requirement?.notes ?? ''} className={inputClass} placeholder="اختياري" />
-      </label>
-      <div className="flex items-end gap-2">
-        <label className="flex min-h-11 items-center gap-2 rounded-xl border border-white/10 px-3 text-xs text-white/75">
-          <input name="required" type="checkbox" defaultChecked={requirement?.required ?? true} /> إلزامي
+      <input type="hidden" name="quantity" value={baseQty} />
+
+      <div className="grid gap-3 md:grid-cols-2">
+        <label className="text-xs font-bold text-white/70">الصنف
+          <select
+            name="materialId"
+            required
+            value={selectedMaterialId}
+            onChange={(e) => handleMaterialChange(e.target.value)}
+            className={inputClass}
+          >
+            <option value="" disabled>اختر المادة</option>
+            {materials.filter((material) => material.active || material.id === requirement?.materialId).map((material) => (
+              <option key={material.id} value={material.id}>{material.nameAr} · ({material.unit})</option>
+            ))}
+          </select>
         </label>
-        <button type="submit" disabled={isPending} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[#d4af37]/40 px-4 text-xs font-bold text-[#f0d36d] disabled:opacity-50">
-          <Save className="size-4" aria-hidden="true" />{isPending ? '…' : 'حفظ'}
+
+        <label className="text-xs font-bold text-white/70">ملاحظة للفريق (اختياري)
+          <input name="notes" maxLength={1000} defaultValue={requirement?.notes ?? ''} className={inputClass} placeholder="مثال: استخراج عميق للبقع" />
+        </label>
+      </div>
+
+      {/* Unit Selector Pills if multi-unit (like Liter -> ml / L, or Kilo -> g / kg) */}
+      {meta.options.length > 1 ? (
+        <div>
+          <span className="block mb-1.5 text-xs font-bold text-white/70">وحدة إدخال الاستهلاك:</span>
+          <div className="flex flex-wrap gap-2">
+            {meta.options.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => handleSubUnitChange(opt.value)}
+                className={`rounded-xl px-3.5 py-1.5 text-xs font-bold transition cursor-pointer ${
+                  selectedSubUnit === opt.value
+                    ? 'bg-[#d4af37] text-black font-black shadow-md shadow-[#d4af37]/20'
+                    : 'border border-white/15 bg-white/[0.04] text-white/70 hover:border-white/30'
+                }`}
+              >
+                {opt.labelAr}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      <div className="grid gap-3 sm:grid-cols-[180px_1fr_auto] items-end">
+        <label className="text-xs font-bold text-white/70">
+          الكمية المطلوبة ({currentOption.shortLabelAr})
+          <input
+            type="number"
+            step={currentOption.step}
+            min="0.0001"
+            max="1000000"
+            required
+            placeholder={currentOption.placeholder}
+            value={displayQty}
+            onChange={(e) => setDisplayQty(e.target.value)}
+            className={inputClass}
+          />
+        </label>
+
+        <div className="flex items-center gap-2">
+          <label className="flex min-h-11 items-center gap-2 rounded-xl border border-white/10 px-3 text-xs font-bold text-white/75 cursor-pointer">
+            <input name="required" type="checkbox" defaultChecked={requirement?.required ?? true} /> إلزامي
+          </label>
+        </div>
+
+        <button type="submit" disabled={isPending || baseQty <= 0} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#d4af37] px-5 text-xs font-black text-black disabled:opacity-50 cursor-pointer">
+          <Save className="size-4" aria-hidden="true" />{isPending ? 'جارٍ الحفظ…' : 'حفظ المتطلب'}
         </button>
+      </div>
+
+      {/* Live Conversion Preview Badge */}
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 bg-black/40 px-3.5 py-2 text-xs">
+        <span className="text-white/60">
+          خصم المخزون الفعلي: <strong className="text-[#f0d36d] font-bold">{baseQty} {meta.baseUnit}</strong> لكل تنفيذ حجز
+        </span>
+        {meta.options.length > 1 && selectedSubUnit !== meta.options.find((o) => o.factorToBase === 1)?.value ? (
+          <span className="text-[11px] text-white/40">
+            ({displayQty || '0'} {currentOption.shortLabelAr} = {baseQty} {meta.baseUnit})
+          </span>
+        ) : null}
       </div>
     </form>
   );
