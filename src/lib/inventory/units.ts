@@ -23,7 +23,7 @@ export interface MaterialUnitMeta {
 export function detectMaterialUnitMeta(rawUnit: string): MaterialUnitMeta {
   const norm = (rawUnit || '').trim().toLowerCase();
 
-  // 1. Liquids & Volumes (لتر، ملليلتر، مل، L، ml، لترات)
+  // 1. Liquids & Volumes (لتر، ملليلتر، مل، L، ml)
   if (
     norm.includes('لتر') ||
     norm.includes('liter') ||
@@ -48,7 +48,7 @@ export function detectMaterialUnitMeta(rawUnit: string): MaterialUnitMeta {
         },
         {
           value: 'l',
-          labelAr: 'لتر (L)',
+          labelAr: 'لتر',
           shortLabelAr: 'لتر',
           factorToBase: 1,
           step: '0.05',
@@ -58,7 +58,7 @@ export function detectMaterialUnitMeta(rawUnit: string): MaterialUnitMeta {
     };
   }
 
-  // 2. Mass & Weights (كيلوجرام، كجم، كيلو، جرام، جم، kg، g)
+  // 2. Mass & Weights (كيلو، كيلوجرام، كجم، جرام، جم، kg، g)
   if (
     norm.includes('كيلو') ||
     norm.includes('كجم') ||
@@ -70,7 +70,7 @@ export function detectMaterialUnitMeta(rawUnit: string): MaterialUnitMeta {
   ) {
     return {
       category: 'WEIGHT',
-      baseUnit: 'كجم',
+      baseUnit: 'كيلو',
       defaultSubUnit: 'g',
       options: [
         {
@@ -83,8 +83,8 @@ export function detectMaterialUnitMeta(rawUnit: string): MaterialUnitMeta {
         },
         {
           value: 'kg',
-          labelAr: 'كيلوجرام (كجم)',
-          shortLabelAr: 'كجم',
+          labelAr: 'كيلو',
+          shortLabelAr: 'كيلو',
           factorToBase: 1,
           step: '0.05',
           placeholder: 'مثال: 0.05',
@@ -93,8 +93,8 @@ export function detectMaterialUnitMeta(rawUnit: string): MaterialUnitMeta {
     };
   }
 
-  // 3. Discrete Count / Items (قطعة، عبوة، علبة، فوطة، حبة، بخاخ...)
-  const fallbackUnit = (rawUnit || 'قطعة').trim();
+  // 3. Discrete Count / Items (عدد، قطعة...)
+  const fallbackUnit = norm.includes('عدد') ? 'عدد' : (rawUnit || 'عدد').trim();
   return {
     category: 'COUNT',
     baseUnit: fallbackUnit,
@@ -206,14 +206,14 @@ export function formatMaterialQuantityWithUnit(
       const grams = Math.round(qty * 1000 * 100) / 100;
       return {
         primary: `${grams} جم`,
-        secondary: `${qty} كجم`,
-        fullDescription: `${grams} جرام (${qty} كجم)`,
+        secondary: `${qty} كيلو`,
+        fullDescription: `${grams} جرام (${qty} كيلو)`,
       };
     }
     return {
-      primary: `${qty} كجم`,
+      primary: `${qty} كيلو`,
       secondary: qty > 0 ? `${Math.round(qty * 1000)} جم` : undefined,
-      fullDescription: `${qty} كجم`,
+      fullDescription: `${qty} كيلو`,
     };
   }
 

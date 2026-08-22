@@ -283,23 +283,11 @@ function MaterialEditor({ material, onResult }: {
         <input name="nameEn" maxLength={140} defaultValue={material?.nameEn ?? ''} className={inputClass} dir="ltr" placeholder="مثال: Concentrated Shampoo" />
       </label>
       <label className="text-xs font-bold text-white/70">
-        وحدة القياس المعتمدة
-        <span className="block text-[10px] font-normal text-white/40 mb-1">الوحدة الأساسية لحساب السحب والعهد</span>
+        وحدة القياس
         <select name="unit" required defaultValue={material?.unit ?? 'لتر'} className={inputClass}>
-          <optgroup label="💧 السوائل والمنظفات (سحب بالمللي أو اللتر)">
-            <option value="لتر">لتر (L) - صابون، ملمعات، كيماويات</option>
-            <option value="جالون">جالون (Gallon)</option>
-          </optgroup>
-          <optgroup label="⚖️ الأوزان والمعاجين (سحب بالجرام أو الكيلو)">
-            <option value="كجم">كيلوجرام (كجم) - شمع، معجون تلميع، بودرة</option>
-          </optgroup>
-          <optgroup label="🔢 الأعداد والمستلزمات (سحب بالقطعة)">
-            <option value="قطعة">قطعة (بالعدد)</option>
-            <option value="فوطة">فوطة / منشفة مايكروفايبر</option>
-            <option value="عبوة">عبوة / بخاخ</option>
-            <option value="علبة">علبة</option>
-            <option value="كرتونة">كرتونة</option>
-          </optgroup>
+          <option value="لتر">لتر</option>
+          <option value="كيلو">كيلو</option>
+          <option value="عدد">عدد</option>
         </select>
       </label>
       <label className="text-xs font-bold text-white/70">

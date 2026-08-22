@@ -29,7 +29,7 @@ describe('Material Unit Conversion & Formatting Engine', () => {
     it('detects weights / mass units accurately', () => {
       const meta1 = detectMaterialUnitMeta('كيلوجرام');
       expect(meta1.category).toBe('WEIGHT');
-      expect(meta1.baseUnit).toBe('كجم');
+      expect(meta1.baseUnit).toBe('كيلو');
       expect(meta1.options).toHaveLength(2);
       expect(meta1.options.map((o) => o.value)).toEqual(['g', 'kg']);
 
@@ -44,15 +44,15 @@ describe('Material Unit Conversion & Formatting Engine', () => {
     });
 
     it('detects discrete items / count units accurately', () => {
-      const meta1 = detectMaterialUnitMeta('قطعة');
+      const meta1 = detectMaterialUnitMeta('عدد');
       expect(meta1.category).toBe('COUNT');
-      expect(meta1.baseUnit).toBe('قطعة');
+      expect(meta1.baseUnit).toBe('عدد');
       expect(meta1.options).toHaveLength(1);
       expect(meta1.options[0].value).toBe('item');
 
-      const meta2 = detectMaterialUnitMeta('فوطة مايكروفايبر');
+      const meta2 = detectMaterialUnitMeta('قطعة');
       expect(meta2.category).toBe('COUNT');
-      expect(meta2.baseUnit).toBe('فوطة مايكروفايبر');
+      expect(meta2.baseUnit).toBe('قطعة');
     });
   });
 
@@ -65,14 +65,14 @@ describe('Material Unit Conversion & Formatting Engine', () => {
     });
 
     it('converts grams to kilograms with high precision', () => {
-      expect(convertToDatabaseQuantity(50, 'g', 'كجم')).toBe(0.05);
-      expect(convertToDatabaseQuantity(250, 'g', 'كجم')).toBe(0.25);
-      expect(convertToDatabaseQuantity(1000, 'g', 'كجم')).toBe(1);
-      expect(convertToDatabaseQuantity(2, 'kg', 'كجم')).toBe(2);
+      expect(convertToDatabaseQuantity(50, 'g', 'كيلو')).toBe(0.05);
+      expect(convertToDatabaseQuantity(250, 'g', 'كيلو')).toBe(0.25);
+      expect(convertToDatabaseQuantity(1000, 'g', 'كيلو')).toBe(1);
+      expect(convertToDatabaseQuantity(2, 'kg', 'كيلو')).toBe(2);
     });
 
     it('converts discrete count units 1:1', () => {
-      expect(convertToDatabaseQuantity(3, 'item', 'قطعة')).toBe(3);
+      expect(convertToDatabaseQuantity(3, 'item', 'عدد')).toBe(3);
     });
   });
 
@@ -88,17 +88,17 @@ describe('Material Unit Conversion & Formatting Engine', () => {
     });
 
     it('resolves fractional kilograms to grams for human editing', () => {
-      const resolved = resolveDisplayQuantityFromDatabase(0.05, 'كجم');
+      const resolved = resolveDisplayQuantityFromDatabase(0.05, 'كيلو');
       expect(resolved.subUnit).toBe('g');
       expect(resolved.displayValue).toBe(50);
 
-      const resolvedWhole = resolveDisplayQuantityFromDatabase(3, 'كجم');
+      const resolvedWhole = resolveDisplayQuantityFromDatabase(3, 'كيلو');
       expect(resolvedWhole.subUnit).toBe('kg');
       expect(resolvedWhole.displayValue).toBe(3);
     });
 
     it('resolves discrete items as-is', () => {
-      const resolved = resolveDisplayQuantityFromDatabase(2, 'قطعة');
+      const resolved = resolveDisplayQuantityFromDatabase(2, 'عدد');
       expect(resolved.subUnit).toBe('item');
       expect(resolved.displayValue).toBe(2);
     });
@@ -116,15 +116,15 @@ describe('Material Unit Conversion & Formatting Engine', () => {
     });
 
     it('formats weight consumption with friendly grams description', () => {
-      const formatted = formatMaterialQuantityWithUnit(0.05, 'كجم');
+      const formatted = formatMaterialQuantityWithUnit(0.05, 'كيلو');
       expect(formatted.primary).toBe('50 جم');
-      expect(formatted.fullDescription).toBe('50 جرام (0.05 كجم)');
+      expect(formatted.fullDescription).toBe('50 جرام (0.05 كيلو)');
     });
 
     it('formats discrete count items', () => {
-      const formatted = formatMaterialQuantityWithUnit(2, 'قطعة');
-      expect(formatted.primary).toBe('2 قطعة');
-      expect(formatted.fullDescription).toBe('2 قطعة');
+      const formatted = formatMaterialQuantityWithUnit(2, 'عدد');
+      expect(formatted.primary).toBe('2 عدد');
+      expect(formatted.fullDescription).toBe('2 عدد');
     });
   });
 
