@@ -267,41 +267,54 @@ function MaterialEditor({ material, onResult }: {
   return (
     <form key={material?.id ?? 'new'} onSubmit={submit} className="grid gap-4 rounded-2xl border border-[#d4af37]/20 bg-black/20 p-4 md:grid-cols-2 xl:grid-cols-3">
       {material ? <input type="hidden" name="materialId" value={material.id} /> : null}
-      <label className="text-xs font-bold text-white/70">
-        كود الصنف (SKU)
-        <span className="block text-[10px] font-normal text-white/40 mb-1">رمز تعريفي بالإنجليزية للجرد والمطابقة</span>
+      <label className="flex flex-col justify-between text-xs font-bold text-white/70">
+        <div>
+          <span>كود الصنف (SKU)</span>
+          <span className="block text-[10px] font-normal text-white/40 mb-1">رمز تعريفي بالإنجليزية للجرد والمطابقة</span>
+        </div>
         <input name="sku" required pattern="[A-Za-z0-9][A-Za-z0-9._-]{1,63}" defaultValue={material?.sku ?? ''} className={inputClass} dir="ltr" placeholder="مثال: SHAMPOO-01" />
       </label>
-      <label className="text-xs font-bold text-white/70">
-        الاسم بالعربية
-        <span className="block text-[10px] font-normal text-white/40 mb-1">الاسم الأساسي للصنف (إلزامي)</span>
+      <label className="flex flex-col justify-between text-xs font-bold text-white/70">
+        <div>
+          <span>الاسم بالعربية</span>
+          <span className="block text-[10px] font-normal text-white/40 mb-1">الاسم الأساسي للصنف (إلزامي)</span>
+        </div>
         <input name="nameAr" required minLength={2} maxLength={140} defaultValue={material?.nameAr ?? ''} className={inputClass} placeholder="مثال: شامبو غسيل مركز" />
       </label>
-      <label className="text-xs font-bold text-white/70">
-        الاسم بالإنجليزية (اختياري)
-        <span className="block text-[10px] font-normal text-white/40 mb-1">للفنيين والتقارير ثنائية اللغة</span>
+      <label className="flex flex-col justify-between text-xs font-bold text-white/70">
+        <div>
+          <span>الاسم بالإنجليزية (اختياري)</span>
+          <span className="block text-[10px] font-normal text-white/40 mb-1">للفنيين والتقارير ثنائية اللغة</span>
+        </div>
         <input name="nameEn" maxLength={140} defaultValue={material?.nameEn ?? ''} className={inputClass} dir="ltr" placeholder="مثال: Concentrated Shampoo" />
       </label>
-      <label className="text-xs font-bold text-white/70">
-        وحدة القياس
+      <label className="flex flex-col justify-between text-xs font-bold text-white/70">
+        <div>
+          <span>وحدة القياس</span>
+          <span className="block text-[10px] font-normal text-white/40 mb-1">الوحدة الأساسية في المخزن (لتر / كيلو / عدد)</span>
+        </div>
         <select name="unit" required defaultValue={material?.unit ?? 'لتر'} className={inputClass}>
           <option value="لتر">لتر</option>
           <option value="كيلو">كيلو</option>
           <option value="عدد">عدد</option>
         </select>
       </label>
-      <label className="text-xs font-bold text-white/70">
-        نقطة إعادة الطلب (حد الأمان)
-        <span className="block text-[10px] font-normal text-white/40 mb-1">تنبيه عند اقتراب الرصيد من النفاد</span>
+      <label className="flex flex-col justify-between text-xs font-bold text-white/70">
+        <div>
+          <span>نقطة إعادة الطلب (حد الأمان)</span>
+          <span className="block text-[10px] font-normal text-white/40 mb-1">تنبيه عند اقتراب الرصيد من النفاد</span>
+        </div>
         <input name="defaultReorderPoint" type="number" min="0" required defaultValue={material?.defaultReorderPoint ?? 0} className={inputClass} placeholder="0" />
       </label>
-      <div className="flex items-end justify-between gap-3">
-        <label className="flex min-h-11 items-center gap-2 rounded-xl border border-white/10 px-3 text-xs font-bold text-white/75 cursor-pointer">
-          <input name="active" type="checkbox" defaultChecked={material?.active ?? true} /> نشط
-        </label>
-        <button type="submit" disabled={isPending} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#d4af37] px-4 text-xs font-black text-black disabled:opacity-50 cursor-pointer">
-          <Save className="size-4" aria-hidden="true" />{isPending ? 'جارٍ الحفظ…' : material ? 'حفظ التعديل' : 'إضافة صنف'}
-        </button>
+      <div className="flex flex-col justify-end">
+        <div className="flex items-center justify-between gap-3">
+          <label className="flex min-h-11 items-center gap-2 rounded-xl border border-white/10 px-3 text-xs font-bold text-white/75 cursor-pointer">
+            <input name="active" type="checkbox" defaultChecked={material?.active ?? true} /> نشط
+          </label>
+          <button type="submit" disabled={isPending} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#d4af37] px-4 text-xs font-black text-black disabled:opacity-50 cursor-pointer">
+            <Save className="size-4" aria-hidden="true" />{isPending ? 'جارٍ الحفظ…' : material ? 'حفظ التعديل' : 'إضافة صنف'}
+          </button>
+        </div>
       </div>
     </form>
   );
