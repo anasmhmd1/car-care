@@ -1,4 +1,5 @@
 import { EmployeeMovementType, MaterialMovementType, Prisma } from '@prisma/client';
+import { formatMaterialQuantityWithUnit } from '@/lib/inventory/units';
 
 export interface DeductBookingMaterialsInput {
   bookingId: string;
@@ -73,6 +74,9 @@ export async function deductEmployeeMaterialsForCompletedBooking(
     });
 
     // Record movement in employee stock history
+    const unit = req.material?.unit ?? 'قطعة';
+    const matName = req.material?.nameAr ?? '';
+    const formattedAmount = formatMaterialQuantityWithUnit(qtyToDeduct, unit);
     await tx.employeeInventoryMovement.create({
       data: {
         employeeStockId: stock.id,
@@ -80,7 +84,7 @@ export async function deductEmployeeMaterialsForCompletedBooking(
         type: EmployeeMovementType.CONSUMPTION_BY_BOOKING,
         quantityChange: -qtyToDeduct,
         balanceAfter: stock.quantityOnHand,
-        reason: `خصم استهلاك آلي لحجز #${input.bookingNumber} (${input.serviceNameAr})`,
+        reason: `خصم استهلاك آلي لحجز #${input.bookingNumber} (${input.serviceNameAr}${matName ? ` - ${formattedAmount.fullDescription} ${matName}` : ''})`,
         createdByUserId: input.actorUserId,
       },
     });

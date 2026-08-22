@@ -22,6 +22,11 @@ import {
 } from 'lucide-react';
 import { saveServiceProductAction } from '@/app/actions/catalog';
 import { prepareImageForUpload } from '@/lib/client/image-upload';
+import {
+  detectMaterialUnitMeta,
+  convertToDatabaseQuantity,
+  resolveDisplayQuantityFromDatabase,
+} from '@/lib/inventory/units';
 
 export interface BranchOverrideDto {
   branchId: string;
@@ -36,6 +41,138 @@ export interface CatalogMaterialRequirementDto {
   quantity: number;
   required: boolean;
   notes: string | null;
+}
+
+function ServiceMaterialRequirementField({
+  material,
+  requirement,
+  inputClass,
+  onChange,
+}: {
+  material: { id: string; nameAr: string; unit: string; active: boolean };
+  requirement: CatalogMaterialRequirementDto;
+  inputClass: string;
+  onChange: (patch: Partial<CatalogMaterialRequirementDto>) => void;
+}) {
+  const meta = useMemo(() => detectMaterialUnitMeta(material.unit), [material.unit]);
+
+  const [selectedSubUnit, setSelectedSubUnit] = useState<string>(() => {
+    const resolved = resolveDisplayQuantityFromDatabase(requirement.quantity, material.unit);
+    return resolved.subUnit;
+  });
+
+  const [displayQty, setDisplayQty] = useState<string>(() => {
+    const resolved = resolveDisplayQuantityFromDatabase(requirement.quantity, material.unit);
+    return String(resolved.displayValue);
+  });
+
+  const currentOption = meta.options.find((opt) => opt.value === selectedSubUnit) ?? meta.options[0];
+  const numVal = parseFloat(displayQty);
+  const baseQty = Number.isFinite(numVal) && numVal > 0 ? convertToDatabaseQuantity(numVal, selectedSubUnit, material.unit) : 0;
+
+  function handleSubUnitChange(newSubUnit: string) {
+    if (newSubUnit === selectedSubUnit) return;
+    const oldOption = meta.options.find((opt) => opt.value === selectedSubUnit) ?? meta.options[0];
+    const targetOption = meta.options.find((opt) => opt.value === newSubUnit) ?? meta.options[0];
+
+    setSelectedSubUnit(newSubUnit);
+    if (Number.isFinite(numVal) && numVal > 0) {
+      const inBase = numVal * oldOption.factorToBase;
+      const newDisplay = inBase / targetOption.factorToBase;
+      const roundedDisplay = Math.round(newDisplay * 1000) / 1000;
+      setDisplayQty(String(roundedDisplay));
+      onChange({ quantity: convertToDatabaseQuantity(roundedDisplay, newSubUnit, material.unit) });
+    }
+  }
+
+  function handleQtyChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const valStr = e.target.value;
+    setDisplayQty(valStr);
+    const parsed = parseFloat(valStr);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      const converted = convertToDatabaseQuantity(parsed, selectedSubUnit, material.unit);
+      onChange({ quantity: converted });
+    }
+  }
+
+  return (
+    <div className="mt-4 space-y-3">
+      {/* Unit Selector Pills if more than 1 option (e.g. L vs ml, kg vs g) */}
+      {meta.options.length > 1 ? (
+        <div>
+          <span className="block mb-1.5 text-[11px] font-bold text-neutral-300">وحدة قياس الاستهلاك:</span>
+          <div className="flex flex-wrap gap-1.5">
+            {meta.options.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => handleSubUnitChange(opt.value)}
+                className={`rounded-lg px-3 py-1 text-xs font-bold transition-all cursor-pointer ${
+                  selectedSubUnit === opt.value
+                    ? 'bg-[#cea355] text-black shadow-md shadow-[#cea355]/20 font-black'
+                    : 'border border-neutral-700 bg-neutral-800/80 text-neutral-300 hover:border-neutral-600'
+                }`}
+              >
+                {opt.labelAr}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      <div className="grid gap-3 sm:grid-cols-[160px_1fr]">
+        <label className="text-[11px] font-bold text-neutral-300">
+          الكمية المستهلكة ({currentOption.shortLabelAr})
+          <input
+            type="number"
+            step={currentOption.step}
+            min="0.0001"
+            max="1000000"
+            required
+            placeholder={currentOption.placeholder}
+            value={displayQty}
+            onChange={handleQtyChange}
+            className={inputClass}
+          />
+        </label>
+        <label className="text-[11px] font-bold text-neutral-300">
+          ملاحظات للموظف (اختياري)
+          <input
+            value={requirement.notes ?? ''}
+            maxLength={1000}
+            placeholder="مثال: استخدام الفوطة المايكروفايبر الزرقاء"
+            onChange={(event) =>
+              onChange({ notes: event.target.value || null })
+            }
+            className={inputClass}
+          />
+        </label>
+      </div>
+
+      {/* Live Conversion Preview Badge */}
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-neutral-800 bg-[#0a0a0c] px-3 py-1.5 text-[11px]">
+        <span className="text-neutral-400">
+          خصم المخزون الفعلي: <strong className="text-[#edce8b]">{baseQty} {meta.baseUnit}</strong> لكل عملية حجز
+        </span>
+        {meta.options.length > 1 && selectedSubUnit !== meta.options.find((o) => o.factorToBase === 1)?.value ? (
+          <span className="text-[10px] text-neutral-500">
+            ({displayQty || '0'} {currentOption.shortLabelAr} = {baseQty} {meta.baseUnit})
+          </span>
+        ) : null}
+      </div>
+
+      <label className="flex min-h-8 items-center gap-2 text-[11px] font-bold text-neutral-300 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={requirement.required}
+          onChange={(event) =>
+            onChange({ required: event.target.checked })
+          }
+        />
+        مادة إلزامية قبل بدء التنفيذ
+      </label>
+    </div>
+  );
 }
 
 export interface CatalogMaterialDto {
@@ -743,44 +880,12 @@ function ServiceEditor({
                       ) : null}
                     </label>
                     {requirement ? (
-                      <div className="mt-4 grid gap-3 sm:grid-cols-[130px_1fr]">
-                        <label className="text-[11px] font-bold text-neutral-300">
-                          الكمية المستهلكة لكل حجز ({material.unit})
-                          <input
-                            type="number"
-                            min="1"
-                            max="1000000"
-                            required
-                            value={requirement.quantity}
-                            onChange={(event) =>
-                              updateMaterialRequirement(material.id, { quantity: Number(event.target.value) })
-                            }
-                            className={inputClass}
-                          />
-                        </label>
-                        <label className="text-[11px] font-bold text-neutral-300">
-                          ملاحظات للموظف (اختياري)
-                          <input
-                            value={requirement.notes ?? ''}
-                            maxLength={1000}
-                            placeholder="مثال: استخدام الفوطة المايكروفايبر الزرقاء"
-                            onChange={(event) =>
-                              updateMaterialRequirement(material.id, { notes: event.target.value || null })
-                            }
-                            className={inputClass}
-                          />
-                        </label>
-                        <label className="flex min-h-10 items-center gap-2 text-[11px] font-bold text-neutral-300 sm:col-span-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={requirement.required}
-                            onChange={(event) =>
-                              updateMaterialRequirement(material.id, { required: event.target.checked })
-                            }
-                          />
-                          مادة إلزامية قبل بدء التنفيذ
-                        </label>
-                      </div>
+                      <ServiceMaterialRequirementField
+                        material={material}
+                        requirement={requirement}
+                        inputClass={inputClass}
+                        onChange={(patch) => updateMaterialRequirement(material.id, patch)}
+                      />
                     ) : null}
                   </div>
                 );

@@ -22,6 +22,7 @@ import {
 } from '@/app/actions/technician';
 import { advancePostServiceAction } from '@/app/actions/quality';
 import { phoneHref, whatsappHref } from '@/lib/contact-links';
+import { formatMaterialQuantityWithUnit } from '@/lib/inventory/units';
 
 type WorkflowStatus =
   | 'ASSIGNED'
@@ -375,20 +376,26 @@ export default function TechnicianTaskClient({ employee, bookings }: Props) {
           </div>
           {selectedTask.requiredMaterials.length ? (
             <div className="space-y-2">
-              {selectedTask.requiredMaterials.map((material) => (
-                <article key={material.requirementId} className={`rounded-xl border p-3 ${material.ready ? 'border-emerald-400/15 bg-emerald-400/[0.035]' : material.required ? 'border-red-400/25 bg-red-400/[0.055]' : 'border-amber-400/20 bg-amber-400/[0.04]'}`}>
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-bold text-white">{material.nameAr}</p>
-                      <p className="mt-1 text-[10px] text-neutral-400">المطلوب: {material.quantityRequired} {material.unit} · المتاح: {material.availableQuantity} {material.unit}{material.reservedQuantity ? ` · محجوز: ${material.reservedQuantity}` : ''}</p>
-                      {material.notes ? <p className="mt-1 text-[10px] text-amber-200">{material.notes}</p> : null}
+              {selectedTask.requiredMaterials.map((material) => {
+                const formattedRequired = formatMaterialQuantityWithUnit(material.quantityRequired, material.unit);
+                const formattedAvailable = formatMaterialQuantityWithUnit(material.availableQuantity, material.unit);
+                return (
+                  <article key={material.requirementId} className={`rounded-xl border p-3 ${material.ready ? 'border-emerald-400/15 bg-emerald-400/[0.035]' : material.required ? 'border-red-400/25 bg-red-400/[0.055]' : 'border-amber-400/20 bg-amber-400/[0.04]'}`}>
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-bold text-white">{material.nameAr}</p>
+                        <p className="mt-1 text-[10px] text-neutral-400">
+                          المطلوب: <strong className="text-white font-bold">{formattedRequired.fullDescription}</strong> · المتاح: {formattedAvailable.primary}{material.reservedQuantity ? ` · محجوز: ${material.reservedQuantity} ${material.unit}` : ''}
+                        </p>
+                        {material.notes ? <p className="mt-1 text-[10px] text-amber-200">{material.notes}</p> : null}
+                      </div>
+                      <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${material.ready ? 'bg-emerald-400/10 text-emerald-200' : material.required ? 'bg-red-400/10 text-red-200' : 'bg-amber-400/10 text-amber-200'}`}>
+                        {material.ready ? 'متاح' : !material.stockConfigured ? 'غير مهيأ في الفرع' : !material.stockActive || !material.materialActive ? 'صنف متوقف' : material.required ? 'رصيد غير كافٍ' : 'اختياري غير متاح'}
+                      </span>
                     </div>
-                    <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${material.ready ? 'bg-emerald-400/10 text-emerald-200' : material.required ? 'bg-red-400/10 text-red-200' : 'bg-amber-400/10 text-amber-200'}`}>
-                      {material.ready ? 'متاح' : !material.stockConfigured ? 'غير مهيأ في الفرع' : !material.stockActive || !material.materialActive ? 'صنف متوقف' : material.required ? 'رصيد غير كافٍ' : 'اختياري غير متاح'}
-                    </span>
-                  </div>
-                </article>
-              ))}
+                  </article>
+                );
+              })}
             </div>
           ) : (
             <p className="rounded-xl border border-dashed border-neutral-700 bg-[#080808] p-3 text-xs text-neutral-500">لم تُسجل مواد مطلوبة لهذه الخدمة في الكتالوج.</p>

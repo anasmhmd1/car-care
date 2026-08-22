@@ -44,8 +44,7 @@ export function canUseServiceMaterialRequirement(
 export const catalogMaterialRequirementSchema = z.object({
   materialId: databaseIdSchema,
   quantity: z.coerce.number()
-    .int('الكمية يجب أن تكون رقمًا صحيحًا.')
-    .min(1, 'الكمية المطلوبة يجب أن تكون أكبر من صفر.')
+    .positive('الكمية المطلوبة يجب أن تكون أكبر من صفر.')
     .max(1_000_000, 'الكمية المطلوبة أكبر من الحد المسموح.'),
   required: z.boolean(),
   notes: z.string().trim().max(1_000, 'ملاحظات المادة أطول من الحد المسموح.').nullable().optional(),

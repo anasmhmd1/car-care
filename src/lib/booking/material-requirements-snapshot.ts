@@ -60,8 +60,8 @@ function parseMaterialRequirement(value: unknown): BookingMaterialRequirementSna
   if (!isValidText(value.unit, MAX_UNIT_LENGTH)) return null;
   if (
     typeof value.quantity !== 'number'
-    || !Number.isInteger(value.quantity)
-    || value.quantity < 1
+    || !Number.isFinite(value.quantity)
+    || value.quantity <= 0
     || value.quantity > MAX_QUANTITY
   ) {
     return null;

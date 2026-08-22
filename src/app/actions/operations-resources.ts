@@ -78,7 +78,7 @@ const serviceMaterialRequirementSchema = z.object({
   requirementId: optionalIdSchema,
   serviceId: databaseIdSchema,
   materialId: databaseIdSchema,
-  quantity: z.coerce.number().int().min(1, 'الكمية المطلوبة يجب أن تكون أكبر من صفر.').max(1_000_000),
+  quantity: z.coerce.number().positive('الكمية المطلوبة يجب أن تكون أكبر من صفر.').max(1_000_000),
   required: z.boolean(),
   notes: z.string().trim().max(1_000).optional(),
 });
