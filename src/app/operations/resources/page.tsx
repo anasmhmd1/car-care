@@ -17,7 +17,7 @@ import OperationsResourcesBoard, {
 
 export const metadata: Metadata = {
   title: 'الموارد التشغيلية | بريق',
-  description: 'إدارة مواد الخدمات، مخزون الفروع، وحركة سيارات التشغيل.',
+  description: 'إدارة مواد الخدمات، مخزون سيارات التشغيل، وأسطول وحدات التنفيذ المتنقلة.',
   robots: { index: false, follow: false },
 };
 

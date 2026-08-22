@@ -868,7 +868,8 @@ export async function assignBookingOperationalResourcesAction(
 }
 
 const employeeStockAllocationSchema = z.object({
-  employeeId: databaseIdSchema,
+  employeeId: optionalIdSchema,
+  vehicleId: optionalIdSchema,
   materialId: databaseIdSchema,
   branchId: optionalIdSchema,
   type: z.enum(['ALLOCATION', 'ADJUSTMENT', 'RETURN']).default('ALLOCATION'),
@@ -880,9 +881,10 @@ const employeeStockAllocationSchema = z.object({
 export async function allocateEmployeeStockAction(formData: FormData): Promise<OperationsResourceActionResult> {
   const actor = await requireRole([...RESOURCE_ROLES]);
   const parsed = employeeStockAllocationSchema.safeParse({
-    employeeId: formData.get('employeeId'),
+    employeeId: formData.get('employeeId') || undefined,
+    vehicleId: formData.get('vehicleId') || undefined,
     materialId: formData.get('materialId'),
-    branchId: formData.get('branchId'),
+    branchId: formData.get('branchId') || undefined,
     type: formData.get('type') ?? 'ALLOCATION',
     quantity: formData.get('quantity'),
     minAlertLevel: formData.get('minAlertLevel'),
@@ -890,15 +892,39 @@ export async function allocateEmployeeStockAction(formData: FormData): Promise<O
   });
 
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? 'بيانات عهدة الموظف غير صالحة.' };
+    return { error: parsed.error.issues[0]?.message ?? 'بيانات عهدة ورصيد سيارة التشغيل غير صالحة.' };
   }
 
-  const { employeeId, materialId, branchId, type, quantity, minAlertLevel, reason } = parsed.data;
+  const { employeeId, vehicleId, materialId, branchId, type, quantity, minAlertLevel, reason } = parsed.data;
 
   try {
     await db.$transaction(async (tx) => {
+      let targetEmployeeId = employeeId;
+      let vehicleLabel: string | null = null;
+
+      if (vehicleId) {
+        const vehicle = await tx.operationalVehicle.findUnique({
+          where: { id: vehicleId },
+          include: {
+            team: {
+              include: {
+                members: { where: { isLeader: true }, select: { userId: true } },
+              },
+            },
+          },
+        });
+        if (vehicle) {
+          vehicleLabel = vehicle.code;
+          targetEmployeeId = vehicle.team?.members[0]?.userId ?? vehicle.team?.leaderId ?? targetEmployeeId;
+        }
+      }
+
+      if (!targetEmployeeId) {
+        throw new Error('EMPLOYEE_NOT_FOUND');
+      }
+
       const employee = await tx.user.findUnique({
-        where: { id: employeeId, deletedAt: null },
+        where: { id: targetEmployeeId, deletedAt: null },
         select: { id: true, fullName: true, active: true },
       });
       if (!employee || !employee.active) throw new Error('EMPLOYEE_NOT_FOUND');
@@ -913,7 +939,7 @@ export async function allocateEmployeeStockAction(formData: FormData): Promise<O
       let quantityChange = 0;
 
       const existingStock = await tx.employeeMaterialStock.findUnique({
-        where: { employeeId_materialId: { employeeId, materialId } },
+        where: { employeeId_materialId: { employeeId: targetEmployeeId, materialId } },
       });
 
       const currentBalance = existingStock ? existingStock.quantityOnHand : 0;
@@ -934,9 +960,9 @@ export async function allocateEmployeeStockAction(formData: FormData): Promise<O
       }
 
       const stock = await tx.employeeMaterialStock.upsert({
-        where: { employeeId_materialId: { employeeId, materialId } },
+        where: { employeeId_materialId: { employeeId: targetEmployeeId, materialId } },
         create: {
-          employeeId,
+          employeeId: targetEmployeeId,
           materialId,
           quantityOnHand: newBalance,
           minAlertLevel: minAlertLevel ?? undefined,
@@ -949,13 +975,19 @@ export async function allocateEmployeeStockAction(formData: FormData): Promise<O
         },
       });
 
+      const movementReason = reason || (
+        vehicleLabel
+          ? (type === 'ALLOCATION' ? `شحن رصيد سيارة التشغيل ${vehicleLabel}: ${quantity} ${material.unit}` : type === 'RETURN' ? `إرجاع مواد من سيارة التشغيل ${vehicleLabel}` : `تسوية جرد سيارة التشغيل ${vehicleLabel}`)
+          : (type === 'ALLOCATION' ? `تسليم عهدة: ${quantity} ${material.unit}` : type === 'RETURN' ? `إرجاع عهدة: ${quantity} ${material.unit}` : `تسوية جرد العهدة`)
+      );
+
       await tx.employeeInventoryMovement.create({
         data: {
           employeeStockId: stock.id,
           type: movementType,
           quantityChange,
           balanceAfter: newBalance,
-          reason: reason || (type === 'ALLOCATION' ? `تسليم عهدة: ${quantity} ${material.unit}` : type === 'RETURN' ? `إرجاع عهدة للمخزن: ${quantity} ${material.unit}` : `تسوية جرد العهدة`),
+          reason: movementReason,
           createdByUserId: actor.id,
         },
       });

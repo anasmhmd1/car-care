@@ -540,13 +540,13 @@ function OverviewSection({
   const activePaymentMethods = branch.paymentMethods.filter((method) => method.active).length;
   const checklistServices = services.filter((service) => service.checklistTemplates.length > 0).length;
   const governedServices = services.filter((service) => service.cancellationPolicyActive).length;
-  const branchStocksCount = inventory ? inventory.stocks.filter((s) => s.branchId === branch.id).length : 0;
+  const vehicleCount = inventory ? inventory.vehicles.filter((v) => v.branchId === branch.id).length : 0;
   const readiness = [
     {
-      label: 'المخزون والأسطول',
-      value: branchStocksCount,
-      suffix: 'أصناف مهيأة',
-      ready: true,
+      label: 'مخزون وأسطول السيارات',
+      value: vehicleCount,
+      suffix: 'سيارة تشغيل',
+      ready: vehicleCount > 0,
       section: 'inventory' as SectionId,
       icon: Boxes,
     },
@@ -2936,7 +2936,7 @@ export default function SetupCenter({ actor, branches, employees, permissions, s
     icon: typeof Gauge;
   }> = [
     { id: 'overview', label: 'خريطة الجاهزية', hint: 'ملخص الفرع', icon: Gauge },
-    { id: 'inventory', label: 'المخزون', hint: 'الخامات والمواد والأسطول', icon: Boxes },
+    { id: 'inventory', label: 'المخزون', hint: 'خامات ومخزون سيارات التشغيل', icon: Boxes },
     { id: 'operations_management', label: 'إدارة التشغيل', hint: 'المدراء والفروع المتعددة', icon: ShieldCheck },
     { id: 'workforce', label: 'موظفو التنفيذ', hint: 'الفنيين وحسابات الفرع', icon: UserRoundCog },
     { id: 'teams', label: 'الفرق', hint: 'الأعضاء والقدرات', icon: UsersRound },
