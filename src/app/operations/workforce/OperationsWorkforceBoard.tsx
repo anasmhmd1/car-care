@@ -579,7 +579,7 @@ function TeamForm({
         </div>
 
         <label className="block text-xs font-bold text-white/65">
-          منطقة انطلاق الفريق
+          نقطة التمركز والانطلاق الصباحية (Base Zone - اختياري)
           <select name="baseZoneId" defaultValue={team?.baseZoneId ?? ''} className={inputClass}>
             <option value="">استخدم احتياطي الانتقال الافتراضي للفرع</option>
             {branch.zones.map((zone) => (
@@ -587,7 +587,7 @@ function TeamForm({
             ))}
           </select>
           <span className="mt-1 block text-[11px] font-normal text-white/40">
-            تُستخدم في التوزيع التلقائي عندما لا يكون للفريق حجز مجاور يحدد موقعه.
+            نقطة بداية حركة سيارة الفريق في الصباح لحساب زمن الوصول لأول حجز في اليوم.
           </span>
         </label>
 
@@ -640,7 +640,7 @@ function TeamForm({
             </div>
           </div>
           <div>
-            <p className="text-sm font-black text-white/75">زونات العمل</p>
+            <p className="text-sm font-black text-white/75">مناطق وزونات التغطية (يمكنك تحديد أكثر من منطقة)</p>
             <div className="mt-3 grid gap-2">
               {branch.zones.map((zone) => (
                 <label key={zone.id} className="flex items-center gap-3 rounded-xl border border-white/9 bg-black/25 p-3">

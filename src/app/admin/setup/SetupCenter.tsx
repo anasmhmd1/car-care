@@ -1520,7 +1520,7 @@ function TeamForm({
           </label>
         </div>
         <label className="block text-xs font-bold text-white/65">
-          منطقة انطلاق الفريق
+          نقطة التمركز والانطلاق الصباحية (Base Zone - اختياري)
           <select name="baseZoneId" defaultValue={team?.baseZoneId ?? ''} className={inputClass}>
             <option value="">استخدم احتياطي الانتقال الافتراضي للفرع</option>
             {branch.zones.map((zone) => (
@@ -1528,7 +1528,7 @@ function TeamForm({
             ))}
           </select>
           <span className="mt-1 block text-[11px] font-normal text-white/40">
-            تُستخدم في التوزيع التلقائي عندما لا يكون للفريق حجز مجاور يحدد موقعه.
+            نقطة بداية حركة سيارة الفريق في الصباح لحساب زمن الوصول لأول حجز في اليوم.
           </span>
         </label>
         <BooleanField name="active" label="الفريق متاح للإسناد" defaultChecked={team?.active ?? true} />
@@ -1567,21 +1567,29 @@ function TeamForm({
         <div>
           <div className="flex items-end justify-between gap-3">
             <div>
-              <h3 className="text-sm font-black">زونات التغطية</h3>
-              <p className="mt-1 text-xs text-white/38">تركها فارغة يعني أن الفريق غير مقيّد بزون محدد.</p>
+              <h3 className="text-sm font-black">مناطق وزونات التغطية المخصصة للفريق (Coverage Zones)</h3>
+              <p className="mt-1 text-xs text-white/45">
+                علم على المناطق التي يخدمها هذا الفريق (يمكنك اختيار أكثر من منطقة). عند حجز العميل في أي من هذه المناطق، سيتلقى الفريق الطلب تلقائياً.
+              </p>
             </div>
             <span className="text-xs tabular-nums text-[#d4af37]">{zoneIds.length} محدد</span>
           </div>
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            {branch.zones.map((zone) => (
-              <ToggleChoice
-                key={zone.id}
-                checked={zoneIds.includes(zone.id)}
-                onChange={(checked) => toggle(zoneIds, zone.id, checked, setZoneIds)}
-                label={zone.name}
-                hint={zone.areas.filter((area) => area.active).length + ' منطقة نشطة'}
-              />
-            ))}
+            {branch.zones.map((zone) => {
+              const activeAreas = zone.areas.filter((area) => area.active);
+              const areasSummary = activeAreas.length > 0
+                ? activeAreas.map((a) => a.compound || a.district || a.city).slice(0, 3).join('، ') + (activeAreas.length > 3 ? '...' : '')
+                : 'بدون أحياء فرعية';
+              return (
+                <ToggleChoice
+                  key={zone.id}
+                  checked={zoneIds.includes(zone.id)}
+                  onChange={(checked) => toggle(zoneIds, zone.id, checked, setZoneIds)}
+                  label={zone.name}
+                  hint={`${activeAreas.length} أحياء نشطة · ${areasSummary}`}
+                />
+              );
+            })}
           </div>
         </div>
 
