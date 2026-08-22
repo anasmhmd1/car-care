@@ -21,9 +21,57 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toggleCustomerBlockAction, updateCustomerAccountAction } from '@/app/actions/owner';
-import type {
-  CustomerDto,
-} from './OwnerCommandCenter';
+
+export interface CustomerVehicleDto {
+  id: string;
+  make: string;
+  model: string;
+  year: number;
+  color: string;
+  plateNumber: string | null;
+  vehicleSize: string;
+  isDefault: boolean;
+}
+
+export interface CustomerAddressDto {
+  id: string;
+  compound: string;
+  district: string;
+  street: string;
+  buildingNumber: string;
+  isDefault: boolean;
+}
+
+export interface CustomerBookingSummaryDto {
+  id: string;
+  bookingNumber: string;
+  startAt: string;
+  status: string;
+  totalPrice: number;
+  amountPaid: number;
+  serviceName: string;
+}
+
+export interface CustomerDto {
+  id: string;
+  fullName: string;
+  phone: string;
+  whatsapp: string | null;
+  email: string | null;
+  active: boolean;
+  mustChangePwd: boolean;
+  notes: string | null;
+  creditBalance: number;
+  totalSpent: number;
+  createdAt: string;
+  bookingCount: number;
+  vehicleCount: number;
+  subscriptionCount: number;
+  lastBookingAt: string | null;
+  vehicles: CustomerVehicleDto[];
+  addresses: CustomerAddressDto[];
+  recentBookings: CustomerBookingSummaryDto[];
+}
 
 export type ManagedCustomerDto = CustomerDto;
 

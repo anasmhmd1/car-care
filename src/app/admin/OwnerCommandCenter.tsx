@@ -3,7 +3,6 @@
 import type { FormEvent, ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import {
   Activity,
@@ -52,15 +51,22 @@ import {
 } from '@/app/actions/operations';
 import { updateBranchAction } from '@/app/actions/owner-brand';
 import { logoutAction } from '@/app/actions/auth';
-import { type ManagedSubscription } from './subscriptions/SubscriptionManagementPanel';
+import CustomerManagementPanel, {
+  type CustomerAddressDto,
+  type CustomerBookingSummaryDto,
+  type CustomerDto,
+  type CustomerVehicleDto,
+} from './CustomerManagementPanel';
+import SubscriptionManagementPanel, {
+  type ManagedSubscription,
+} from './subscriptions/SubscriptionManagementPanel';
 
-const CustomerManagementPanel = dynamic(() => import('./CustomerManagementPanel'), {
-  loading: () => <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-6 text-sm text-white/55">جارٍ تحميل إدارة العملاء…</div>,
-});
-
-const SubscriptionManagementPanel = dynamic(() => import('./subscriptions/SubscriptionManagementPanel'), {
-  loading: () => <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-6 text-sm text-white/55">جارٍ تحميل اشتراكات العملاء…</div>,
-});
+export type {
+  CustomerAddressDto,
+  CustomerBookingSummaryDto,
+  CustomerDto,
+  CustomerVehicleDto,
+};
 
 export type OwnerSection =
   | 'overview'
@@ -259,57 +265,6 @@ export interface SubscriptionDto {
   planName: string;
   branchName: string;
   vehicleCount: number;
-}
-
-export interface CustomerVehicleDto {
-  id: string;
-  make: string;
-  model: string;
-  year: number;
-  color: string;
-  plateNumber: string | null;
-  vehicleSize: string;
-  isDefault: boolean;
-}
-
-export interface CustomerAddressDto {
-  id: string;
-  compound: string;
-  district: string;
-  street: string;
-  buildingNumber: string;
-  isDefault: boolean;
-}
-
-export interface CustomerBookingSummaryDto {
-  id: string;
-  bookingNumber: string;
-  startAt: string;
-  status: string;
-  totalPrice: number;
-  amountPaid: number;
-  serviceName: string;
-}
-
-export interface CustomerDto {
-  id: string;
-  fullName: string;
-  phone: string;
-  whatsapp: string | null;
-  email: string | null;
-  active: boolean;
-  mustChangePwd: boolean;
-  notes: string | null;
-  creditBalance: number;
-  totalSpent: number;
-  createdAt: string;
-  bookingCount: number;
-  vehicleCount: number;
-  subscriptionCount: number;
-  lastBookingAt: string | null;
-  vehicles: CustomerVehicleDto[];
-  addresses: CustomerAddressDto[];
-  recentBookings: CustomerBookingSummaryDto[];
 }
 
 export interface AuditLogDto {
