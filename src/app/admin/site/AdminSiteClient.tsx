@@ -61,7 +61,6 @@ export type TabKey =
   | 'gallery'
   | 'policies'
   | 'social'
-  | 'zones'
   | 'faqs';
 
 interface AdminSiteClientProps {
@@ -115,7 +114,6 @@ export default function AdminSiteClient({
       'gallery',
       'policies',
       'social',
-      'zones',
       'faqs',
     ];
     if (initialTab && validTabs.includes(initialTab as TabKey)) {
@@ -183,10 +181,10 @@ export default function AdminSiteClient({
               إدارة واجهة وهوية المنصة
             </p>
             <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
-              إدارة محتوى الموقع والتغطية والسياسات
+              إدارة محتوى الموقع والسياسات
             </h1>
             <p className="max-w-3xl text-xs sm:text-sm text-neutral-400 leading-relaxed">
-              تحكم كامل في الخدمات والمنتجات، باقات الاشتراكات، مجموعات الخدمات، معرض الصور، روابط السوشيال والتواصل، شروط الاستخدام والخصوصية، ونطاقات التغطية.
+              تحكم كامل في الخدمات والمنتجات، باقات الاشتراكات، مجموعات الخدمات، معرض الصور، روابط السوشيال والتواصل، شروط الاستخدام والخصوصية، والأسئلة الشائعة.
             </p>
           </div>
 
@@ -345,28 +343,7 @@ export default function AdminSiteClient({
                 <span>السياسات والشروط (Policies)</span>
               </button>
 
-              {/* Tab 6: Zones */}
-              <button
-                type="button"
-                onClick={() => setActiveTab('zones')}
-                className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-xs font-black transition-all shrink-0 cursor-pointer ${
-                  activeTab === 'zones'
-                    ? 'gold-gradient text-black shadow-lg shadow-[#cea355]/20'
-                    : 'bg-[#121212] text-neutral-300 hover:text-white hover:bg-[#1a1a1a] border border-neutral-800'
-                }`}
-              >
-                <Compass className="w-4 h-4" />
-                <span>نطاقات التغطية والكمبوندات</span>
-                <span
-                  className={`px-2 py-0.5 rounded-full text-[10px] ${
-                    activeTab === 'zones' ? 'bg-black/30 text-black font-black' : 'bg-[#1a1a1a] text-[#edce8b]'
-                  }`}
-                >
-                  {initialZones.length}
-                </span>
-              </button>
-
-              {/* Tab 7: FAQs */}
+              {/* Tab 6: FAQs */}
               <button
                 type="button"
                 onClick={() => setActiveTab('faqs')}
@@ -447,16 +424,7 @@ export default function AdminSiteClient({
           <PoliciesManager initialPolicies={initialPolicies} />
         )}
 
-        {/* Tab 6: Zones & Coverage Manager */}
-        {activeTab === 'zones' && (
-          <ZonesCoverageManager
-            initialZones={initialZones}
-            defaultBranchId={defaultBranchId}
-            branches={branches}
-          />
-        )}
-
-        {/* Tab 7: FAQs */}
+        {/* Tab 6: FAQs */}
         {activeTab === 'faqs' && (
           <SiteContentManager
             initialContent={initialContent}

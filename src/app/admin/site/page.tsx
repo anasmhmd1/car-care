@@ -17,7 +17,7 @@ import {
 } from '../subscriptions/SubscriptionPlanManager';
 
 export const metadata: Metadata = {
-  title: 'إدارة محتوى الموقع والتغطية والسياسات | إدارة بريق',
+  title: 'إدارة محتوى الموقع والسياسات | إدارة بريق',
   robots: { index: false, follow: false },
 };
 
