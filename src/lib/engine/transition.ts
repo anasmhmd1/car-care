@@ -80,10 +80,17 @@ export async function transitionBookingStatus(
       },
       assignedTeam: {
         select: {
+          name: true,
           leaderId: true,
           members: {
             select: { id: true, userId: true },
           },
+        },
+      },
+      operationalVehicle: {
+        select: {
+          code: true,
+          plateNumber: true,
         },
       },
     },
@@ -184,6 +191,9 @@ export async function transitionBookingStatus(
       assignedEmployeeId: booking.assignedEmployeeId,
       assignedTeamMembers: booking.assignedTeam?.members.map((m) => m.userId) ?? [],
       teamLeaderId: booking.assignedTeam?.leaderId ?? null,
+      teamName: booking.assignedTeam?.name ?? null,
+      vehicleCode: booking.operationalVehicle?.code ?? null,
+      vehiclePlateNumber: booking.operationalVehicle?.plateNumber ?? null,
       actorUserId: input.actorUserId,
     });
   }

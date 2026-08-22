@@ -10,11 +10,14 @@ export interface DeductBookingMaterialsInput {
   assignedEmployeeId: string | null;
   assignedTeamMembers: string[];
   teamLeaderId: string | null;
+  teamName?: string | null;
+  vehicleCode?: string | null;
+  vehiclePlateNumber?: string | null;
   actorUserId: string;
 }
 
 /**
- * Deducts configured service material requirements from the assigned employee's stock
+ * Deducts configured service material requirements from the assigned team leader / employee's stock
  * and branch stock upon booking completion.
  */
 export async function deductEmployeeMaterialsForCompletedBooking(
@@ -28,10 +31,10 @@ export async function deductEmployeeMaterialsForCompletedBooking(
 
   if (requirements.length === 0) return;
 
-  // Determine the employee to deduct custody from
-  let targetEmployeeId = input.assignedEmployeeId;
-  if (!targetEmployeeId && input.teamLeaderId) {
-    targetEmployeeId = input.teamLeaderId;
+  // Determine the employee to deduct custody from (Priority: Team Leader -> Assigned Employee -> First Team Member -> Actor)
+  let targetEmployeeId = input.teamLeaderId;
+  if (!targetEmployeeId) {
+    targetEmployeeId = input.assignedEmployeeId;
   }
   if (!targetEmployeeId && input.assignedTeamMembers.length > 0) {
     targetEmployeeId = input.assignedTeamMembers[0];
@@ -84,7 +87,7 @@ export async function deductEmployeeMaterialsForCompletedBooking(
         type: EmployeeMovementType.CONSUMPTION_BY_BOOKING,
         quantityChange: -qtyToDeduct,
         balanceAfter: stock.quantityOnHand,
-        reason: `خصم استهلاك آلي لحجز #${input.bookingNumber} (${input.serviceNameAr}${matName ? ` - ${formattedAmount.fullDescription} ${matName}` : ''})`,
+        reason: `خصم استهلاك عهدة لحجز #${input.bookingNumber} (${input.serviceNameAr}${matName ? ` - ${formattedAmount.fullDescription} ${matName}` : ''}${input.vehicleCode ? ` · سيارة ${input.vehicleCode}` : ''}${input.teamName ? ` · فريق ${input.teamName}` : ''})`,
         createdByUserId: input.actorUserId,
       },
     });

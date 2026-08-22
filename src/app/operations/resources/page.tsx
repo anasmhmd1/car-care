@@ -6,6 +6,7 @@ import { hasPermission } from '@/lib/auth/permissions';
 import { requireRole } from '@/lib/auth/session';
 import { db } from '@/lib/db';
 import OperationsResourcesBoard, {
+  type OperationsEmployeeDto,
   type ResourceBookingDto,
   type ResourceBranchDto,
   type ResourceMaterialDto,
@@ -236,7 +237,15 @@ export default async function OperationsResourcesPage() {
         role: true,
         teamMemberships: {
           select: {
-            team: { select: { id: true, name: true, branch: { select: { id: true, nameAr: true } } } },
+            isLeader: true,
+            team: {
+              select: {
+                id: true,
+                name: true,
+                branch: { select: { id: true, nameAr: true } },
+                operationalVehicles: { select: { id: true, code: true, plateNumber: true } },
+              },
+            },
           },
         },
       },
@@ -311,13 +320,18 @@ export default async function OperationsResourcesPage() {
       createdByName: movement.createdBy.fullName,
     })),
   }));
-  const employees = employeesRaw.map((employee) => ({
+  const employees: OperationsEmployeeDto[] = employeesRaw.map((employee) => ({
     id: employee.id,
     fullName: employee.fullName,
     phone: employee.phone,
     role: employee.role,
+    isLeader: Boolean(employee.teamMemberships[0]?.isLeader),
+    teamId: employee.teamMemberships[0]?.team.id,
     teamName: employee.teamMemberships[0]?.team.name,
     branchName: employee.teamMemberships[0]?.team.branch.nameAr,
+    vehicleLabel: employee.teamMemberships[0]?.team.operationalVehicles[0]
+      ? `${employee.teamMemberships[0].team.operationalVehicles[0].code}${employee.teamMemberships[0].team.operationalVehicles[0].plateNumber ? ` (${employee.teamMemberships[0].team.operationalVehicles[0].plateNumber})` : ''}`
+      : undefined,
   }));
   const vehicles: ResourceVehicleDto[] = vehiclesRaw.map((vehicle) => ({
     id: vehicle.id,

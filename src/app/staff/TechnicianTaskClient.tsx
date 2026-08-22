@@ -77,6 +77,12 @@ export interface TechnicianBooking {
     user: { fullName: string; phone: string; whatsapp: string | null };
   };
   vehicle: { make: string; model: string; color: string; plateNumber: string | null };
+  operationalVehicle?: {
+    code: string;
+    plateNumber: string | null;
+    make: string;
+    model: string;
+  } | null;
   service: { nameAr: string; checklistTemplates: ChecklistTemplate[] };
   requiredMaterials: Array<{
     requirementId: string;
@@ -99,6 +105,14 @@ export interface TechnicianBooking {
 
 interface Props {
   employee: { fullName: string };
+  isLeader?: boolean;
+  teamName?: string | null;
+  teamVehicles?: Array<{ id: string; code: string; plateNumber: string | null; make: string; model: string }>;
+  myCustodyStocks?: Array<{
+    id: string;
+    quantityOnHand: number;
+    material: { nameAr: string; sku: string; unit: string };
+  }>;
   bookings: TechnicianBooking[];
 }
 
@@ -176,7 +190,14 @@ function formatAddressSnapshot(snapshot: unknown): string {
   return parts.length > 0 ? parts.join(' — ') : '';
 }
 
-export default function TechnicianTaskClient({ employee, bookings }: Props) {
+export default function TechnicianTaskClient({
+  employee,
+  isLeader = false,
+  teamName = null,
+  teamVehicles = [],
+  myCustodyStocks = [],
+  bookings,
+}: Props) {
   const [selectedTaskId, setSelectedTaskId] = useState(bookings[0]?.id ?? '');
   const [activeNoteType, setActiveNoteType] = useState<NoteType | null>(null);
   const [noteText, setNoteText] = useState('');
@@ -267,10 +288,10 @@ export default function TechnicianTaskClient({ employee, bookings }: Props) {
     startTransition(async () => {
       const formData = new FormData();
       formData.set('bookingId', selectedTask.id);
-      formData.set('noteType', activeNoteType);
+      formData.set('type', activeNoteType);
       formData.set('text', noteText.trim());
       const result = await recordTechnicianNoteAction(formData);
-      setResult(result, 'تم تسجيل الملاحظة في سجل الحجز.');
+      setResult(result, 'تم حفظ البلاغ وإشعار غرفة العمليات.');
       if (!result.error) {
         setActiveNoteType(null);
         setNoteText('');
@@ -280,13 +301,13 @@ export default function TechnicianTaskClient({ employee, bookings }: Props) {
 
   if (!selectedTask) {
     return (
-      <section className="rounded-3xl border border-neutral-800 bg-[#141414] p-10 text-center" aria-labelledby="empty-tasks-title">
-        <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-400" aria-hidden="true" />
-        <h2 id="empty-tasks-title" className="mt-3 text-base font-black text-white">لا توجد مهام مسندة لفريقك الآن</h2>
-        <p className="mt-1 text-xs text-neutral-400">ستظهر المهمة هنا فور إسنادها من مدير التشغيل.</p>
-      </section>
+      <div className="rounded-3xl border border-neutral-800 bg-[#141414] p-8 text-center text-sm text-neutral-400">
+        لا توجد مهام مسندة إليك حالياً.
+      </div>
     );
   }
+
+  const assignedVehicle = selectedTask.operationalVehicle || (teamVehicles.length > 0 ? teamVehicles[0] : null);
 
   return (
     <div className="space-y-5">
@@ -309,14 +330,36 @@ export default function TechnicianTaskClient({ employee, bookings }: Props) {
       </nav>
 
       <article className="space-y-6 rounded-3xl border border-[#c9a227]/30 bg-[#141414] p-5 sm:p-6">
-        <header className="flex items-start justify-between gap-4 border-b border-neutral-800 pb-4">
+        <header className="flex flex-wrap items-start justify-between gap-4 border-b border-neutral-800 pb-4">
           <div>
-            <p className="text-[11px] text-neutral-400">مهمة {employee.fullName}</p>
-            <h2 className="mt-1 text-xl font-black text-white">{selectedTask.bookingNumber}</h2>
+            <div className="flex flex-wrap items-center gap-2 mb-1.5">
+              <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-black ${
+                isLeader
+                  ? 'border border-[#d4af37]/60 bg-[#d4af37]/20 text-[#f0d36d]'
+                  : 'border border-neutral-700 bg-neutral-800 text-neutral-300'
+              }`}>
+                {isLeader ? '👑 قائد الفريق المسؤول' : 'فني تنفيذ'}
+              </span>
+              {teamName && (
+                <span className="text-xs font-bold text-neutral-400">
+                  فريق {teamName}
+                </span>
+              )}
+            </div>
+            <h2 className="text-xl font-black text-white">{selectedTask.bookingNumber}</h2>
           </div>
-          <span className="rounded-full border border-[#c9a227]/40 bg-[#c9a227]/10 px-3 py-1 text-[11px] font-extrabold text-[#e5c45a]">
-            {currentStatus}
-          </span>
+          <div className="flex flex-col items-end gap-1.5">
+            <span className="rounded-full border border-[#c9a227]/40 bg-[#c9a227]/10 px-3 py-1 text-[11px] font-extrabold text-[#e5c45a]">
+              {currentStatus}
+            </span>
+            {assignedVehicle ? (
+              <span className="flex items-center gap-1.5 text-[11px] font-bold text-neutral-300">
+                <Car className="size-3.5 text-[#e5c45a]" aria-hidden="true" />
+                سيارة التشغيل: <strong className="text-white">{assignedVehicle.code}</strong>
+                {assignedVehicle.plateNumber ? ` (${assignedVehicle.plateNumber})` : ''}
+              </span>
+            ) : null}
+          </div>
         </header>
 
         {feedback ? (

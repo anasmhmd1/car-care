@@ -163,8 +163,11 @@ export interface OperationsEmployeeDto {
   fullName: string;
   phone: string;
   role: string;
-  branchName?: string;
+  isLeader?: boolean;
+  teamId?: string;
   teamName?: string;
+  branchName?: string;
+  vehicleLabel?: string;
 }
 
 export interface OperationsResourcesBoardProps {
@@ -990,13 +993,24 @@ function EmployeeStockPanel({
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3 border-b border-white/10 pb-4">
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <span className="size-2 rounded-full bg-emerald-400" />
                         <h3 className="text-lg font-black text-white">{employee.fullName}</h3>
+                        {employee.isLeader && (
+                          <span className="rounded-full border border-[#d4af37]/50 bg-[#d4af37]/20 px-2.5 py-0.5 text-[10px] font-black text-[#f0d36d]">
+                            👑 قائد الفريق
+                          </span>
+                        )}
                       </div>
                       <p className="mt-1 text-xs text-white/45">
-                        {employee.teamName ?? 'فريق غير محدد'} · {employee.branchName ?? 'فرع رئيسي'} · <span dir="ltr">{employee.phone}</span>
+                        {employee.teamName ? `فريق ${employee.teamName}` : 'فريق غير محدد'} · {employee.branchName ?? 'فرع رئيسي'} · <span dir="ltr">{employee.phone}</span>
                       </p>
+                      {employee.vehicleLabel && (
+                        <p className="mt-1 flex items-center gap-1 text-[11px] font-bold text-neutral-300">
+                          <CarFront className="size-3.5 text-[#e5c45a]" aria-hidden="true" />
+                          سيارة الفريق والعهدة: <strong className="text-white">{employee.vehicleLabel}</strong>
+                        </p>
+                      )}
                     </div>
                     <button
                       type="button"

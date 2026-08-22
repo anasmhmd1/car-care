@@ -28,7 +28,7 @@ export default async function StaffPage() {
   ]);
   const teamMember = await db.teamMember.findFirst({
     where: { userId: employee.id },
-    include: { team: true },
+    include: { team: { include: { operationalVehicles: true } } },
   });
   const accessibleBranchIds = await getAccessibleBranchIds(employee);
   const branchIds = accessibleBranchIds ?? (await db.branch.findMany({
@@ -111,6 +111,7 @@ export default async function StaffPage() {
             },
           },
           vehicle: { select: { make: true, model: true, color: true, plateNumber: true } },
+          operationalVehicle: { select: { code: true, plateNumber: true, make: true, model: true } },
           customer: {
             select: {
               user: { select: { fullName: true, phone: true, whatsapp: true } },
@@ -287,6 +288,10 @@ export default async function StaffPage() {
 
         <TechnicianTaskClient
           employee={toPublicUser(employee)}
+          isLeader={Boolean(teamMember?.isLeader)}
+          teamName={teamMember?.team.name ?? null}
+          teamVehicles={teamMember?.team.operationalVehicles ?? []}
+          myCustodyStocks={myCustodyStocks}
           bookings={sanitizeClientData(accessibleBookings)}
         />
       </main>

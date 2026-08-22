@@ -156,7 +156,18 @@ export default async function SetupPage() {
         select: { branchId: true },
       },
       teamMemberships: {
-        select: { teamId: true },
+        select: {
+          isLeader: true,
+          teamId: true,
+          team: {
+            select: {
+              id: true,
+              name: true,
+              branch: { select: { id: true, nameAr: true } },
+              operationalVehicles: { select: { id: true, code: true, plateNumber: true } },
+            },
+          },
+        },
       },
       employeeTimeOff: {
         orderBy: { startDate: 'asc' },
@@ -586,8 +597,13 @@ export default async function SetupPage() {
     fullName: employee.fullName,
     phone: employee.phone,
     role: employee.role,
-    teamName: undefined,
-    branchName: undefined,
+    isLeader: Boolean(employee.teamMemberships[0]?.isLeader),
+    teamId: employee.teamMemberships[0]?.teamId ?? undefined,
+    teamName: employee.teamMemberships[0]?.team?.name,
+    branchName: employee.teamMemberships[0]?.team?.branch?.nameAr,
+    vehicleLabel: employee.teamMemberships[0]?.team?.operationalVehicles[0]
+      ? `${employee.teamMemberships[0].team.operationalVehicles[0].code}${employee.teamMemberships[0].team.operationalVehicles[0].plateNumber ? ` (${employee.teamMemberships[0].team.operationalVehicles[0].plateNumber})` : ''}`
+      : undefined,
   }));
 
   const inventoryVehicles = vehiclesRaw.map((vehicle) => ({
