@@ -170,11 +170,7 @@ async function main() {
   }
 
   const sharedPassword = requireSeedSecret('SEED_PASSWORD', 12);
-  const adminPassword = requireSeedSecret('SEED_ADMIN_PASSWORD', 16);
-  const [sharedPasswordHash, adminPasswordHash] = await Promise.all([
-    bcrypt.hash(sharedPassword, 12),
-    bcrypt.hash(adminPassword, 12),
-  ]);
+  const sharedPasswordHash = await bcrypt.hash(sharedPassword, 12);
 
   console.log('Starting deterministic Bareeq development seed...');
 

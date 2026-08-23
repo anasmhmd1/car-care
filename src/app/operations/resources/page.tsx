@@ -10,6 +10,7 @@ import OperationsResourcesBoard, {
   type ResourceBookingDto,
   type ResourceBranchDto,
   type ResourceMaterialDto,
+  type ResourcesTab,
   type ResourceStockDto,
   type ResourceVehicleDto,
   type ServiceMaterialDto,
@@ -42,7 +43,7 @@ interface OperationsResourcesPageProps {
 
 export default async function OperationsResourcesPage(props: OperationsResourcesPageProps) {
   const searchParams = props.searchParams ? await props.searchParams : undefined;
-  const initialTab = searchParams?.tab === 'assignments' || searchParams?.tab === 'fleet' || searchParams?.tab === 'vehicle-stock' || searchParams?.tab === 'catalog'
+  const initialTab: ResourcesTab | undefined = searchParams?.tab === 'assignments' || searchParams?.tab === 'fleet' || searchParams?.tab === 'vehicle-stock' || searchParams?.tab === 'catalog'
     ? searchParams.tab
     : undefined;
   const actor = await requireRole([...RESOURCE_ROLES]);
@@ -387,7 +388,7 @@ export default async function OperationsResourcesPage(props: OperationsResources
       employees={employees}
       vehicles={vehicles}
       bookings={bookings}
-      initialTab={initialTab as any}
+      initialTab={initialTab}
     />
   );
 }

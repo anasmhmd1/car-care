@@ -7,7 +7,6 @@ import { useMemo, useState, useTransition } from 'react';
 import {
   Boxes,
   Car,
-  CheckSquare,
   Clock,
   ExternalLink,
   ImagePlus,

@@ -8,14 +8,11 @@ import {
   Activity,
   AlertTriangle,
   Banknote,
-  BarChart3,
-  Boxes,
   Building2,
   Calendar,
   CalendarDays,
   CheckCircle2,
   ClipboardCheck,
-  Clock,
   Crown,
   DollarSign,
   Download,
@@ -25,7 +22,6 @@ import {
   Gauge,
   Globe,
   History,
-  KeyRound,
   LayoutDashboard,
   LoaderCircle,
   LogOut,
@@ -36,7 +32,6 @@ import {
   Search,
   Settings2,
   ShieldAlert,
-  ShieldCheck,
   Sparkles,
   TrendingUp,
   User,
@@ -611,41 +606,6 @@ function MetricCard({
   );
 }
 
-function QueueLink({
-  href,
-  label,
-  count,
-  urgent = false,
-}: {
-  href: string;
-  label: string;
-  count: number;
-  urgent?: boolean;
-}) {
-  const isUrgent = urgent && count > 0;
-  return (
-    <Link
-      href={href}
-      className={`group flex min-h-14 items-center justify-between gap-4 rounded-xl border px-4 py-3 transition-all duration-200 ${
-        isUrgent
-          ? 'border-rose-500/30 bg-rose-500/[0.04] hover:bg-rose-500/[0.08] hover:border-rose-500/60'
-          : 'border-neutral-800/80 bg-neutral-900/50 hover:border-[#d4af37]/40 hover:bg-neutral-800/60'
-      }`}
-    >
-      <span className="font-semibold text-sm text-neutral-200 group-hover:text-white transition-colors">{label}</span>
-      <span
-        className={`rounded-full px-3 py-1 text-xs font-black tabular-nums transition-all ${
-          isUrgent
-            ? 'bg-rose-500/20 text-rose-200 border border-rose-500/40 shadow-sm shadow-rose-500/20'
-            : 'bg-neutral-800 text-neutral-300 border border-neutral-700'
-        }`}
-      >
-        {formatNumber(count)}
-      </span>
-    </Link>
-  );
-}
-
 function BookingCard({
   booking,
   onReview,
@@ -714,19 +674,18 @@ function CapabilityNotice({ children }: { children: ReactNode }) {
 }
 
 function OverviewSection({
-  metrics,
   reports,
   monthlyRevenue,
 }: {
   overviewTab?: OverviewTab;
-  metrics: DashboardMetricsDto;
-  branches: BranchDto[];
-  operationsReviewBookings: BookingSummaryDto[];
-  unassignedBookings: BookingSummaryDto[];
+  metrics?: DashboardMetricsDto;
+  branches?: BranchDto[];
+  operationsReviewBookings?: BookingSummaryDto[];
+  unassignedBookings?: BookingSummaryDto[];
   reports: ReportsDto;
   monthlyRevenue?: MonthlyRevenueDataDto;
-  onReview: (booking: BookingSummaryDto) => void;
-  onAssign: (booking: BookingSummaryDto) => void;
+  onReview?: (booking: BookingSummaryDto) => void;
+  onAssign?: (booking: BookingSummaryDto) => void;
 }) {
   const cancellationRate = reports.totalBookings > 0
     ? Math.round((reports.cancelledBookings / reports.totalBookings) * 100)

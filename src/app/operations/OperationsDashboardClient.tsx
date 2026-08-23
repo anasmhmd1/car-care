@@ -5,14 +5,12 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
-  Activity,
   AlertTriangle,
   ArrowLeftRight,
   BadgeDollarSign,
   Ban,
   BarChart3,
   Boxes,
-  Building2,
   Calendar,
   CalendarClock,
   CalendarDays,
@@ -28,16 +26,13 @@ import {
   Lock,
   LogOut,
   Menu,
-  MessageSquareText,
   PackageCheck,
   Phone,
-  RefreshCcw,
   Search,
   ShieldAlert,
   ShieldCheck,
   Unlock,
   User,
-  UserRound,
   Users,
   UsersRound,
   X,
@@ -58,11 +53,7 @@ import {
   transferBookingTeamAction,
 } from '@/app/actions/operations';
 import { advancePostServiceAction } from '@/app/actions/quality';
-import {
-  closeTerminalBookingReviewAction,
-  managerOverrideCloseBookingAction,
-  reopenTerminalBookingAction,
-} from '@/app/actions/booking-administration';
+import { reopenTerminalBookingAction } from '@/app/actions/booking-administration';
 import OperationsQueuePagination from './OperationsQueuePagination';
 import {
   operationsQueuePageParam,
@@ -302,62 +293,6 @@ function SectionHeader({
   );
 }
 
-function MetricCard({
-  label,
-  value,
-  hint,
-  icon,
-  tone = 'gold',
-  active = false,
-  onClick,
-}: {
-  label: string;
-  value: string;
-  hint?: string;
-  icon: ReactNode;
-  tone?: 'gold' | 'green' | 'red' | 'blue';
-  active?: boolean;
-  onClick?: () => void;
-}) {
-  const toneClass = {
-    gold: 'bg-amber-500/10 text-[#d4af37] border-amber-500/25 shadow-amber-500/10',
-    green: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25 shadow-emerald-500/10',
-    red: 'bg-rose-500/10 text-rose-300 border-rose-500/25 shadow-rose-500/10',
-    blue: 'bg-sky-500/10 text-sky-300 border-sky-500/25 shadow-sky-500/10',
-  }[tone];
-
-  return (
-    <article
-      onClick={onClick}
-      className={`group relative flex flex-col justify-between overflow-hidden rounded-2xl border transition-all duration-300 p-5 ${
-        onClick ? 'cursor-pointer hover:scale-[1.01]' : ''
-      } ${
-        active
-          ? 'border-[#d4af37] bg-[#1a170f] shadow-xl shadow-[#d4af37]/10 ring-1 ring-[#d4af37]/40'
-          : 'border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md hover:border-[#d4af37]/50 hover:shadow-xl hover:shadow-[#d4af37]/5'
-      }`}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <p className="text-xs sm:text-sm font-bold text-neutral-300 leading-snug">{label}</p>
-          <p className="mt-2.5 text-2xl sm:text-3xl font-black tracking-tight tabular-nums text-white group-hover:text-[#f3e4a8] transition-colors">
-            {value}
-          </p>
-        </div>
-        <div className={`flex size-11 shrink-0 items-center justify-center rounded-2xl border shadow-md transition-transform duration-300 group-hover:scale-105 ${toneClass}`}>
-          {icon}
-        </div>
-      </div>
-      {hint ? (
-        <p className="mt-3 text-xs leading-relaxed text-neutral-400 border-t border-neutral-800/60 pt-2.5 flex items-center gap-1.5">
-          <span className="size-1.5 rounded-full bg-neutral-600 shrink-0" />
-          <span className="break-words">{hint}</span>
-        </p>
-      ) : null}
-    </article>
-  );
-}
-
 export default function OperationsDashboardClient({
   manager,
   branches = [],
@@ -399,9 +334,7 @@ export default function OperationsDashboardClient({
   const [selectedBooking, setSelectedBooking] = useState<UnassignedBooking | null>(null);
   const [selectedSettlement, setSelectedSettlement] = useState<ActiveBooking | null>(null);
   const [selectedClose, setSelectedClose] = useState<ActiveBooking | null>(null);
-  const [selectedOverrideClose, setSelectedOverrideClose] = useState<ActiveBooking | null>(null);
   const [selectedReopen, setSelectedReopen] = useState<TerminalBooking | null>(null);
-  const [selectedTerminalReview, setSelectedTerminalReview] = useState<ActiveBooking | null>(null);
   const [selectedCancelBooking, setSelectedCancelBooking] = useState<{ id: string; bookingNumber: string; customerName?: string } | null>(null);
   const [cancelReason, setCancelReason] = useState('');
   const [selectedRescheduleBooking, setSelectedRescheduleBooking] = useState<{ id: string; bookingNumber: string; startAt: DateValue } | null>(null);
@@ -422,9 +355,7 @@ export default function OperationsDashboardClient({
   const [settlementReference, setSettlementReference] = useState('');
   const [settlementNotes, setSettlementNotes] = useState('');
   const [closeReason, setCloseReason] = useState('تم تسليم الخدمة وتحصيل كامل الرصيد');
-  const [overrideReason, setOverrideReason] = useState('');
   const [reopenReason, setReopenReason] = useState('');
-  const [terminalReviewReason, setTerminalReviewReason] = useState('');
   const [activeSearch, setActiveSearch] = useState(activeBookingQuery);
   const [terminalSearch, setTerminalSearch] = useState(terminalBookingQuery);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -494,9 +425,7 @@ export default function OperationsDashboardClient({
       selectedBooking ||
       selectedSettlement ||
       selectedClose ||
-      selectedOverrideClose ||
       selectedReopen ||
-      selectedTerminalReview ||
       selectedCancelBooking ||
       selectedRescheduleBooking ||
       selectedTransferBooking ||
@@ -510,9 +439,7 @@ export default function OperationsDashboardClient({
       setSelectedBooking(null);
       setSelectedSettlement(null);
       setSelectedClose(null);
-      setSelectedOverrideClose(null);
       setSelectedReopen(null);
-      setSelectedTerminalReview(null);
       setSelectedCancelBooking(null);
       setSelectedRescheduleBooking(null);
       setSelectedTransferBooking(null);
@@ -528,12 +455,10 @@ export default function OperationsDashboardClient({
     isSubmitting,
     selectedBooking,
     selectedClose,
-    selectedOverrideClose,
     selectedProof,
     selectedReopen,
     selectedReview,
     selectedSettlement,
-    selectedTerminalReview,
     selectedCancelBooking,
     selectedRescheduleBooking,
     selectedTransferBooking,
@@ -755,27 +680,6 @@ export default function OperationsDashboardClient({
     if (completed) setSelectedClose(null);
   }
 
-  async function handleManagerOverrideClose() {
-    if (!selectedOverrideClose || overrideReason.trim().length < 3) {
-      setFeedback({
-        tone: 'error',
-        message: 'اكتب سببًا واضحًا للاستثناء الإداري من 3 أحرف على الأقل.',
-      });
-      return;
-    }
-    const formData = new FormData();
-    formData.set('bookingId', selectedOverrideClose.id);
-    formData.set('reason', overrideReason);
-    const completed = await finishAction(
-      () => managerOverrideCloseBookingAction(formData),
-      'تم إغلاق الحجز باستثناء إداري موثق مع الإبقاء على قيود الفريق والتسوية.',
-    );
-    if (completed) {
-      setSelectedOverrideClose(null);
-      setOverrideReason('');
-    }
-  }
-
   async function handleReopenTerminalBooking() {
     if (!selectedReopen || reopenReason.trim().length < 3) {
       setFeedback({
@@ -797,33 +701,8 @@ export default function OperationsDashboardClient({
     }
   }
 
-  async function handleCloseTerminalReview() {
-    if (!selectedTerminalReview || terminalReviewReason.trim().length < 3) {
-      setFeedback({
-        tone: 'error',
-        message: 'اكتب سببًا واضحًا لإغلاق المراجعة من 3 أحرف على الأقل.',
-      });
-      return;
-    }
-    const formData = new FormData();
-    formData.set('bookingId', selectedTerminalReview.id);
-    formData.set('reason', terminalReviewReason);
-    const completed = await finishAction(
-      () => closeTerminalBookingReviewAction(formData),
-      'أُغلقت المراجعة وعاد الحجز إلى حالته الطرفية الأصلية دون تغيير أي تسوية.',
-    );
-    if (completed) {
-      setSelectedTerminalReview(null);
-      setTerminalReviewReason('');
-    }
-  }
-
   const primaryPendingCount =
     pendingProofs.length + reviewBookings.length + unassignedBookings.length;
-
-  const pendingSubscriptionProofsCount = (managedSubscriptions || []).filter(
-    (s) => s.paymentProof && s.paymentProof.status === 'UNDER_REVIEW',
-  ).length;
 
   const sectionNav: Array<{
     id?: string;
@@ -2228,6 +2107,36 @@ export default function OperationsDashboardClient({
                 }`}
               >
                 {selectedLockBranch.status === 'ACTIVE' ? 'تأكيد قفل الجدول' : 'تأكيد فتح الجدول'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 10. Modal: Reopen Terminal Booking */}
+      {selectedReopen && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/85 backdrop-blur-sm p-4" role="presentation">
+          <div role="dialog" aria-modal="true" className="w-full max-w-lg space-y-5 rounded-3xl border border-amber-500/40 bg-[#141414] p-5 sm:p-8 shadow-2xl">
+            <div className="flex items-center justify-between gap-4 border-b border-neutral-800/80 pb-4">
+              <h2 className="text-lg font-black flex items-center gap-2 text-amber-300">
+                <AlertTriangle className="size-5" />
+                إعادة فتح الحجز #{selectedReopen.bookingNumber}
+              </h2>
+              <button type="button" disabled={isSubmitting} onClick={() => setSelectedReopen(null)} className="rounded-xl p-2 text-neutral-400 hover:bg-neutral-800"><X className="size-5" /></button>
+            </div>
+            <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs leading-6 text-amber-200">
+              سيتم إعادة الحجز الطرفي إلى قائمة المراجعة الإدارية والتشغيلية مع توثيق سبب الفتح.
+            </div>
+            <div>
+              <label htmlFor="reopen-reason-input" className="mb-2 block text-xs font-bold text-neutral-300">سبب إعادة فتح الحجز</label>
+              <textarea id="reopen-reason-input" required minLength={3} maxLength={500} value={reopenReason} onChange={(e) => setReopenReason(e.target.value)} rows={3} className={inputClass} placeholder="اكتب سبب إعادة فتح الحجز للمراجعة..." />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <button type="button" disabled={isSubmitting} onClick={() => setSelectedReopen(null)} className={secondaryButtonClass}>
+                تراجع
+              </button>
+              <button type="button" disabled={isSubmitting || reopenReason.trim().length < 3} onClick={handleReopenTerminalBooking} className="rounded-xl bg-amber-500 px-4 py-2.5 text-xs sm:text-sm font-black text-neutral-950 hover:bg-amber-400 disabled:opacity-50">
+                تأكيد إعادة الفتح
               </button>
             </div>
           </div>

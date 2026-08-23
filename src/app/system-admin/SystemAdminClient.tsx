@@ -19,7 +19,6 @@ import {
   Building, 
   UserCheck, 
   UserPlus, 
-  Settings, 
   Power
 } from 'lucide-react';
 
@@ -63,7 +62,6 @@ interface Props {
 }
 
 export default function SystemAdminClient({
-  brand,
   branchRequests,
   owners,
   branches,

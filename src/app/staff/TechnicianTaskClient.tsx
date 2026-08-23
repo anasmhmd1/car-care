@@ -6,7 +6,6 @@ import {
   Car,
   Boxes,
   Check,
-  CheckCircle2,
   CheckSquare,
   Clock,
   MapPin,
@@ -192,11 +191,9 @@ function formatAddressSnapshot(snapshot: unknown): string {
 }
 
 export default function TechnicianTaskClient({
-  employee,
   isLeader = false,
   teamName = null,
   teamVehicles = [],
-  myCustodyStocks = [],
   bookings,
 }: Props) {
   const [selectedTaskId, setSelectedTaskId] = useState(bookings[0]?.id ?? '');

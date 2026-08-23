@@ -10,7 +10,6 @@ import {
 } from '@prisma/client';
 import {
   ArrowRight,
-  BarChart3,
   Building2,
   Calendar,
   CheckCircle2,

@@ -10,7 +10,6 @@ import {
   Boxes,
   CarFront,
   ClipboardList,
-  History,
   Home,
   Package,
   Plus,
@@ -24,8 +23,6 @@ import {
   allocateEmployeeStockAction,
   assignBookingOperationalResourcesAction,
   deleteEmployeeMaterialStockAction,
-  recordInventoryMovementAction,
-  saveBranchMaterialStockAction,
   saveOperationalMaterialAction,
   saveOperationalVehicleAction,
   saveServiceMaterialRequirementAction,
@@ -187,7 +184,8 @@ export interface OperationsResourcesBoardProps {
   initialTab?: Tab;
 }
 
-type Tab = 'catalog' | 'vehicle-stock' | 'fleet' | 'assignments';
+export type ResourcesTab = 'catalog' | 'vehicle-stock' | 'fleet' | 'assignments';
+type Tab = ResourcesTab;
 type Notice = { kind: 'success' | 'error'; text: string } | null;
 
 const inputClass = 'mt-1.5 min-h-11 w-full rounded-xl border border-white/10 bg-black/35 px-3 text-sm text-white outline-none transition focus:border-[#d4af37] focus:ring-2 focus:ring-[#d4af37]/20 disabled:cursor-not-allowed disabled:opacity-50';
@@ -205,21 +203,6 @@ function noticeFromResult(result: OperationsResourceActionResult, fallback: stri
   return result.error
     ? { kind: 'error', text: result.error }
     : { kind: 'success', text: result.message ?? fallback };
-}
-
-function StockBadge({ stock }: { stock: ResourceStockDto }) {
-  const available = stock.quantityOnHand - stock.reservedQuantity;
-  const reorderPoint = stock.reorderPoint ?? stock.material.defaultReorderPoint;
-  const low = available <= reorderPoint;
-  return (
-    <span className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${!stock.active
-      ? 'border-neutral-600 bg-neutral-700/30 text-neutral-300'
-      : low
-        ? 'border-amber-400/35 bg-amber-400/10 text-amber-200'
-        : 'border-emerald-400/35 bg-emerald-400/10 text-emerald-200'}`}>
-      {!stock.active ? 'متوقف' : low ? 'يحتاج إعادة طلب' : 'متاح'}
-    </span>
-  );
 }
 
 function NoticeBox({ notice }: { notice: Notice }) {
@@ -494,112 +477,6 @@ function RequirementEditor({ service, materials, requirement, onResult }: {
   );
 }
 
-function StockEditor({ stock, branches, materials, defaultBranchId, onResult }: {
-  stock?: ResourceStockDto;
-  branches: ResourceBranchDto[];
-  materials: ResourceMaterialDto[];
-  defaultBranchId: string;
-  onResult: (notice: Notice) => void;
-}) {
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
-
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    startTransition(async () => {
-      const result = await saveBranchMaterialStockAction(formData);
-      onResult(noticeFromResult(result, 'تم حفظ مخزون الفرع.'));
-      if (!result.error) router.refresh();
-    });
-  }
-
-  return (
-    <form key={stock?.id ?? `new-${defaultBranchId}`} onSubmit={submit} className="grid gap-4 rounded-2xl border border-[#d4af37]/20 bg-black/20 p-4 md:grid-cols-2 xl:grid-cols-3">
-      {stock ? <input type="hidden" name="stockId" value={stock.id} /> : null}
-      <label className="text-xs font-bold text-white/70">الفرع
-        <select name="branchId" required defaultValue={stock?.branchId ?? defaultBranchId} disabled={Boolean(stock)} className={inputClass}>
-          {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.nameAr}</option>)}
-        </select>
-        {stock ? <input type="hidden" name="branchId" value={stock.branchId} /> : null}
-      </label>
-      <label className="text-xs font-bold text-white/70">الصنف
-        <select name="materialId" required defaultValue={stock?.materialId ?? ''} disabled={Boolean(stock)} className={inputClass}>
-          <option value="" disabled>اختر صنفًا</option>
-          {materials.filter((material) => material.active || material.id === stock?.materialId).map((material) => <option key={material.id} value={material.id}>{material.nameAr} · {material.unit}</option>)}
-        </select>
-        {stock ? <input type="hidden" name="materialId" value={stock.materialId} /> : null}
-      </label>
-      {!stock ? <label className="text-xs font-bold text-white/70">رصيد افتتاحي
-        <input name="initialQuantity" type="number" min="0" required defaultValue={0} className={inputClass} />
-      </label> : <div className="rounded-xl border border-white/10 p-3 text-xs text-white/55">الرصيد الفعلي: <strong className="text-white">{stock.quantityOnHand}</strong> {stock.material.unit}<br />يُعدّل عبر «حركة مخزون» للحفاظ على السجل.</div>}
-      <label className="text-xs font-bold text-white/70">كمية محجوزة
-        <input name="reservedQuantity" type="number" min="0" required defaultValue={stock?.reservedQuantity ?? 0} className={inputClass} />
-      </label>
-      <label className="text-xs font-bold text-white/70">نقطة إعادة الطلب
-        <input name="reorderPoint" type="number" min="0" defaultValue={stock?.reorderPoint ?? ''} placeholder={stock ? String(stock.material.defaultReorderPoint) : 'افتراضي الصنف'} className={inputClass} />
-      </label>
-      <label className="text-xs font-bold text-white/70">سبب الإعداد أو التعديل
-        <input name="reason" maxLength={500} defaultValue="" className={inputClass} placeholder="اختياري" />
-      </label>
-      <div className="flex items-end justify-between gap-3">
-        <label className="flex min-h-11 items-center gap-2 rounded-xl border border-white/10 px-3 text-xs font-bold text-white/75"><input name="active" type="checkbox" defaultChecked={stock?.active ?? true} /> نشط</label>
-        <button type="submit" disabled={isPending} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#d4af37] px-4 text-xs font-black text-black disabled:opacity-50"><Save className="size-4" aria-hidden="true" />{isPending ? 'جارٍ الحفظ…' : stock ? 'حفظ الإعداد' : 'إضافة للمخزون'}</button>
-      </div>
-    </form>
-  );
-}
-
-function InventoryMovementForm({ stock, bookings, onResult }: {
-  stock: ResourceStockDto;
-  bookings: ResourceBookingDto[];
-  onResult: (notice: Notice) => void;
-}) {
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
-  const [type, setType] = useState('RECEIPT');
-  const isAdjustment = type === 'ADJUSTMENT';
-
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    startTransition(async () => {
-      const result = await recordInventoryMovementAction(formData);
-      onResult(noticeFromResult(result, 'تم تسجيل حركة المخزون.'));
-      if (!result.error) router.refresh();
-    });
-  }
-
-  return (
-    <form onSubmit={submit} className="grid gap-3 border-t border-white/10 pt-4 md:grid-cols-[150px_120px_minmax(0,1fr)_auto]">
-      <input type="hidden" name="branchStockId" value={stock.id} />
-      <label className="text-[11px] font-bold text-white/60">نوع الحركة
-        <select name="type" value={type} onChange={(event) => setType(event.target.value)} className={inputClass}>
-          <option value="RECEIPT">توريد (+)</option>
-          <option value="RETURN">مرتجع (+)</option>
-          <option value="CONSUMPTION">استهلاك (-)</option>
-          <option value="WASTE">هالك (-)</option>
-          <option value="ADJUSTMENT">تسوية ±</option>
-        </select>
-      </label>
-      <label className="text-[11px] font-bold text-white/60">الكمية
-        <input name="quantity" type="number" required min={isAdjustment ? undefined : 1} defaultValue={isAdjustment ? 0 : 1} className={inputClass} placeholder={isAdjustment ? 'مثل -2 أو 2' : '1'} />
-      </label>
-      <label className="text-[11px] font-bold text-white/60">السبب
-        <input name="reason" required minLength={2} maxLength={500} className={inputClass} placeholder="فاتورة توريد، استهلاك للمهمة…" />
-      </label>
-      <button type="submit" disabled={isPending || !stock.active} className="mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#d4af37]/40 px-4 text-xs font-bold text-[#f0d36d] disabled:opacity-50"><History className="size-4" aria-hidden="true" />{isPending ? '…' : 'تسجيل'}</button>
-      {bookings.length ? <label className="md:col-span-3 text-[11px] font-bold text-white/60">ربط اختياري بحجز (مفيد للاستهلاك أو المرتجع)
-        <select name="bookingId" defaultValue="" className={inputClass}>
-          <option value="">بدون ربط بحجز</option>
-          {bookings.map((booking) => <option key={booking.id} value={booking.id}>{booking.bookingNumber} · {booking.serviceName}</option>)}
-        </select>
-      </label> : null}
-      <p className="md:col-span-4 text-[11px] leading-5 text-white/40">لا يمكن تقليل الرصيد عن الكمية المحجوزة ({stock.reservedQuantity} {stock.material.unit}). استخدم تسوية سالبة أو موجبة عند الجرد.</p>
-    </form>
-  );
-}
-
 function VehicleEditor({ vehicle, branches, onResult }: {
   vehicle?: ResourceVehicleDto;
   branches: ResourceBranchDto[];
@@ -750,16 +627,14 @@ function BookingResourceAssignmentForm({ booking, branches, vehicles, onResult }
 
 function VehicleStockAllocationForm({
   vehicles,
-  employees,
   materials,
-  branches,
   defaultVehicleId,
   onResult,
 }: {
   vehicles: ResourceVehicleDto[];
-  employees: OperationsEmployeeDto[];
+  employees?: OperationsEmployeeDto[];
   materials: ResourceMaterialDto[];
-  branches: ResourceBranchDto[];
+  branches?: ResourceBranchDto[];
   defaultVehicleId?: string;
   onResult: (notice: Notice) => void;
 }) {
@@ -872,7 +747,6 @@ function VehicleStockPanel({
   materials,
   branches,
   employeeStocks,
-  bookings,
   onResult,
 }: {
   vehicles: ResourceVehicleDto[];
@@ -880,7 +754,7 @@ function VehicleStockPanel({
   materials: ResourceMaterialDto[];
   branches: ResourceBranchDto[];
   employeeStocks: EmployeeStockDto[];
-  bookings: ResourceBookingDto[];
+  bookings?: ResourceBookingDto[];
   onResult: (notice: Notice) => void;
 }) {
   const router = useRouter();
@@ -1143,7 +1017,6 @@ export default function OperationsResourcesBoard({
   vehicles,
   bookings,
   embedded = false,
-  defaultBranchId,
   initialTab,
 }: OperationsResourcesBoardProps) {
   const [tab, setTab] = useState<Tab>(
@@ -1157,20 +1030,12 @@ export default function OperationsResourcesBoard({
   const [materialId, setMaterialId] = useState<string | null>(materials[0]?.id ?? null);
   const [serviceId, setServiceId] = useState<string | null>(services[0]?.id ?? null);
   const [requirementId, setRequirementId] = useState<string | null>(null);
-  const [stockBranchId, setStockBranchId] = useState(
-    defaultBranchId && branches.some((b) => b.id === defaultBranchId)
-      ? defaultBranchId
-      : branches[0]?.id ?? ''
-  );
-  const [stockId, setStockId] = useState<string | null>(null);
   const [vehicleId, setVehicleId] = useState<string | null>(vehicles[0]?.id ?? null);
 
   const selectedMaterial = useMemo(() => materials.find((material) => material.id === materialId), [materialId, materials]);
   const selectedService = useMemo(() => services.find((service) => service.id === serviceId), [serviceId, services]);
   const selectedRequirement = selectedService?.materialRequirements.find((requirement) => requirement.id === requirementId);
-  const selectedStock = stocks.find((stock) => stock.id === stockId);
   const selectedVehicle = vehicles.find((vehicle) => vehicle.id === vehicleId);
-  const branchStocks = stocks.filter((stock) => stock.branchId === stockBranchId);
   const lowStocks = stocks.filter((stock) => stock.active && stock.quantityOnHand - stock.reservedQuantity <= (stock.reorderPoint ?? stock.material.defaultReorderPoint));
 
   function setFeedback(next: Notice) {

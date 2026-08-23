@@ -13,7 +13,6 @@ import {
   CheckCircle2,
   AlertCircle,
   Sparkles,
-  Building2,
   HelpCircle,
 } from 'lucide-react';
 import {

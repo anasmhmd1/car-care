@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, type WheelEvent, type MouseEvent } from 'react';
+import { useState, useRef, type WheelEvent, type MouseEvent } from 'react';
 import Link from 'next/link';
 import {
   Layers,
@@ -9,7 +9,6 @@ import {
   ImageIcon,
   Share2,
   ShieldCheck,
-  Compass,
   HelpCircle,
   ExternalLink,
   ArrowLeft,
@@ -22,7 +21,7 @@ import GalleryManager from './GalleryManager';
 import PoliciesManager from './PoliciesManager';
 import SiteContentManager from './SiteContentManager';
 import SocialContactManager from './SocialContactManager';
-import ZonesCoverageManager, { type CoverageZoneItem } from './ZonesCoverageManager';
+import type { CoverageZoneItem } from './ZonesCoverageManager';
 import ServicesManager, {
   type CatalogMaterialDto,
   type SiteServiceDto,
@@ -95,13 +94,11 @@ export default function AdminSiteClient({
   subscriptionBranches = [],
   initialContent,
   initialFaqs,
-  initialZones,
   initialGallery,
   initialPolicies,
   initialSocialLinks = DEFAULT_SOCIAL_LINKS,
   branches = [],
   activeBranch,
-  defaultBranchId = '',
   initialTab,
   initialServiceId,
   isNewService,

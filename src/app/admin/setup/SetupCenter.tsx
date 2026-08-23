@@ -25,7 +25,6 @@ import OperationsResourcesBoard, {
   type EmployeeStockDto,
   type OperationsEmployeeDto,
   type ResourceBookingDto,
-  type ResourceBranchDto,
   type ResourceMaterialDto,
   type ResourceStockDto,
   type ResourceVehicleDto,

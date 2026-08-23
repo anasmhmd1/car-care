@@ -24,21 +24,6 @@ import OwnerCommandCenter, {
 } from './OwnerCommandCenter';
 import type { ManagedSubscription } from './subscriptions/SubscriptionManagementPanel';
 
-const MONTH_NAMES_AR = [
-  'يناير',
-  'فبراير',
-  'مارس',
-  'أبريل',
-  'مايو',
-  'يونيو',
-  'يوليو',
-  'أغسطس',
-  'سبتمبر',
-  'أكتوبر',
-  'نوفمبر',
-  'ديسمبر',
-];
-
 const PAYMENT_METHOD_LABELS: Record<string, string> = {
   CASH: 'كاش عند الاستلام',
   INSTAPAY: 'إنستاباي (تحويل بنكي)',
@@ -410,34 +395,8 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
     ? rawBookingStatus as BookingStatus
     : undefined;
 
-  const revenueMonthParam = firstParam(query.month);
   const revenueTypeParam = (firstParam(query.revenue_type) ?? firstParam(query.type) ?? 'all') as 'all' | 'booking' | 'subscription' | 'refund';
   const revenueQueryParam = (firstParam(query.revenue_q) ?? '').trim().slice(0, 100);
-
-  const pastMonths: Array<{ key: string; label: string }> = [];
-  const currentYear = now.getFullYear();
-  const currentMonthIdx = now.getMonth();
-  for (let i = 0; i < 12; i++) {
-    const d = new Date(currentYear, currentMonthIdx - i, 1);
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const key = `${y}-${m}`;
-    const monthIdx = d.getMonth();
-    const label = `${MONTH_NAMES_AR[monthIdx]} ${y}`;
-    pastMonths.push({ key, label });
-  }
-
-  const selectedMonth = (revenueMonthParam && /^\d{4}-\d{2}$/.test(revenueMonthParam))
-    ? revenueMonthParam
-    : pastMonths[0].key;
-  const selectedMonthStartDate = `${selectedMonth}-01`;
-  const selectedMonthStart = localDateBoundsUtc(selectedMonthStartDate, CAIRO_TIME_ZONE).start;
-  const [sYear, sMonth] = selectedMonth.split('-').map(Number);
-  const nextYear = sMonth === 12 ? sYear + 1 : sYear;
-  const nextMonth = sMonth === 12 ? 1 : sMonth + 1;
-  const nextMonthStartDate = `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`;
-  const selectedMonthEnd = localDateBoundsUtc(nextMonthStartDate, CAIRO_TIME_ZONE).start;
-  const selectedMonthRange = { gte: selectedMonthStart, lt: selectedMonthEnd };
 
   let reportFrom = validDate(firstParam(query.from)) ?? monthStartDate;
   let reportTo = validDate(firstParam(query.to)) ?? today;
