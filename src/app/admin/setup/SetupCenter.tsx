@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
   Boxes,
+  Building2,
   CalendarClock,
   Check,
   ClipboardCheck,
@@ -653,10 +654,10 @@ function OverviewSection({
         <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-white/8 pt-4">
           <Link
             href="/admin/branches"
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#d4af37] px-4 text-xs font-black text-black hover:bg-[#e4c65f] transition-all shadow-md shadow-[#d4af37]/20"
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#d4af37] px-5 text-xs font-black text-black hover:bg-[#e4c65f] transition-all shadow-md shadow-[#d4af37]/20"
           >
-            <Plus className="size-4" aria-hidden="true" />
-            <span>إضافة فرع جديد للمنظومة</span>
+            <Building2 className="size-4" aria-hidden="true" />
+            <span>إدارة وتعديل وحذف الفروع (+ إضافة فرع)</span>
           </Link>
           <div className="flex flex-wrap gap-2">
             <button
@@ -3048,8 +3049,8 @@ export default function SetupCenter({ actor, branches, employees, permissions, s
               href="/admin/branches"
               className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#d4af37] via-[#e5c45a] to-[#d4af37] px-4 py-2 text-xs font-black text-black shadow-md shadow-[#d4af37]/20 hover:brightness-110 transition-all"
             >
-              <Plus className="size-4" aria-hidden="true" />
-              <span>إضافة فرع جديد</span>
+              <Building2 className="size-4" aria-hidden="true" />
+              <span>إدارة وحذف الفروع (+ إضافة)</span>
             </Link>
             <Link href="/admin" className={secondaryButtonClass}>
               العودة للوحة المالك

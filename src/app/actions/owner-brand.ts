@@ -300,8 +300,8 @@ const deleteBranchSchema = z.object({
 });
 
 /**
- * Deletes a branch if it has no bookings or active subscriptions,
- * and if it's not the only remaining branch in the system.
+ * Deletes a branch and all associated records (bookings, subscriptions,
+ * teams, vehicles, coverage, etc.) in a single safe transaction.
  */
 export async function deleteBranchAction(formData: FormData) {
   const actor = await requireRole([UserRole.OWNER, UserRole.SYSTEM_SUPER_ADMIN]);
@@ -315,24 +315,12 @@ export async function deleteBranchAction(formData: FormData) {
   }
 
   try {
-    const totalBranches = await db.branch.count();
-    if (totalBranches <= 1) {
-      return { error: 'لا يمكن حذف الفرع الوحيد المتبقي في المنظومة. يجب أن تحتوي العلامة التجارية على فرع واحد على الأقل.' };
-    }
-
     const branch = await db.branch.findUnique({
       where: { id: parsed.data.branchId },
       select: {
         id: true,
         nameAr: true,
         code: true,
-        _count: {
-          select: {
-            bookings: true,
-            subscriptions: true,
-            invoices: true,
-          },
-        },
       },
     });
 
@@ -340,20 +328,91 @@ export async function deleteBranchAction(formData: FormData) {
       return { error: 'الفرع المحدد غير موجود.' };
     }
 
-    if (branch._count.bookings > 0 || branch._count.subscriptions > 0 || branch._count.invoices > 0) {
-      return {
-        error: `لا يمكن حذف فرع "${branch.nameAr}" لوجود سجلات مرتبطة به (${branch._count.bookings} حجز، ${branch._count.subscriptions} اشتراك). يمكنك تغيير حالة الفرع إلى "معطل" أو "متوقف مؤقتاً" لإيقاف استقبال الحجوزات.`,
-      };
-    }
-
     await db.$transaction(async (tx) => {
-      // Clean child records in order of foreign key dependencies
+      // 1. Bookings and all their dependent child records for this branch
+      const branchBookings = await tx.booking.findMany({
+        where: { branchId: branch.id },
+        select: { id: true },
+      });
+      const bookingIds = branchBookings.map((b) => b.id);
+
+      if (bookingIds.length > 0) {
+        await tx.subscriptionVisitLedger.deleteMany({ where: { bookingId: { in: bookingIds } } });
+        await tx.refund.deleteMany({ where: { bookingId: { in: bookingIds } } });
+        await tx.invoice.deleteMany({ where: { bookingId: { in: bookingIds } } });
+        await tx.payment.deleteMany({ where: { bookingId: { in: bookingIds } } });
+        await tx.paymentReview.deleteMany({ where: { bookingId: { in: bookingIds } } });
+        await tx.paymentProof.deleteMany({ where: { bookingId: { in: bookingIds } } });
+        await tx.bookingFile.deleteMany({ where: { bookingId: { in: bookingIds } } });
+        await tx.bookingChecklistItemResult.deleteMany({ where: { instance: { bookingId: { in: bookingIds } } } });
+        await tx.bookingChecklistInstance.deleteMany({ where: { bookingId: { in: bookingIds } } });
+        await tx.bookingNote.deleteMany({ where: { bookingId: { in: bookingIds } } });
+        await tx.bookingTimeChange.deleteMany({ where: { bookingId: { in: bookingIds } } });
+        await tx.bookingStatusHistory.deleteMany({ where: { bookingId: { in: bookingIds } } });
+        await tx.bookingAssignmentHistory.deleteMany({ where: { bookingId: { in: bookingIds } } });
+        await tx.bookingAssignment.deleteMany({ where: { bookingId: { in: bookingIds } } });
+        await tx.bookingHold.deleteMany({ where: { bookingId: { in: bookingIds } } });
+        await tx.bookingAddon.deleteMany({ where: { bookingId: { in: bookingIds } } });
+        await tx.bookingItem.deleteMany({ where: { bookingId: { in: bookingIds } } });
+        await tx.cancellationRequest.deleteMany({ where: { bookingId: { in: bookingIds } } });
+        await tx.complaintEvidence.deleteMany({ where: { complaint: { bookingId: { in: bookingIds } } } });
+        await tx.complaint.deleteMany({ where: { bookingId: { in: bookingIds } } });
+        await tx.qualityReview.deleteMany({ where: { bookingId: { in: bookingIds } } });
+        await tx.customerServiceRating.deleteMany({ where: { bookingId: { in: bookingIds } } });
+        await tx.customerCreditTransaction.deleteMany({ where: { bookingId: { in: bookingIds } } });
+        await tx.inventoryMovement.deleteMany({ where: { bookingId: { in: bookingIds } } });
+        await tx.employeeInventoryMovement.deleteMany({ where: { bookingId: { in: bookingIds } } });
+        await tx.supportTicketMessage.deleteMany({ where: { ticket: { bookingId: { in: bookingIds } } } });
+        await tx.supportTicket.deleteMany({ where: { bookingId: { in: bookingIds } } });
+        await tx.booking.deleteMany({ where: { id: { in: bookingIds } } });
+      }
+
+      // 2. Subscriptions for this branch
+      const branchSubs = await tx.customerSubscription.findMany({
+        where: { branchId: branch.id },
+        select: { id: true },
+      });
+      const subIds = branchSubs.map((s) => s.id);
+      if (subIds.length > 0) {
+        await tx.subscriptionVisitLedger.deleteMany({ where: { subscriptionId: { in: subIds } } });
+        await tx.customerSubscriptionServiceBalance.deleteMany({ where: { subscriptionId: { in: subIds } } });
+        await tx.subscriptionVehicle.deleteMany({ where: { subscriptionId: { in: subIds } } });
+        await tx.subscriptionPaymentProof.deleteMany({ where: { subscriptionId: { in: subIds } } });
+        await tx.customerSubscription.deleteMany({ where: { id: { in: subIds } } });
+      }
+
+      // 3. Operational vehicles
+      await tx.operationalVehicle.deleteMany({ where: { branchId: branch.id } });
+
+      // 4. Invoices / Tickets / Inventory / Working hours / Coverage
+      await tx.supportTicketMessage.deleteMany({ where: { ticket: { branchId: branch.id } } });
+      await tx.supportTicket.deleteMany({ where: { branchId: branch.id } });
+      await tx.invoice.deleteMany({ where: { branchId: branch.id } });
+
+      const branchStocks = await tx.branchMaterialStock.findMany({
+        where: { branchId: branch.id },
+        select: { id: true },
+      });
+      const stockIds = branchStocks.map((s) => s.id);
+      if (stockIds.length > 0) {
+        await tx.inventoryMovement.deleteMany({ where: { branchStockId: { in: stockIds } } });
+      }
+      await tx.branchMaterialStock.deleteMany({ where: { branchId: branch.id } });
+
       await tx.branchWorkingHours.deleteMany({ where: { branchId: branch.id } });
       await tx.branchBlackoutDate.deleteMany({ where: { branchId: branch.id } });
       await tx.branchPaymentMethod.deleteMany({ where: { branchId: branch.id } });
       await tx.branchService.deleteMany({ where: { branchId: branch.id } });
       await tx.subscriptionPlanBranch.deleteMany({ where: { branchId: branch.id } });
       await tx.coverageArea.deleteMany({ where: { zone: { branchId: branch.id } } });
+      await tx.zoneTravelTime.deleteMany({
+        where: {
+          OR: [
+            { fromZone: { branchId: branch.id } },
+            { toZone: { branchId: branch.id } },
+          ],
+        },
+      });
       await tx.coverageZone.deleteMany({ where: { branchId: branch.id } });
       await tx.teamMember.deleteMany({ where: { team: { branchId: branch.id } } });
       await tx.teamZone.deleteMany({ where: { team: { branchId: branch.id } } });
@@ -362,11 +421,11 @@ export async function deleteBranchAction(formData: FormData) {
       await tx.teamWorkingHours.deleteMany({ where: { team: { branchId: branch.id } } });
       await tx.team.deleteMany({ where: { branchId: branch.id } });
       await tx.branchMembership.deleteMany({ where: { branchId: branch.id } });
-      await tx.branchMaterialStock.deleteMany({ where: { branchId: branch.id } });
-      await tx.operationalVehicle.deleteMany({ where: { branchId: branch.id } });
 
+      // 5. Delete the branch itself
       await tx.branch.delete({ where: { id: branch.id } });
 
+      // 6. Record Audit log
       await tx.auditLog.create({
         data: {
           actorUserId: actor.id,
@@ -374,19 +433,23 @@ export async function deleteBranchAction(formData: FormData) {
           action: 'DELETE_BRANCH',
           entityType: 'Branch',
           entityId: branch.id,
-          reason: parsed.data.reason ?? 'حذف الفرع بواسطة المالك',
+          reason: parsed.data.reason ?? 'حذف الفرع ببياناته بواسطة المالك',
           beforeJson: {
             nameAr: branch.nameAr,
             code: branch.code,
           },
         },
       });
+    }, {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      maxWait: 10_000,
+      timeout: 30_000,
     });
 
     revalidateBranchPaths();
     return {
       success: true,
-      message: `تم حذف فرع "${branch.nameAr}" بنجاح.`,
+      message: `تم حذف فرع "${branch.nameAr}" وكافة البيانات المرتبطة به بنجاح.`,
     };
   } catch (error) {
     return { error: actionError(error, 'تعذر حذف الفرع الآن.') };

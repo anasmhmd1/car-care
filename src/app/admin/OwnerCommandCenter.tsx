@@ -33,6 +33,7 @@ import {
   Settings2,
   ShieldAlert,
   Sparkles,
+  Trash2,
   TrendingUp,
   User,
   UserRound,
@@ -1221,10 +1222,22 @@ function BranchesSection({
         title="هيكل التشغيل والفروع"
         description="إدارة وتعديل بيانات الفروع وسعات التشغيل، أو إضافة فرع جديد مباشرة للمنظومة."
         action={
-          <Link href="/admin/branches" className={primaryButtonClass}>
-            <Plus className="size-4" aria-hidden="true" />
-            <span>إضافة فرع جديد</span>
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href="/admin/branches"
+              className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl bg-[#d4af37] px-4 text-xs font-black text-black hover:bg-[#e4c65f] transition-all shadow-md shadow-[#d4af37]/20"
+            >
+              <Building2 className="size-4" aria-hidden="true" />
+              <span>إدارة وتعديل وحذف الفروع</span>
+            </Link>
+            <Link
+              href="/admin/branches"
+              className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-white/15 bg-white/[0.05] px-3.5 text-xs font-bold text-white hover:bg-white/10 transition-all"
+            >
+              <Plus className="size-4" aria-hidden="true" />
+              <span>إضافة فرع جديد</span>
+            </Link>
+          </div>
         }
       />
       {branches.length === 0 ? (
@@ -1282,7 +1295,14 @@ function BranchesSection({
                 </dl>
               </div>
 
-              <div className="mt-4 flex flex-wrap items-center justify-end gap-3 border-t border-neutral-800/80 pt-3.5">
+              <div className="mt-4 flex flex-wrap items-center justify-end gap-2.5 border-t border-neutral-800/80 pt-3.5">
+                <Link
+                  href="/admin/branches"
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs font-bold text-red-300 hover:bg-red-500/20 transition-all"
+                >
+                  <Trash2 className="size-3.5 text-red-400" />
+                  <span>حذف الفرع</span>
+                </Link>
                 <button
                   type="button"
                   onClick={() => onEditBranch(branch)}
