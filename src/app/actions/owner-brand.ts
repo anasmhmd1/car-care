@@ -172,7 +172,7 @@ export async function createBranchDirectAction(formData: FormData) {
 
     revalidateBranchPaths();
     return {
-      success: true,
+      success: true as const,
       branchId: branch.id,
       message: `تم إنشاء فرع ${branch.nameAr} وإضافتك إليه وساعات العمل الافتراضية بنجاح.`,
     };
@@ -285,7 +285,7 @@ export async function updateBranchAction(formData: FormData) {
 
     revalidateBranchPaths();
     return {
-      success: true,
+      success: true as const,
       branchId: updated.id,
       message: `تم تحديث بيانات فرع "${updated.nameAr}" بنجاح.`,
     };
@@ -306,7 +306,7 @@ const deleteBranchSchema = z.object({
 export async function deleteBranchAction(formData: FormData) {
   const actor = await requireRole([UserRole.OWNER, UserRole.SYSTEM_SUPER_ADMIN]);
   const parsed = deleteBranchSchema.safeParse({
-    branchId: formData.get('branchId'),
+    branchId: formData.get('branchId') || formData.get('entityId'),
     reason: formData.get('reason') || undefined,
   });
 
@@ -448,7 +448,7 @@ export async function deleteBranchAction(formData: FormData) {
 
     revalidateBranchPaths();
     return {
-      success: true,
+      success: true as const,
       message: `تم حذف فرع "${branch.nameAr}" وكافة البيانات المرتبطة به بنجاح.`,
     };
   } catch (error) {

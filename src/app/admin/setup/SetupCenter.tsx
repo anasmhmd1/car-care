@@ -12,6 +12,7 @@ import {
   CreditCard,
   Gauge,
   MapPinned,
+  Pencil,
   Plus,
   Route,
   Save,
@@ -65,6 +66,11 @@ import {
   saveZoneTravelTimeAction,
   type SetupActionResult,
 } from '@/app/actions/setup';
+import {
+  createBranchDirectAction,
+  deleteBranchAction,
+  updateBranchAction,
+} from '@/app/actions/owner-brand';
 
 type AssignmentModeCode = 'MANUAL' | 'AUTOMATIC';
 type WorkforceRoleCode = 'OPERATIONS_MANAGER' | 'EMPLOYEE';
@@ -267,6 +273,7 @@ export interface SetupCenterProps {
 
 type SetupMutation = (formData: FormData) => Promise<SetupActionResult>;
 export type SectionId =
+  | 'branches'
   | 'overview'
   | 'inventory'
   | 'operations_management'
@@ -513,6 +520,293 @@ function SaveButton({ pending, label = 'حفظ التغييرات' }: { pending:
       <Save className="size-4" aria-hidden="true" />
       {pending ? 'جارٍ الحفظ…' : label}
     </button>
+  );
+}
+
+function BranchesSection({
+  branches,
+  tools,
+  onSelectBranch,
+}: {
+  branches: SetupBranchDto[];
+  tools: SectionTools;
+  onSelectBranch: (branchId: string) => void;
+}) {
+  const [editingBranch, setEditingBranch] = useState<SetupBranchDto | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  function handleStartCreate() {
+    setEditingBranch(null);
+    formRef.current?.reset();
+  }
+
+  function handleStartEdit(branch: SetupBranchDto) {
+    setEditingBranch(branch);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  return (
+    <div className="space-y-8">
+      {/* Form for Create / Edit */}
+      <Panel
+        title={editingBranch ? `تعديل بيانات فرع "${editingBranch.nameAr}"` : 'إضافة فرع جديد للمنظومة'}
+        description="أنشئ فرعًا جديدًا أو عدّل بيانات وسعة الفرع الحالي. التغييرات تنعكس فوراً على محرك الحجوزات ونطاقات التغطية."
+        actions={
+          editingBranch ? (
+            <button
+              type="button"
+              onClick={handleStartCreate}
+              className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-[#d4af37] px-3.5 text-xs font-black text-black hover:bg-[#e4c65f] transition-all shadow-md shadow-[#d4af37]/20"
+            >
+              <Plus className="size-3.5" aria-hidden="true" />
+              <span>إنشاء فرع جديد</span>
+            </button>
+          ) : undefined
+        }
+      >
+        <form
+          ref={formRef}
+          key={editingBranch ? `edit-${editingBranch.id}` : 'create-new'}
+          onSubmit={(event) => {
+            const data = formDataFrom(event);
+            tools.execute(editingBranch ? updateBranchAction : createBranchDirectAction, data);
+            if (!editingBranch) {
+              formRef.current?.reset();
+            }
+          }}
+          className="space-y-5"
+        >
+          {editingBranch ? <input type="hidden" name="branchId" value={editingBranch.id} /> : null}
+
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <label className="text-xs font-bold text-white/65">
+              اسم الفرع بالعربية *
+              <input
+                name="nameAr"
+                required
+                minLength={2}
+                maxLength={200}
+                defaultValue={editingBranch?.nameAr ?? ''}
+                placeholder="مثال: فرع القاهرة الجديدة"
+                className={inputClass}
+              />
+            </label>
+            <label className="text-xs font-bold text-white/65">
+              اسم الفرع بالإنجليزية
+              <input
+                name="nameEn"
+                dir="ltr"
+                maxLength={200}
+                defaultValue={editingBranch?.nameEn ?? ''}
+                placeholder="e.g. New Cairo Branch"
+                className={inputClass}
+              />
+            </label>
+            <label className="text-xs font-bold text-white/65">
+              كود الفرع (فريد) *
+              <input
+                name="code"
+                required
+                dir="ltr"
+                minLength={2}
+                maxLength={20}
+                defaultValue={editingBranch?.code ?? ''}
+                placeholder="مثال: CAIRO-NC-01"
+                className={inputClass}
+              />
+            </label>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <label className="text-xs font-bold text-white/65">
+              رقم الهاتف *
+              <input
+                name="phone"
+                required
+                dir="ltr"
+                defaultValue={editingBranch?.phone ?? ''}
+                placeholder="010XXXXXXXX"
+                className={inputClass}
+              />
+            </label>
+            <label className="text-xs font-bold text-white/65">
+              رقم الواتساب *
+              <input
+                name="whatsapp"
+                required
+                dir="ltr"
+                defaultValue={editingBranch?.whatsapp ?? ''}
+                placeholder="010XXXXXXXX"
+                className={inputClass}
+              />
+            </label>
+            <label className="text-xs font-bold text-white/65">
+              حد الحجوزات اليومي *
+              <input
+                name="dailyBookingLimit"
+                type="number"
+                required
+                min={1}
+                max={200}
+                defaultValue={editingBranch?.dailyBookingLimit ?? 20}
+                className={inputClass}
+              />
+            </label>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="text-xs font-bold text-white/65">
+              العنوان / المقر التشغيلي *
+              <input
+                name="address"
+                required
+                minLength={5}
+                maxLength={500}
+                defaultValue={editingBranch?.address ?? ''}
+                placeholder="مثال: التجمع الخامس، محور التسعين الشمالي"
+                className={inputClass}
+              />
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="text-xs font-bold text-white/65">
+                نمط الإسناد
+                <select
+                  name="assignmentMode"
+                  defaultValue={editingBranch?.assignmentMode ?? 'MANUAL'}
+                  className={inputClass}
+                >
+                  <option value="MANUAL">يدوي</option>
+                  <option value="AUTOMATIC">تلقائي</option>
+                </select>
+              </label>
+              <label className="text-xs font-bold text-white/65">
+                حالة الفرع
+                <select
+                  name="status"
+                  defaultValue={editingBranch?.status ?? 'ACTIVE'}
+                  className={inputClass}
+                >
+                  <option value="ACTIVE">نشط</option>
+                  <option value="PAUSED">متوقف مؤقتاً</option>
+                  <option value="DISABLED">معطل</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/8 pt-4">
+            <p className="text-xs text-white/40">
+              {editingBranch
+                ? 'تحديث بيانات الفرع يُسجل في سجل التدقيق فوراً.'
+                : 'عند إنشاء الفرع سيتم إضافة ساعات العمل الافتراضية وإتاحة إعداد فرقه ومناطقه.'}
+            </p>
+            <div className="flex items-center gap-3">
+              {editingBranch ? (
+                <button
+                  type="button"
+                  onClick={handleStartCreate}
+                  className="rounded-xl border border-white/10 px-4 py-2 text-xs font-bold text-white/70 hover:bg-white/5"
+                >
+                  إلغاء التعديل
+                </button>
+              ) : null}
+              <SaveButton
+                pending={tools.pending}
+                label={editingBranch ? 'حفظ تعديلات الفرع' : 'إنشاء الفرع الآن'}
+              />
+            </div>
+          </div>
+        </form>
+      </Panel>
+
+      {/* List of Registered Branches */}
+      <Panel
+        title={`الفروع المسجلة في المنظومة (${branches.length})`}
+        description="يمكنك تفعيل أو إيقاف أو تعديل أو حذف أي فرع. حذف الفرع يقوم بمسح كافة السجلات التابعة له نهائياً."
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
+          {branches.map((b) => (
+            <article
+              key={b.id}
+              className="flex flex-col justify-between rounded-2xl border border-white/10 bg-black/40 p-5 shadow-lg"
+            >
+              <div>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-base font-black text-white">{b.nameAr}</h4>
+                      <StatusPill
+                        active={b.status === 'ACTIVE'}
+                        activeLabel={b.status === 'ACTIVE' ? 'نشط' : b.status === 'PAUSED' ? 'متوقف مؤقتاً' : 'معطل'}
+                        inactiveLabel="غير نشط"
+                      />
+                    </div>
+                    <p dir="ltr" className="mt-1 font-mono text-xs text-[#d4af37]">
+                      {b.code}
+                    </p>
+                  </div>
+                </div>
+
+                <p className="mt-3 text-xs leading-5 text-white/60">{b.address}</p>
+
+                <div className="mt-4 grid grid-cols-3 gap-2 rounded-xl bg-white/[0.03] p-3 text-center text-xs">
+                  <div>
+                    <span className="block text-[10px] text-white/35">الفرق</span>
+                    <span className="mt-0.5 block font-bold text-white">{b.teams.length}</span>
+                  </div>
+                  <div>
+                    <span className="block text-[10px] text-white/35">الزونات</span>
+                    <span className="mt-0.5 block font-bold text-white">{b.zones.length}</span>
+                  </div>
+                  <div>
+                    <span className="block text-[10px] text-white/35">سعة اليوم</span>
+                    <span className="mt-0.5 block font-bold text-[#e5c45a]">{b.dailyBookingLimit}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-5 flex flex-wrap items-center justify-between gap-2 border-t border-white/8 pt-3.5">
+                <button
+                  type="button"
+                  onClick={() => onSelectBranch(b.id)}
+                  className="text-xs font-bold text-[#e5c45a] hover:underline"
+                >
+                  إعداد تفاصيل هذا الفرع ←
+                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleStartEdit(b)}
+                    className="inline-flex items-center gap-1 rounded-lg border border-[#d4af37]/35 bg-[#d4af37]/10 px-3 py-1.5 text-xs font-bold text-[#f3e4a8] hover:bg-[#d4af37]/20 transition-all"
+                  >
+                    <Pencil className="size-3.5" />
+                    <span>تعديل</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={tools.pending}
+                    onClick={() =>
+                      tools.requestConfirmation({
+                        title: `حذف فرع "${b.nameAr}" نهائياً`,
+                        description: `سيتم مسح فرع "${b.nameAr}" (${b.code}) وكافة السجلات والحجوزات والفرق والمناطق التابعة له نهائياً من قاعدة البيانات. هل تريد المتابعة؟`,
+                        action: deleteBranchAction,
+                        entityId: b.id,
+                        branchId: b.id,
+                        confirmLabel: 'تأكيد الحذف نهائياً',
+                      })
+                    }
+                    className="inline-flex items-center gap-1 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs font-bold text-red-300 hover:bg-red-500/20 transition-all disabled:opacity-50"
+                  >
+                    <Trash2 className="size-3.5 text-red-400" />
+                    <span>حذف</span>
+                  </button>
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+      </Panel>
+    </div>
   );
 }
 
@@ -2931,6 +3225,7 @@ export default function SetupCenter({ actor, branches, employees, permissions, s
     hint: string;
     icon: typeof Gauge;
   }> = [
+    { id: 'branches', label: 'الفروع', hint: 'إدارة وتعديل وحذف وإضافة الفروع', icon: Building2 },
     { id: 'overview', label: 'خريطة الجاهزية', hint: 'ملخص الفرع', icon: Gauge },
     { id: 'inventory', label: 'المخزون', hint: 'خامات ومخزون سيارات التشغيل', icon: Boxes },
     { id: 'operations_management', label: 'إدارة التشغيل', hint: 'المدراء والفروع المتعددة', icon: ShieldCheck },
@@ -2949,7 +3244,18 @@ export default function SetupCenter({ actor, branches, employees, permissions, s
   };
 
   let content: ReactNode;
-  if (!branch) {
+  if (section === 'branches') {
+    content = (
+      <BranchesSection
+        branches={branches}
+        tools={sectionTools}
+        onSelectBranch={(id) => {
+          setBranchId(id);
+          setSection('overview');
+        }}
+      />
+    );
+  } else if (!branch) {
     content = <EmptyState title="لا يوجد فرع قابل للإعداد" text="أنشئ فرعًا من إدارة النظام أولًا." />;
   } else {
     switch (section) {
@@ -3045,13 +3351,6 @@ export default function SetupCenter({ actor, branches, employees, permissions, s
                 <p className="mt-1 text-sm font-black">{branch.nameAr} <span dir="ltr" className="text-white/35">· {branch.code}</span></p>
               </div>
             ) : null}
-            <Link
-              href="/admin/branches"
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#d4af37] via-[#e5c45a] to-[#d4af37] px-4 py-2 text-xs font-black text-black shadow-md shadow-[#d4af37]/20 hover:brightness-110 transition-all"
-            >
-              <Building2 className="size-4" aria-hidden="true" />
-              <span>إدارة وحذف الفروع (+ إضافة)</span>
-            </Link>
             <Link href="/admin" className={secondaryButtonClass}>
               العودة للوحة المالك
               <ArrowLeft className="size-4" aria-hidden="true" />
