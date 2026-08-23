@@ -34,7 +34,7 @@ export const paymentStatusLabels: Record<PaymentStatus, string> = {
   [PaymentStatus.AWAITING_PROOF]: 'بانتظار الإثبات',
   [PaymentStatus.PROOF_UPLOADED]: 'تم رفع الإثبات',
   [PaymentStatus.UNDER_REVIEW]: 'قيد المراجعة',
-  [PaymentStatus.VERIFIED]: 'متحقق',
+  [PaymentStatus.VERIFIED]: 'عربون معتمد',
   [PaymentStatus.REJECTED]: 'مرفوض',
   [PaymentStatus.AMOUNT_SHORT]: 'المبلغ ناقص',
   [PaymentStatus.DUPLICATE_SUSPECTED]: 'اشتباه تكرار',

@@ -1,11 +1,15 @@
 import { BookingStatus } from '@prisma/client';
 
 const BALANCE_COLLECTION_STATUSES = new Set<BookingStatus>([
+  BookingStatus.ACCEPTED,
+  BookingStatus.AWAITING_ASSIGNMENT,
+  BookingStatus.ASSIGNED,
   BookingStatus.ARRIVED,
   BookingStatus.IN_SERVICE,
   BookingStatus.QUALITY_REVIEW,
   BookingStatus.SERVICE_COMPLETED,
   BookingStatus.DELIVERED,
+  BookingStatus.CLOSED,
 ]);
 
 export function canRecordBookingBalance(status: BookingStatus): boolean {

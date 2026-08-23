@@ -455,9 +455,8 @@ export async function reviewBookingAction(formData: FormData) {
 
       return { accepted: true, ...assignment };
     }, {
-      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
-      maxWait: 10_000,
-      timeout: 25_000,
+      maxWait: 15_000,
+      timeout: 60_000,
     });
 
     revalidateOperations(parsed.data.bookingId);
@@ -562,7 +561,7 @@ export async function recordBalancePaymentAction(formData: FormData) {
         throw new OperationsInputError('تغير الفريق المسند أثناء تسجيل التحصيل؛ حدّث الصفحة وأعد المحاولة.');
       }
       if (!canRecordBookingBalance(booking.bookingStatus)) {
-        throw new OperationsInputError('لا يمكن تسجيل الرصيد إلا بعد وصول الفريق وخلال تنفيذ أو إغلاق الخدمة.');
+        throw new OperationsInputError('لا يمكن تسجيل الرصيد لحجز ملغي أو غير مؤكد.');
       }
 
       const paidBefore = await tx.payment.aggregate({

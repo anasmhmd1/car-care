@@ -649,29 +649,72 @@ export default function CalendarBoard(props: CalendarBoardProps) {
     <div dir="rtl" className={`min-h-screen bg-[#080808] text-white ${draggingId ? 'select-none' : ''}`}>
       <a href="#calendar-main" tabIndex={draft ? -1 : undefined} aria-hidden={draft ? true : undefined} className="skip-link">تخطي إلى التقويم</a>
       <header inert={draft ? true : undefined} aria-hidden={draft ? true : undefined} className="border-b border-white/10 bg-black/45">
-        <div className="mx-auto flex max-w-[1700px] flex-col gap-5 px-4 py-5 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+        <div className="mx-auto flex max-w-[1700px] flex-col gap-5 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
           <div className="min-w-0">
-            <Link href={homeHref} className="inline-flex items-center gap-2 text-sm font-bold text-[#d4af37] transition-colors hover:text-[#ead478]"><ArrowRight aria-hidden="true" className="size-4" /> {homeLabel}</Link>
-            <h1 className="mt-2 text-2xl font-black tracking-tight sm:text-3xl">تقويم التشغيل</h1>
+            <h1 className="text-2xl font-black tracking-tight sm:text-3xl">تقويم التشغيل</h1>
             <p className="mt-1 text-sm text-white/45">{viewerName} · {rangeLabel}</p>
           </div>
-          <nav aria-label="طرق عرض التقويم" className="flex max-w-full gap-2 overflow-x-auto pb-1">
-            {viewItems.map((item) => {
-              const Icon = item.icon;
-              const active = currentView === item.id;
-              return <Link key={item.id} href={calendarHref(currentView, selectedDate, filters, { view: item.id })} aria-current={active ? 'page' : undefined} className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-4 text-sm font-bold transition-colors ${active ? 'bg-[#d4af37] text-black' : 'border border-white/10 bg-white/[0.035] text-white/60 hover:bg-white/[0.07] hover:text-white'}`}><Icon aria-hidden="true" className="size-4" />{item.label}</Link>;
-            })}
-          </nav>
+          <div className="flex flex-wrap items-center gap-3">
+            <nav aria-label="طرق عرض التقويم" className="flex max-w-full gap-2 overflow-x-auto pb-1">
+              {viewItems.map((item) => {
+                const Icon = item.icon;
+                const active = currentView === item.id;
+                return (
+                  <Link
+                    key={item.id}
+                    href={calendarHref(currentView, selectedDate, filters, { view: item.id })}
+                    aria-current={active ? 'page' : undefined}
+                    className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-4 text-sm font-bold transition-colors ${
+                      active
+                        ? 'bg-[#d4af37] text-black font-black'
+                        : 'border border-white/10 bg-white/[0.035] text-white/60 hover:bg-white/[0.07] hover:text-white'
+                    }`}
+                  >
+                    <Icon aria-hidden="true" className="size-4" />
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </nav>
+
+            <span className="hidden sm:inline-block h-6 w-px bg-white/10" />
+
+            <Link
+              href={homeHref}
+              className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl bg-gradient-to-r from-[#d4af37] via-[#e5c45a] to-[#d4af37] px-4 text-xs font-black text-neutral-950 shadow-md shadow-[#d4af37]/20 transition-all hover:brightness-110"
+            >
+              <ArrowRight aria-hidden="true" className="size-4" />
+              <span>{homeLabel}</span>
+            </Link>
+          </div>
         </div>
       </header>
 
       <main id="calendar-main" inert={draft ? true : undefined} aria-hidden={draft ? true : undefined} className="mx-auto max-w-[1700px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
         <section aria-labelledby="calendar-range-title" className="rounded-3xl border border-white/10 bg-white/[0.025] p-4 sm:p-5">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2.5">
               <Link href={previousHref} aria-label="الفترة السابقة" className={`${secondaryButtonClass} px-3`}><ChevronRight aria-hidden="true" className="size-4" /></Link>
               <Link href={calendarHref(currentView, selectedDate, filters, { date: today })} className={secondaryButtonClass}>اليوم</Link>
               <Link href={nextHref} aria-label="الفترة التالية" className={`${secondaryButtonClass} px-3`}><ChevronLeft aria-hidden="true" className="size-4" /></Link>
+
+              {/* Direct Calendar Date Picker */}
+              <div className="flex items-center gap-1.5 rounded-xl border border-white/15 bg-black/50 px-3 py-1.5 text-xs transition-colors hover:border-[#d4af37]/60">
+                <CalendarDays className="size-4 text-[#d4af37]" />
+                <label htmlFor="calendar-date-picker" className="sr-only">تحديد التاريخ مباشرة</label>
+                <input
+                  id="calendar-date-picker"
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      router.push(calendarHref(currentView, selectedDate, filters, { date: e.target.value }));
+                    }
+                  }}
+                  className="bg-transparent text-xs font-black text-white outline-none cursor-pointer [color-scheme:dark]"
+                />
+              </div>
+
               <div className="mr-2 min-w-0">
                 <h2 id="calendar-range-title" className="truncate text-lg font-black">{rangeLabel}</h2>
                 <p id="calendar-drag-help" className="mt-1 text-xs leading-5 text-white/40">اسحب الحجز المسموح إلى وقت أو يوم جديد، أو استخدم زر «تغيير الموعد» للوصول بلوحة المفاتيح. الحفظ يتطلب تأكيدًا وسببًا.</p>

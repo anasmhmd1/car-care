@@ -11,6 +11,7 @@ import {
   CarFront,
   ClipboardList,
   History,
+  Home,
   Package,
   Plus,
   Save,
@@ -1249,18 +1250,41 @@ export default function OperationsResourcesBoard({
   return (
     <div className="min-h-screen bg-[#080808] text-white" dir="rtl">
       <main className="mx-auto w-full max-w-[1500px] space-y-7 px-4 py-8 sm:px-6 lg:px-8">
-        <header className="flex flex-col gap-5 border-b border-white/10 pb-7 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <Link href="/operations" className="inline-flex items-center gap-2 text-xs font-bold text-[#d4af37]"><ArrowRight className="size-4" aria-hidden="true" />العودة لمركز التشغيل</Link>
-            <p className="mt-5 flex items-center gap-2 text-xs font-bold text-[#d4af37]"><Boxes className="size-4" aria-hidden="true" />التجهيز، المخزون، والأسطول</p>
-            <h1 className="mt-2 text-3xl font-black sm:text-4xl">الموارد التشغيلية</h1>
-            <p className="mt-2 max-w-3xl text-sm leading-7 text-white/50">إدارة مواد الخدمة المطلوبة، مخزون سيارات التشغيل المتنقلة، وأسطول فرق التنفيذ الميداني.</p>
+        <header className="space-y-5 border-b border-white/10 pb-7">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="flex items-center gap-2 text-xs font-bold text-[#d4af37]">
+              <Boxes className="size-4" aria-hidden="true" />
+              التجهيز، المخزون، والأسطول
+            </p>
+            <div className="flex items-center gap-2.5">
+              <Link
+                href="/operations"
+                className="inline-flex items-center gap-2 rounded-xl border border-[#d4af37]/35 bg-[#d4af37]/10 px-3.5 py-2 text-xs font-bold text-[#f0d36d] hover:bg-[#d4af37]/20 transition-all shadow-sm"
+              >
+                <ArrowRight className="size-4" aria-hidden="true" />
+                العودة لمركز التشغيل
+              </Link>
+              <Link
+                href="/"
+                className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/[0.05] px-3.5 py-2 text-xs font-bold text-white/80 hover:border-[#d4af37]/40 hover:text-white transition-all shadow-sm"
+              >
+                <Home className="size-4 text-neutral-400" aria-hidden="true" />
+                الصفحة الرئيسية
+              </Link>
+            </div>
           </div>
-          <div className="flex flex-wrap gap-2 text-xs">
-            <span className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-white/65">{branches.length} فروع مسموحة</span>
-            <span className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-white/65">{employees.length} موظف وفني</span>
-            <span className={`rounded-xl border px-3 py-2 ${lowStocks.length ? 'border-amber-400/35 bg-amber-400/10 text-amber-200' : 'border-emerald-400/35 bg-emerald-400/10 text-emerald-200'}`}>{lowStocks.length ? `${lowStocks.length} أصناف تحتاج طلبًا` : 'الأرصدة مطمئنة'}</span>
-            <span className="rounded-xl border border-[#d4af37]/35 bg-[#d4af37]/10 px-3 py-2 text-[#f0d36d]">{actorRole === 'OPERATIONS_MANAGER' ? 'نطاق مدير التشغيل' : 'صلاحيات مالك النظام'}</span>
+
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <h1 className="text-3xl font-black sm:text-4xl">الموارد التشغيلية</h1>
+              <p className="mt-2 max-w-3xl text-sm leading-7 text-white/50">إدارة مواد الخدمة المطلوبة، مخزون سيارات التشغيل المتنقلة، وأسطول فرق التنفيذ الميداني.</p>
+            </div>
+            <div className="flex flex-wrap gap-2 text-xs">
+              <span className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-white/65">{branches.length} فروع مسموحة</span>
+              <span className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-white/65">{employees.length} موظف وفني</span>
+              <span className={`rounded-xl border px-3 py-2 ${lowStocks.length ? 'border-amber-400/35 bg-amber-400/10 text-amber-200' : 'border-emerald-400/35 bg-emerald-400/10 text-emerald-200'}`}>{lowStocks.length ? `${lowStocks.length} أصناف تحتاج طلبًا` : 'الأرصدة مطمئنة'}</span>
+              <span className="rounded-xl border border-[#d4af37]/35 bg-[#d4af37]/10 px-3 py-2 text-[#f0d36d]">{actorRole === 'OPERATIONS_MANAGER' ? 'نطاق مدير التشغيل' : 'صلاحيات مالك النظام'}</span>
+            </div>
           </div>
         </header>
 

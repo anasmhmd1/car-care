@@ -3,7 +3,7 @@
 import { FormEvent, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, BadgeDollarSign, Building2, Save } from 'lucide-react';
+import { ArrowRight, BadgeDollarSign, Building2, Home, Save } from 'lucide-react';
 import { updateDelegatedServicePriceAction } from '@/app/actions/delegated-pricing';
 
 interface PriceService {
@@ -62,13 +62,22 @@ export default function DelegatedPricingBoard({ globalServices, branches }: Prop
     <main className="min-h-screen bg-[#080808] px-4 py-8 text-white sm:px-6">
       <div className="mx-auto max-w-5xl space-y-7">
         <header className="rounded-3xl border border-[#c9a227]/35 bg-[#141414] p-6 sm:p-8">
-          <Link
-            href="/operations"
-            className="inline-flex items-center gap-2 rounded-xl border border-neutral-700 px-3 py-2 text-xs font-bold text-neutral-300 hover:border-[#c9a227]/60 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c9a227]"
-          >
-            <ArrowRight className="size-4" aria-hidden="true" />
-            العودة للتشغيل
-          </Link>
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            <Link
+              href="/operations"
+              className="inline-flex items-center gap-2 rounded-xl border border-neutral-700 px-3.5 py-2 text-xs font-bold text-neutral-300 hover:border-[#c9a227]/60 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c9a227] transition-all"
+            >
+              <ArrowRight className="size-4" aria-hidden="true" />
+              العودة للتشغيل
+            </Link>
+            <Link
+              href="/"
+              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2 text-xs font-bold text-white/75 hover:border-white/20 hover:text-white transition-all"
+            >
+              <Home className="size-4 text-neutral-400" aria-hidden="true" />
+              الصفحة الرئيسية
+            </Link>
+          </div>
           <div className="mt-6 flex items-start gap-4">
             <span className="rounded-2xl bg-[#c9a227]/10 p-3 text-[#e5c45a]">
               <BadgeDollarSign className="size-7" aria-hidden="true" />

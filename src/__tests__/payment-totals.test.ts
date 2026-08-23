@@ -24,7 +24,9 @@ describe('calculateBookingPaymentTotals', () => {
 });
 
 describe('canRecordBookingBalance', () => {
-  it('allows collection only after arrival and before final closure', () => {
+  it('allows collection across all active booking stages', () => {
+    expect(canRecordBookingBalance(BookingStatus.ACCEPTED)).toBe(true);
+    expect(canRecordBookingBalance(BookingStatus.ASSIGNED)).toBe(true);
     expect(canRecordBookingBalance(BookingStatus.ARRIVED)).toBe(true);
     expect(canRecordBookingBalance(BookingStatus.SERVICE_COMPLETED)).toBe(true);
     expect(canRecordBookingBalance(BookingStatus.DELIVERED)).toBe(true);

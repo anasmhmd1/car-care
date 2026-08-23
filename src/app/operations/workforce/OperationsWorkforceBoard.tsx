@@ -4,10 +4,12 @@ import {
   ArrowRight,
   CalendarClock,
   Clock3,
+  Home,
   Plus,
   Save,
   ShieldCheck,
   Trash2,
+  User,
   UserRoundCog,
   UsersRound,
   X,
@@ -36,6 +38,14 @@ type WorkforceRoleCode = 'OPERATIONS_MANAGER' | 'EMPLOYEE';
 type ActorRoleCode = 'OPERATIONS_MANAGER' | 'OWNER' | 'SYSTEM_SUPER_ADMIN';
 type SectionId = 'employees' | 'teams' | 'availability';
 type TimeOffSubjectType = 'TEAM' | 'EMPLOYEE';
+
+const roleArabicNames: Record<string, string> = {
+  OPERATIONS_MANAGER: 'مدير التشغيل',
+  OWNER: 'المالك',
+  SYSTEM_SUPER_ADMIN: 'مدير النظام',
+  EMPLOYEE: 'موظف تنفيذ',
+  CUSTOMER: 'عميل',
+};
 
 interface TimeOffDto {
   id: string;
@@ -906,9 +916,7 @@ export default function OperationsWorkforceBoard({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [branchId, setBranchId] = useState(branches[0]?.id ?? '');
-  const [section, setSection] = useState<SectionId>(
-    employeeManagementBranchIds.includes(branches[0]?.id ?? '') ? 'employees' : 'teams',
-  );
+  const [section, setSection] = useState<SectionId>('teams');
   const [notice, setNotice] = useState<Notice | null>(null);
   const [confirmation, setConfirmation] = useState<ConfirmationRequest | null>(null);
   const branch = useMemo(
@@ -973,56 +981,116 @@ export default function OperationsWorkforceBoard({
     content = <EmployeeSection key={branch.id} branch={branch} branches={branches} employees={branchEmployees} actorRole={actor.role} tools={tools} />;
   } else {
     content = (
-      <EmptyState
-        title="إدارة الحسابات تحتاج تفويضًا صريحًا"
-        text="يستطيع مدير التشغيل إدارة الفرق والإتاحة افتراضيًا، أما إنشاء أو تعديل Employee فيلزمه employee.manage لهذا الفرع."
-      />
+      <div className="rounded-3xl border border-amber-500/20 bg-amber-500/[0.04] p-8 text-center sm:p-12">
+        <div className="mx-auto grid size-14 place-items-center rounded-2xl bg-amber-500/10 text-amber-300">
+          <ShieldCheck className="size-7" />
+        </div>
+        <h3 className="mt-4 text-lg font-black text-white">إدارة الحسابات تتطلب تفويضًا إداريًا صريحًا</h3>
+        <p className="mx-auto mt-2 max-w-xl text-sm leading-7 text-white/55">
+          يمكنك إدارة وتشكيل فرق العمل وإجازاتها لفرع <strong className="text-[#f3e4a8]">{branch.nameAr}</strong> مباشرة من تبويب <strong>«تشكيل الفرق»</strong>. إنشاء أو تعديل الحسابات يتطلب تفويض <code className="rounded bg-black/40 px-1.5 py-0.5 text-xs text-[#d4af37]">employee.manage</code> من المالك.
+        </p>
+        <button
+          type="button"
+          onClick={() => setSection('teams')}
+          className="mt-6 inline-flex items-center gap-2 rounded-xl bg-[#d4af37] px-5 py-2.5 text-xs font-bold text-black hover:bg-[#e5c65d] transition"
+        >
+          <UsersRound className="size-4" />
+          <span>الانتقال إلى تشكيل الفرق</span>
+        </button>
+      </div>
     );
   }
 
   const navItems: Array<{ id: SectionId; label: string; hint: string; icon: typeof UsersRound }> = [
-    { id: 'employees', label: 'الحسابات', hint: 'موظفو الفرع', icon: UserRoundCog },
     { id: 'teams', label: 'تشكيل الفرق', hint: 'أعضاء وقدرات وزونات', icon: UsersRound },
-    { id: 'availability', label: 'الإتاحة', hint: 'دوام وإجازات', icon: CalendarClock },
+    { id: 'availability', label: 'الإتاحة والدوام', hint: 'دوام وإجازات', icon: CalendarClock },
+    { id: 'employees', label: 'حسابات الموظفين', hint: 'موظفو الفرع', icon: UserRoundCog },
   ];
 
   return (
     <div dir="rtl" className="min-h-screen bg-[#08090a] text-white">
       <header className="border-b border-white/8 bg-[#0b0c0e]/95">
         <div className="mx-auto max-w-[1500px] px-4 py-5 sm:px-6 lg:px-8">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <div className="flex flex-wrap items-center gap-3">
-                <Link href="/operations" className={secondaryButtonClass}><ArrowRight className="size-4" aria-hidden="true" />لوحة التشغيل</Link>
-                <span className="rounded-full border border-[#d4af37]/25 bg-[#d4af37]/8 px-3 py-1 text-[11px] font-black text-[#e3c65f]">نطاق القوى العاملة فقط</span>
-              </div>
-              <p className="mt-5 text-xs font-black uppercase tracking-[0.18em] text-[#d4af37]">وردية القوى العاملة</p>
-              <h1 className="mt-2 text-3xl font-black tracking-tight sm:text-5xl">من موجود؟ ومن يستطيع التنفيذ؟</h1>
-              <p className="mt-3 max-w-3xl text-sm leading-7 text-white/45">شكّل الفرق واضبط ساعاتها وإجازاتها للفروع المسموح بها. الدفع والتغطية وإعدادات الفرع وقوالب التنفيذ ليست متاحة هنا.</p>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/8 pb-4">
+            <div className="flex items-center gap-2.5">
+              <span className="flex items-center gap-1.5 text-xs font-black uppercase tracking-[0.18em] text-[#d4af37]">
+                <UsersRound className="size-4" aria-hidden="true" />
+                وردية القوى العاملة
+              </span>
+              <span className="hidden sm:inline-block text-white/20">|</span>
+              <span className="rounded-full border border-[#d4af37]/25 bg-[#d4af37]/8 px-3 py-1 text-[11px] font-bold text-[#e3c65f]">
+                نطاق القوى العاملة والفرق
+              </span>
             </div>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-              <label className="text-xs font-bold text-white/55">
-                الفرع العامل
-                <select value={branch?.id ?? ''} onChange={(event) => { setBranchId(event.target.value); setNotice(null); }} className={inputClass + ' min-w-64'}>
-                  {branches.map((item) => <option key={item.id} value={item.id}>{item.nameAr} — {item.code}</option>)}
+            <div className="flex flex-wrap items-center gap-2.5">
+              <Link href="/operations" className={secondaryButtonClass}>
+                <ArrowRight className="size-4" aria-hidden="true" />
+                لوحة التشغيل
+              </Link>
+              <Link href="/" className={secondaryButtonClass}>
+                <Home className="size-4 text-neutral-400" aria-hidden="true" />
+                الصفحة الرئيسية
+              </Link>
+            </div>
+          </div>
+
+          <div className="mt-5 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h1 className="text-2xl font-black tracking-tight sm:text-3xl text-white">إدارة القوى العاملة وتشكيل الفرق</h1>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-white/50">
+                شكّل الفرق وحدد أعضاءها وساعات عملها وإجازاتها للفروع المسموح بها في نطاقك.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex flex-col gap-1 min-w-[200px] sm:min-w-[240px]">
+                <label htmlFor="active-workforce-branch" className="text-xs font-bold text-white/60">الفرع العامل</label>
+                <select
+                  id="active-workforce-branch"
+                  value={branch?.id ?? ''}
+                  onChange={(event) => { setBranchId(event.target.value); setNotice(null); }}
+                  className="min-h-11 w-full rounded-xl border border-white/12 bg-black/60 px-3.5 text-xs font-bold text-white outline-none transition focus:border-[#d4af37] focus:ring-2 focus:ring-[#d4af37]/20"
+                >
+                  {branches.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.nameAr} — {item.code}
+                    </option>
+                  ))}
                 </select>
-              </label>
-              <div className="rounded-xl border border-white/8 bg-black/25 px-4 py-3 text-xs text-white/40"><span className="block font-black text-white/70">{actor.fullName}</span>{actor.role}</div>
+              </div>
+              <div className="flex flex-col gap-1 self-end">
+                <span className="text-xs font-bold text-transparent select-none">.</span>
+                <div className="flex min-h-11 items-center gap-2.5 rounded-xl border border-[#d4af37]/30 bg-[#d4af37]/10 px-4 py-2 text-xs shadow-sm">
+                  <div className="grid size-7 place-items-center rounded-lg bg-[#d4af37]/20 text-[#f3e4a8]">
+                    <User className="size-3.5" />
+                  </div>
+                  <div>
+                    <span className="block font-black text-white">{actor.fullName}</span>
+                    <span className="text-[10px] font-bold text-[#e3c65f]">
+                      {roleArabicNames[actor.role] ?? actor.role}
+                    </span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
           {branch ? (
-            <div className="mt-6 grid overflow-hidden rounded-2xl border border-white/9 bg-black/25 sm:grid-cols-3">
+            <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
               {[
-                { label: 'الموظفون النشطون', value: activeEmployees, icon: UserRoundCog },
-                { label: 'الفرق النشطة', value: activeTeams, icon: UsersRound },
-                { label: 'غير متاح الآن', value: unavailableNow, icon: Clock3 },
-              ].map((item, index) => {
+                { label: 'الموظفون النشطون', value: activeEmployees, icon: UserRoundCog, tone: 'text-emerald-300', bg: 'bg-emerald-500/10' },
+                { label: 'الفرق النشطة', value: activeTeams, icon: UsersRound, tone: 'text-[#d4af37]', bg: 'bg-[#d4af37]/10' },
+                { label: 'غير متاح الآن', value: unavailableNow, icon: Clock3, tone: 'text-amber-300', bg: 'bg-amber-500/10' },
+              ].map((item) => {
                 const Icon = item.icon;
                 return (
-                  <div key={item.label} className={'flex items-center gap-4 px-5 py-4 ' + (index ? 'border-t border-white/8 sm:border-r sm:border-t-0' : '')}>
-                    <span className="grid size-10 place-items-center rounded-xl bg-[#d4af37]/10 text-[#d4af37]"><Icon className="size-5" aria-hidden="true" /></span>
-                    <div><p className="text-xs text-white/38">{item.label}</p><p className="mt-1 text-2xl font-black tabular-nums">{item.value}</p></div>
+                  <div key={item.label} className="flex items-center gap-4 rounded-2xl border border-white/8 bg-black/30 p-4 transition hover:border-white/15">
+                    <span className={`grid size-11 shrink-0 place-items-center rounded-xl ${item.bg} ${item.tone}`}>
+                      <Icon className="size-5" aria-hidden="true" />
+                    </span>
+                    <div>
+                      <p className="text-xs font-medium text-white/45">{item.label}</p>
+                      <p className="mt-0.5 text-2xl font-black tabular-nums text-white">{item.value}</p>
+                    </div>
                   </div>
                 );
               })}

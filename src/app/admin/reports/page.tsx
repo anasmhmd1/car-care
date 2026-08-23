@@ -9,6 +9,7 @@ import {
   UserRole,
 } from '@prisma/client';
 import {
+  ArrowRight,
   BarChart3,
   Building2,
   Calendar,
@@ -23,6 +24,7 @@ import {
   TrendingUp,
   WalletCards,
 } from 'lucide-react';
+import BareeqLogo from '@/components/BareeqLogo';
 import { requireRole } from '@/lib/auth/session';
 import { hasPermission } from '@/lib/auth/permissions';
 import { getAccessibleBranchIds } from '@/lib/auth/authorization';
@@ -326,48 +328,161 @@ function RevenueTable({ title, rows }: RevenueTableProps) {
   );
 }
 
+const reportDateFormatter = new Intl.DateTimeFormat('ar-EG', {
+  timeZone: 'Africa/Cairo',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+
+function formatReportDateTime(dateStr: string) {
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return reportDateFormatter.format(d);
+  } catch {
+    return dateStr;
+  }
+}
+
+function getBookingStatusBadge(status: BookingStatus) {
+  switch (status) {
+    case BookingStatus.SERVICE_COMPLETED:
+    case BookingStatus.DELIVERED:
+    case BookingStatus.CLOSED:
+      return 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300';
+    case BookingStatus.IN_SERVICE:
+    case BookingStatus.ARRIVED:
+    case BookingStatus.ON_THE_WAY:
+      return 'border-blue-500/30 bg-blue-500/10 text-blue-300';
+    case BookingStatus.QUALITY_REVIEW:
+      return 'border-amber-400/30 bg-amber-400/10 text-amber-300';
+    case BookingStatus.ACCEPTED:
+    case BookingStatus.ASSIGNED:
+    case BookingStatus.TEAM_ACKNOWLEDGED:
+      return 'border-indigo-400/30 bg-indigo-400/10 text-indigo-300';
+    case BookingStatus.AWAITING_PAYMENT_PROOF:
+    case BookingStatus.PAYMENT_UNDER_REVIEW:
+    case BookingStatus.AWAITING_OPERATIONS_REVIEW:
+    case BookingStatus.AWAITING_ASSIGNMENT:
+      return 'border-amber-400/30 bg-amber-400/10 text-amber-200';
+    case BookingStatus.CANCELLED:
+    case BookingStatus.REJECTED:
+    case BookingStatus.EXECUTION_FAILED:
+    case BookingStatus.CUSTOMER_NO_SHOW:
+    case BookingStatus.ACCESS_DENIED:
+    case BookingStatus.EXPIRED:
+      return 'border-rose-500/30 bg-rose-500/10 text-rose-300';
+    case BookingStatus.ADMIN_REVIEW_REQUIRED:
+    case BookingStatus.RESCHEDULE_REQUESTED:
+    case BookingStatus.CANCELLATION_REQUESTED:
+      return 'border-purple-400/30 bg-purple-400/10 text-purple-300';
+    default:
+      return 'border-neutral-700 bg-neutral-800 text-neutral-300';
+  }
+}
+
+function getPaymentStatusBadge(status: PaymentStatus) {
+  switch (status) {
+    case PaymentStatus.FULLY_PAID:
+      return 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300';
+    case PaymentStatus.PARTIALLY_PAID:
+    case PaymentStatus.VERIFIED:
+      return 'border-cyan-500/30 bg-cyan-500/10 text-cyan-300';
+    case PaymentStatus.AWAITING_PROOF:
+    case PaymentStatus.PROOF_UPLOADED:
+    case PaymentStatus.UNDER_REVIEW:
+      return 'border-amber-400/30 bg-amber-400/10 text-amber-200';
+    case PaymentStatus.REFUNDED:
+    case PaymentStatus.PARTIALLY_REFUNDED:
+    case PaymentStatus.REFUND_PENDING:
+      return 'border-purple-400/30 bg-purple-400/10 text-purple-300';
+    case PaymentStatus.REJECTED:
+    case PaymentStatus.AMOUNT_SHORT:
+    case PaymentStatus.DUPLICATE_SUSPECTED:
+    case PaymentStatus.REUPLOAD_REQUIRED:
+      return 'border-rose-500/30 bg-rose-500/10 text-rose-300';
+    default:
+      return 'border-neutral-700 bg-neutral-800 text-neutral-400';
+  }
+}
+
 interface BookingsTableProps {
   rows: BookingReportRow[];
 }
 
 function BookingsTable({ rows }: BookingsTableProps) {
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[980px] border-collapse text-right text-xs">
+    <div className="overflow-x-auto rounded-2xl border border-white/10 bg-neutral-950/40">
+      <table className="w-full min-w-[1150px] border-collapse text-right text-xs">
         <caption className="sr-only">سجل الحجوزات المطابق</caption>
-        <thead className="border-b border-white/10 text-neutral-500">
+        <thead className="border-b border-white/10 bg-white/[0.02] text-neutral-400">
           <tr>
-            <th scope="col" className="px-3 py-3 font-medium">رقم الحجز</th>
-            <th scope="col" className="px-3 py-3 font-medium">الموعد</th>
-            <th scope="col" className="px-3 py-3 font-medium">الفرع</th>
-            <th scope="col" className="px-3 py-3 font-medium">المنطقة</th>
-            <th scope="col" className="px-3 py-3 font-medium">الفريق</th>
-            <th scope="col" className="px-3 py-3 font-medium">الخدمة</th>
-            <th scope="col" className="px-3 py-3 font-medium">الحالة</th>
-            <th scope="col" className="px-3 py-3 font-medium">الدفع</th>
-            <th scope="col" className="px-3 py-3 font-medium">القيمة</th>
-            <th scope="col" className="px-3 py-3 font-medium">المحصّل</th>
-            <th scope="col" className="px-3 py-3 font-medium">المتبقي</th>
+            <th scope="col" className="px-3.5 py-3.5 font-bold whitespace-nowrap">رقم الحجز</th>
+            <th scope="col" className="px-3.5 py-3.5 font-bold whitespace-nowrap">الموعد</th>
+            <th scope="col" className="px-3.5 py-3.5 font-bold whitespace-nowrap">الفرع</th>
+            <th scope="col" className="px-3.5 py-3.5 font-bold whitespace-nowrap">المنطقة</th>
+            <th scope="col" className="px-3.5 py-3.5 font-bold whitespace-nowrap">الفريق</th>
+            <th scope="col" className="px-3.5 py-3.5 font-bold whitespace-nowrap">الخدمة</th>
+            <th scope="col" className="px-3.5 py-3.5 font-bold whitespace-nowrap text-center">الحالة</th>
+            <th scope="col" className="px-3.5 py-3.5 font-bold whitespace-nowrap text-center">الدفع</th>
+            <th scope="col" className="px-3.5 py-3.5 font-bold whitespace-nowrap text-left">القيمة</th>
+            <th scope="col" className="px-3.5 py-3.5 font-bold whitespace-nowrap text-left">المحصّل</th>
+            <th scope="col" className="px-3.5 py-3.5 font-bold whitespace-nowrap text-left">المتبقي</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody className="divide-y divide-white/5">
           {rows.length === 0 ? (
-            <tr><td colSpan={11} className="px-3 py-10 text-center text-neutral-500">لا توجد حجوزات مطابقة للفلاتر المحددة.</td></tr>
-          ) : rows.map((row) => (
-            <tr key={row.bookingNumber} className="border-b border-white/5 hover:bg-white/[0.02]">
-              <th scope="row" className="px-3 py-3 font-mono text-[#ecd66f]" dir="ltr">{row.bookingNumber}</th>
-              <td className="px-3 py-3 font-mono text-neutral-300" dir="ltr">{row.startAt}</td>
-              <td className="px-3 py-3 text-neutral-300">{row.branch}</td>
-              <td className="px-3 py-3 text-neutral-300">{row.zone} ({row.area})</td>
-              <td className="px-3 py-3 text-neutral-300">{row.team || '—'}</td>
-              <td className="px-3 py-3 text-neutral-200">{row.service}</td>
-              <td className="px-3 py-3"><span className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-bold text-neutral-200">{bookingStatusLabels[row.bookingStatus]}</span></td>
-              <td className="px-3 py-3"><span className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-bold text-neutral-300">{paymentStatusLabels[row.paymentStatus]}</span></td>
-              <td className="px-3 py-3 font-mono text-neutral-300">{money(row.totalPrice)}</td>
-              <td className="px-3 py-3 font-mono text-emerald-400">{money(row.amountPaid)}</td>
-              <td className="px-3 py-3 font-mono text-rose-400">{money(row.amountDue)}</td>
+            <tr>
+              <td colSpan={11} className="px-3 py-10 text-center text-neutral-500 font-bold">
+                لا توجد حجوزات مطابقة للفلاتر المحددة.
+              </td>
             </tr>
-          ))}
+          ) : (
+            rows.map((row) => (
+              <tr key={row.bookingNumber} className="hover:bg-white/[0.03] transition-colors">
+                <th scope="row" className="px-3.5 py-3.5 font-mono font-black text-[#ecd66f] whitespace-nowrap" dir="ltr">
+                  {row.bookingNumber}
+                </th>
+                <td className="px-3.5 py-3.5 font-bold text-neutral-300 whitespace-nowrap">
+                  {formatReportDateTime(row.startAt)}
+                </td>
+                <td className="px-3.5 py-3.5 text-neutral-300 font-medium whitespace-nowrap">
+                  {row.branch}
+                </td>
+                <td className="px-3.5 py-3.5 text-neutral-300 font-medium whitespace-nowrap">
+                  {row.zone} {row.area ? `(${row.area})` : ''}
+                </td>
+                <td className="px-3.5 py-3.5 text-neutral-300 font-medium whitespace-nowrap">
+                  {row.team || '—'}
+                </td>
+                <td className="px-3.5 py-3.5 text-neutral-200 font-semibold whitespace-nowrap">
+                  {row.service}
+                </td>
+                <td className="px-3.5 py-3.5 text-center whitespace-nowrap">
+                  <span className={`inline-flex items-center justify-center rounded-full border px-3 py-1 text-[11px] font-bold whitespace-nowrap ${getBookingStatusBadge(row.bookingStatus)}`}>
+                    {bookingStatusLabels[row.bookingStatus] || row.bookingStatus}
+                  </span>
+                </td>
+                <td className="px-3.5 py-3.5 text-center whitespace-nowrap">
+                  <span className={`inline-flex items-center justify-center rounded-full border px-3 py-1 text-[11px] font-bold whitespace-nowrap ${getPaymentStatusBadge(row.paymentStatus)}`}>
+                    {paymentStatusLabels[row.paymentStatus] || row.paymentStatus}
+                  </span>
+                </td>
+                <td className="px-3.5 py-3.5 text-left font-mono font-bold text-neutral-200 whitespace-nowrap">
+                  {money(row.totalPrice)}
+                </td>
+                <td className="px-3.5 py-3.5 text-left font-mono font-bold text-emerald-400 whitespace-nowrap">
+                  {money(row.amountPaid)}
+                </td>
+                <td className="px-3.5 py-3.5 text-left font-mono font-bold text-rose-400 whitespace-nowrap">
+                  {money(row.amountDue)}
+                </td>
+              </tr>
+            ))
+          )}
         </tbody>
       </table>
     </div>
@@ -398,9 +513,9 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
   const allowedBranchIds = accessibleBranchIds === null
     ? null
     : (await Promise.all(accessibleBranchIds.map(async (branchId) => ({
-        branchId,
-        allowed: await hasPermission(actor, 'reports.revenue', { type: 'BRANCH', id: branchId }),
-      })))).filter(({ allowed }) => allowed).map(({ branchId }) => branchId);
+      branchId,
+      allowed: await hasPermission(actor, 'reports.revenue', { type: 'BRANCH', id: branchId }),
+    })))).filter(({ allowed }) => allowed).map(({ branchId }) => branchId);
   if (
     (allowedBranchIds === null && !(await hasPermission(actor, 'reports.revenue'))) ||
     (allowedBranchIds !== null && allowedBranchIds.length === 0)
@@ -611,495 +726,501 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
   const revenueExportUrl = `/admin/revenue/export?month=${selectedMonth}`;
 
   return (
-    <main dir="rtl" className="min-h-screen bg-[#080808] px-4 py-6 text-white sm:px-6 lg:px-8 lg:py-10">
-      <div className="mx-auto max-w-[1500px] space-y-8">
-        {/* Header with Navigation and Quick Actions */}
-        <header className="relative overflow-hidden rounded-[2rem] border border-[#c9a227]/30 bg-[#11110f] px-6 py-7 sm:px-9 sm:py-9">
-          <div aria-hidden="true" className="absolute inset-y-0 right-0 w-1.5 bg-[#c9a227]" />
-          <div className="flex flex-col gap-8 xl:flex-row xl:items-end xl:justify-between">
-            <div className="max-w-3xl">
-              <div className="flex flex-wrap items-center gap-3 text-[11px] font-bold tracking-wider text-neutral-400">
-                <span className="rounded-full border border-[#c9a227]/30 bg-[#c9a227]/10 px-3 py-1 text-[#ecd66f]">داخلي وإداري</span>
-                <span className="font-mono" dir="ltr">BAREEQ / REPORT & REVENUE CENTER</span>
-              </div>
-              <h1 className="mt-5 text-4xl font-black tracking-tight text-white sm:text-5xl">مركز التقارير والإيرادات</h1>
-              <p className="mt-4 max-w-2xl text-sm leading-7 text-neutral-400 sm:text-base">
-                منظومة موحدة لمتابعة أداء العمليات والتحصيل الكامل وفحص الجودة ودفتر الإيرادات وصافي الأرباح الشهرية.
-              </p>
-            </div>
-            <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
-              <Link href={exportHref} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-[#c9a227]/40 bg-[#c9a227]/10 px-5 py-3 text-sm font-bold text-[#ecd66f] outline-none transition hover:bg-[#c9a227]/20">
-                <FileSpreadsheet className="size-4" aria-hidden="true" />
-                تصدير التقرير التشغيلي CSV
-              </Link>
-              <Link href={revenueExportUrl} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-emerald-500/40 bg-emerald-500/10 px-5 py-3 text-sm font-bold text-emerald-300 outline-none transition hover:bg-emerald-500/20">
-                <Download className="size-4" aria-hidden="true" />
-                تصدير كشف الإيرادات CSV
-              </Link>
-              <Link href={homeHref} className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-white/15 px-5 py-3 text-sm font-bold text-neutral-200 outline-none transition hover:border-white/30 hover:bg-white/5 focus-visible:ring-2 focus-visible:ring-white/60">
-                العودة للوحة التشغيل
-              </Link>
-            </div>
+    <div dir="rtl" className="min-h-screen bg-[#080808] text-white">
+      {/* Top Sticky Command Header */}
+      <header className="sticky top-0 z-50 border-b border-[#cea355]/20 bg-[#080808]/90 py-3 shadow-xl backdrop-blur-md">
+        <div className="mx-auto flex max-w-[1500px] items-center justify-between px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center gap-4">
+            <Link href={homeHref} className="flex items-center" aria-label="بريق | BAREEQ">
+              <BareeqLogo size="md" />
+            </Link>
+            <span className="hidden h-5 w-px bg-white/10 sm:inline-block" />
+            <span className="hidden text-xs font-bold text-neutral-400 sm:inline-block">
+              مركز التقارير والإيرادات
+            </span>
           </div>
 
-          {/* Unified Tab Switcher */}
-          <div className="mt-8 flex flex-wrap items-center gap-3 border-t border-white/10 pt-6">
+          <div className="flex items-center gap-3">
             <Link
-              href={`/admin/reports?tab=overview&from=${filters.from}&to=${filters.to}`}
-              className={`inline-flex items-center gap-2.5 rounded-2xl px-5 py-3 text-sm font-black transition-all ${activeTab === 'overview' ? 'bg-[#c9a227] text-black shadow-lg shadow-[#c9a227]/20' : 'border border-white/10 bg-white/5 text-neutral-300 hover:bg-white/10'}`}
+              href={homeHref}
+              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#d4af37] via-[#e5c45a] to-[#d4af37] px-4 py-2 text-xs font-black text-neutral-950 shadow-md shadow-[#d4af37]/20 transition-all hover:brightness-110"
             >
-              <BarChart3 className="size-4" aria-hidden="true" />
-              <span>التقارير التشغيلية والمالية الشاملة</span>
-            </Link>
-            <Link
-              href={`/admin/reports?tab=revenue&month=${selectedMonth}`}
-              className={`inline-flex items-center gap-2.5 rounded-2xl px-5 py-3 text-sm font-black transition-all ${activeTab === 'revenue' ? 'bg-[#c9a227] text-black shadow-lg shadow-[#c9a227]/20' : 'border border-white/10 bg-white/5 text-neutral-300 hover:bg-white/10'}`}
-            >
-              <DollarSign className="size-4" aria-hidden="true" />
-              <span>دفتر الإيرادات والأرباح الشهرية ({formatMonthLabel(selectedMonth)})</span>
+              <ArrowRight className="size-4" />
+              <span>العودة للرئيسية</span>
             </Link>
           </div>
-        </header>
+        </div>
+      </header>
 
-        {activeTab === 'overview' ? (
-          <>
-            {/* Operational Filters */}
-            <section aria-labelledby="report-filters-title" className="rounded-[1.75rem] border border-white/10 bg-[#11110f] p-5 sm:p-7">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <p className="font-mono text-[10px] tracking-[0.22em] text-[#d7b941]">FILTER BAY</p>
-                  <h2 id="report-filters-title" className="mt-2 text-xl font-black">نطاق القراءة</h2>
+      <main className="px-4 py-6 sm:px-6 lg:px-8 lg:py-10">
+        <div className="mx-auto max-w-[1500px] space-y-8">
+          {/* Header with Navigation and Quick Actions */}
+          <header className="relative overflow-hidden rounded-[2rem] border border-[#c9a227]/30 bg-[#11110f] px-6 py-7 sm:px-9 sm:py-9">
+            <div aria-hidden="true" className="absolute inset-y-0 right-0 w-1.5 bg-[#c9a227]" />
+            <div className="flex flex-col gap-8 xl:flex-row xl:items-end xl:justify-between">
+              <div className="max-w-3xl">
+                <div className="flex flex-wrap items-center gap-3 text-[11px] font-bold tracking-wider text-neutral-400">
+                  <span className="rounded-full border border-[#c9a227]/30 bg-[#c9a227]/10 px-3 py-1 text-[#ecd66f]">داخلي وإداري</span>
+                  <span className="font-mono" dir="ltr">BAREEQ / REPORT & REVENUE CENTER</span>
                 </div>
-                <p id="date-filter-help" className="max-w-3xl text-xs leading-6 text-neutral-500">
-                  الحجوزات والتشغيل حسب موعد الخدمة؛ الدفعات والاستردادات والإلغاءات والتفعيلات حسب وقت تسجيل الحدث. جميع المبالغ محصلة بالكامل عند إكمال الخدمة بتوقيت القاهرة.
+                <h1 className="mt-5 text-4xl font-black tracking-tight text-white sm:text-5xl">مركز التقارير والإيرادات</h1>
+                <p className="mt-4 max-w-2xl text-sm leading-7 text-neutral-400 sm:text-base">
+                  منظومة موحدة لمتابعة أداء العمليات والتحصيل الكامل وفحص الجودة ودفتر الإيرادات وصافي الأرباح الشهرية.
                 </p>
               </div>
-              <form method="get" aria-describedby="date-filter-help" className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
-                <input type="hidden" name="tab" value="overview" />
-                <label className="space-y-2 text-xs font-bold text-neutral-300">
-                  <span>من</span>
-                  <input name="from" type="date" required defaultValue={filters.from} className="min-h-11 w-full rounded-xl border border-white/10 bg-[#080808] px-3 text-sm text-white outline-none focus:border-[#c9a227] focus:ring-2 focus:ring-[#c9a227]/20" />
-                </label>
-                <label className="space-y-2 text-xs font-bold text-neutral-300">
-                  <span>إلى</span>
-                  <input name="to" type="date" required defaultValue={filters.to} className="min-h-11 w-full rounded-xl border border-white/10 bg-[#080808] px-3 text-sm text-white outline-none focus:border-[#c9a227] focus:ring-2 focus:ring-[#c9a227]/20" />
-                </label>
-                <label className="space-y-2 text-xs font-bold text-neutral-300">
-                  <span>الفرع</span>
-                  <select name="branch" defaultValue={filters.branchId ?? ''} className="min-h-11 w-full rounded-xl border border-white/10 bg-[#080808] px-3 text-sm text-white outline-none focus:border-[#c9a227] focus:ring-2 focus:ring-[#c9a227]/20"><option value="">كل الفروع</option>{options.branches.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select>
-                </label>
-                <label className="space-y-2 text-xs font-bold text-neutral-300">
-                  <span>الفريق</span>
-                  <select name="team" defaultValue={filters.teamId ?? ''} className="min-h-11 w-full rounded-xl border border-white/10 bg-[#080808] px-3 text-sm text-white outline-none focus:border-[#c9a227] focus:ring-2 focus:ring-[#c9a227]/20"><option value="">كل الفرق</option>{options.teams.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select>
-                </label>
-                <label className="space-y-2 text-xs font-bold text-neutral-300">
-                  <span>الخدمة</span>
-                  <select name="service" defaultValue={filters.serviceId ?? ''} className="min-h-11 w-full rounded-xl border border-white/10 bg-[#080808] px-3 text-sm text-white outline-none focus:border-[#c9a227] focus:ring-2 focus:ring-[#c9a227]/20"><option value="">كل الخدمات</option>{options.services.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select>
-                </label>
-                <label className="space-y-2 text-xs font-bold text-neutral-300">
-                  <span>المنطقة</span>
-                  <select name="zone" defaultValue={filters.zoneId ?? ''} className="min-h-11 w-full rounded-xl border border-white/10 bg-[#080808] px-3 text-sm text-white outline-none focus:border-[#c9a227] focus:ring-2 focus:ring-[#c9a227]/20"><option value="">كل المناطق</option>{options.zones.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select>
-                </label>
-                <label className="space-y-2 text-xs font-bold text-neutral-300">
-                  <span>حالة الحجز</span>
-                  <select name="status" defaultValue={filters.bookingStatus ?? ''} className="min-h-11 w-full rounded-xl border border-white/10 bg-[#080808] px-3 text-sm text-white outline-none focus:border-[#c9a227] focus:ring-2 focus:ring-[#c9a227]/20"><option value="">كل الحالات</option>{Object.values(BookingStatus).map((status) => <option key={status} value={status}>{bookingStatusLabels[status]}</option>)}</select>
-                </label>
-                <label className="space-y-2 text-xs font-bold text-neutral-300">
-                  <span>حالة الدفع</span>
-                  <select name="payment" defaultValue={filters.paymentStatus ?? ''} className="min-h-11 w-full rounded-xl border border-white/10 bg-[#080808] px-3 text-sm text-white outline-none focus:border-[#c9a227] focus:ring-2 focus:ring-[#c9a227]/20"><option value="">كل الحالات</option>{Object.values(PaymentStatus).map((status) => <option key={status} value={status}>{paymentStatusLabels[status]}</option>)}</select>
-                </label>
-                <div className="flex gap-2 sm:col-span-2 lg:col-span-4 xl:col-span-8">
-                  <button type="submit" className="min-h-11 rounded-xl bg-white px-5 text-sm font-black text-black outline-none hover:bg-neutral-200 focus-visible:ring-2 focus-visible:ring-[#c9a227]">تطبيق الفلاتر</button>
-                  <Link href="/admin/reports?tab=overview" className="inline-flex min-h-11 items-center rounded-xl border border-white/15 px-5 text-sm font-bold text-neutral-300 outline-none hover:bg-white/5 focus-visible:ring-2 focus-visible:ring-white/60">إعادة الضبط</Link>
-                </div>
-              </form>
-            </section>
-
-            <OverviewStrip report={report} />
-
-            {/* Bookings Flow */}
-            <section aria-labelledby="bookings-report" className="space-y-6 rounded-[1.75rem] border border-white/10 bg-[#11110f] p-5 [content-visibility:auto] sm:p-7">
-              <SectionHeading code="01 / BOOKING FLOW" title="دفتر الحجوزات" description="كل حجز موعده داخل النطاق، مع تجميع القيمة والمحصّل بالكامل بعد تسليم الخدمة." />
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-8">
-                <MetricCard label="الإجمالي" value={number(report.bookings.total)} tone="gold" />
-                <MetricCard label="المكتملة" value={number(report.bookings.completed)} tone="teal" />
-                <MetricCard label="الملغاة" value={number(report.bookings.cancelled)} tone="rose" />
-                <MetricCard label="معدل الإلغاء" value={rate(report.bookings.cancellationRate)} note="من كل الحجوزات داخل الفترة" tone="rose" />
-                <MetricCard label="المرفوضة" value={number(report.bookings.rejected)} tone="rose" />
-                <MetricCard label="إعادة الحجز" value={rate(report.bookings.rebookingRate)} note={`${number(report.bookings.rebookedCustomerCount)} عميل أعاد الحجز`} tone="gold" />
-                <MetricCard label="عدم حضور" value={number(report.bookings.noShow)} tone="neutral" />
-                <MetricCard label="تعذر الدخول" value={number(report.bookings.accessDenied)} tone="neutral" />
+              <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
+                <Link href={exportHref} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-[#c9a227]/40 bg-[#c9a227]/10 px-5 py-3 text-sm font-bold text-[#ecd66f] outline-none transition hover:bg-[#c9a227]/20">
+                  <FileSpreadsheet className="size-4" aria-hidden="true" />
+                  تصدير التقرير التشغيلي CSV
+                </Link>
+                <Link href={revenueExportUrl} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-emerald-500/40 bg-emerald-500/10 px-5 py-3 text-sm font-bold text-emerald-300 outline-none transition hover:bg-emerald-500/20">
+                  <Download className="size-4" aria-hidden="true" />
+                  تصدير كشف الإيرادات CSV
+                </Link>
               </div>
-              <div className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
-                <CountRail title="توزيع الحالات" rows={report.bookings.byStatus} labelFor={(row) => bookingStatusLabels[row.id as BookingStatus] ?? row.label} />
-                <CountValueTable title="حسب الخدمة" rows={report.bookings.byService} />
-              </div>
-              <div className="grid gap-4 xl:grid-cols-3"><CountValueTable title="حسب الفرع" rows={report.bookings.byBranch} /><CountValueTable title="حسب المنطقة" rows={report.bookings.byZone} /><CountValueTable title="حسب الفريق" rows={report.bookings.byTeam} /></div>
-            </section>
-
-            {/* Financial Ledger */}
-            <section aria-labelledby="financial-report" className="space-y-6 rounded-[1.75rem] border border-[#c9a227]/20 bg-[#11110f] p-5 [content-visibility:auto] sm:p-7">
-              <SectionHeading code="02 / CASH LEDGER" title="الملخص المالي والتحصيل الفعلي" description="المبيعات الإجمالية مقابل المقبوضات المحصلة فعلياً (العربون + التحصيل عند الإكمال) والاستردادات." />
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-                <MetricCard label="إجمالي المبيعات" value={money(report.financial.totalGrossSales)} note="حجوزات + اشتراكات" tone="gold" />
-                <MetricCard label="المحصل الفعلي (الإيراد)" value={money(report.financial.verifiedPaymentAmount)} note={`${number(report.financial.verifiedPaymentCount)} دفعة محصلة`} tone="teal" />
-                <MetricCard label="صافي الأرباح" value={money(report.financial.netCollected)} note="المحصل ناقص المسترد" tone="teal" />
-                <MetricCard label="الاستردادات" value={money(report.financial.refunds)} note={`${number(report.financial.refundCount)} حركة مكتملة`} tone="rose" />
-                <MetricCard label="المتبقي قيد التحصيل" value={money(report.financial.amountDue)} note="متبقي على حجوزات جارية" tone="gold" />
-                <MetricCard label="متوسط قيمة الحجز" value={money(report.financial.averageBookingValue)} tone="gold" />
-              </div>
-              <div className="grid gap-4 xl:grid-cols-3"><RevenueTable title="الإيراد حسب الخدمة" rows={report.financial.byService} /><RevenueTable title="الإيراد حسب الفرع" rows={report.financial.byBranch} /><RevenueTable title="الإيراد حسب الفريق" rows={report.financial.byTeam} /></div>
-            </section>
-
-            {/* Operations Pulse */}
-            <section aria-labelledby="operations-report" className="space-y-6 rounded-[1.75rem] border border-cyan-300/15 bg-[#11110f] p-5 [content-visibility:auto] sm:p-7">
-              <SectionHeading code="03 / OPERATIONS PULSE" title="نبض التشغيل والجودة" description="معدلات استغلال الفرق، والوصول في الموعد، وقوائم الفحص، ومراجعات الجودة." />
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-                <RateMeter label="استغلال الفرق" value={report.operations.utilizationRate} detail={`${number(report.operations.utilizedJobs)} وظيفة من ${number(report.operations.availableJobSlots)} خانة طاقة`} />
-                <RateMeter label="الوصول في الموعد" value={report.operations.onTimeArrivalRate} detail={`${number(report.operations.onTimeArrivalCount)} من ${number(report.operations.arrivalSampleCount)} وصول مسجل`} />
-                <RateMeter label="اكتمال قوائم الفحص" value={report.operations.checklistCompletionRate} detail={`${number(report.operations.checkedChecklistItems)} من ${number(report.operations.checklistItemCount)} عنصر`} />
-                <RateMeter label="العودة من الجودة" value={report.operations.qualityReturnRate} detail={`${number(report.operations.qualityReturnCount)} من ${number(report.operations.qualityReviewCount)} مراجعة`} />
-                <RateMeter label="معدل الشكاوى" value={report.operations.complaintRate} detail={`${number(report.operations.bookingsWithComplaints)} حجز له شكوى؛ ${number(report.operations.complaintCount)} شكوى`} />
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                <MetricCard label="متوسط مدة الخدمة" value={`${number(report.operations.averageServiceDurationMinutes)} دقيقة`} note={`${number(report.operations.durationSampleCount)} خدمة لها بداية ونهاية مسجلتا الوقت`} tone="teal" />
-                <MetricCard label="متوسط التأخير" value={`${number(report.operations.averageDelayMinutes)} دقيقة`} note={`${number(report.operations.delayedArrivalCount)} وصول بعد نافذة السماح`} tone="rose" />
-                <MetricCard label="أفضل موظف" value={report.operations.topEmployee?.label ?? '—'} note={report.operations.topEmployee ? `${number(report.operations.topEmployee.count)} خدمة مكتملة` : 'لا توجد خدمات مكتملة منسوبة لموظف'} tone="gold" />
-              </div>
-              <div className="grid gap-4 xl:grid-cols-3"><CompletionTable rows={report.operations.teamCompletion} /><CountRail title="الوظائف حسب الفريق" rows={report.operations.jobsByTeam} /><CountRail title="الوظائف حسب الموظف" rows={report.operations.jobsByEmployee} emptyText="لا توجد عضويات فرق مرتبطة بوظائف النطاق." /></div>
-            </section>
-
-            {/* Subscriptions */}
-            <section aria-labelledby="subscriptions-report" className="space-y-6 rounded-[1.75rem] border border-white/10 bg-[#11110f] p-5 [content-visibility:auto] sm:p-7">
-              <SectionHeading code="04 / SUBSCRIPTION BOOK" title="دفتر الاشتراكات" description="حركات الاشتراكات النشطة والمستهلكة والتفعيلات المسجلة." />
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-                <MetricCard label="نشطة حاليًا" value={number(report.subscriptions.active)} tone="teal" />
-                <MetricCard label="جديدة" value={number(report.subscriptions.newSubscriptions)} tone="gold" />
-                <MetricCard label="انتهت" value={number(report.subscriptions.expired)} tone="neutral" />
-                <MetricCard label="زيارات مستهلكة" value={number(report.subscriptions.visitsConsumed)} tone="gold" />
-                <MetricCard label="زيارات متبقية" value={number(report.subscriptions.visitsRemaining)} tone="teal" />
-                <MetricCard label="قيمة التفعيل" value={money(report.subscriptions.recordedRevenue)} note={`${number(report.subscriptions.activatedCount)} اشتراك مفعل`} tone="teal" />
-              </div>
-            </section>
-
-            {/* Exceptions */}
-            <section aria-labelledby="cancellations-report" className="space-y-6 rounded-[1.75rem] border border-rose-400/20 bg-[#11110f] p-5 [content-visibility:auto] sm:p-7">
-              <SectionHeading
-                code="05 / CANCELLATION & REFUND LOG"
-                title="سجل الإلغاء والاستردادات المالية"
-                description="إحصائيات دقيقة لعدد الحجوزات الملغاة، نسبة الإلغاء، المبالغ المستردة للعملاء، وتوزيع الأسباب والأطراف المسؤولة."
-              />
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-                <MetricCard label="الحجوزات الملغاة" value={number(report.bookings.cancelled)} note={`معدل الإلغاء: ${rate(report.bookings.cancellationRate)}`} tone="rose" />
-                <MetricCard label="طلبات الإلغاء" value={number(report.cancellations.totalRequests)} note="الطلبات المسجلة بالفترة" tone="rose" />
-                <MetricCard label="إجمالي المبالغ المستردة" value={money(report.financial.refunds || report.cancellations.refundTotal)} note={`${number(report.financial.refundCount)} عملية استرداد مكتملة`} tone="rose" />
-                <MetricCard label="أُعيدت جدولتها" value={number(report.cancellations.rescheduledCount)} note="حجوزات تم تعديل موعدها" tone="gold" />
-                <MetricCard label="الحجوزات المرفوضة" value={number(report.bookings.rejected)} note="رفض تشغيلي" tone="rose" />
-                <MetricCard label="حالات عدم الحضور" value={number(report.bookings.noShow + report.bookings.accessDenied)} note="عدم حضور أو تعذر الدخول" tone="neutral" />
-              </div>
-              <div className="rounded-2xl border border-rose-500/20 bg-rose-500/[0.04] p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs leading-6 text-neutral-300">
-                <div className="flex items-center gap-2.5">
-                  <ShieldAlert className="size-5 text-rose-400 shrink-0" />
-                  <span>يتم خصم مبالغ الاستردادات الفعلية (<strong>{money(report.financial.refunds || report.cancellations.refundTotal)}</strong>) مباشرة من إجمالي المقبوضات لاحتساب صافي الأرباح.</span>
-                </div>
-                <span className="font-mono font-bold text-rose-300 shrink-0">صافي الأرباح: {money(report.financial.netCollected)}</span>
-              </div>
-              <div className="grid gap-4 lg:grid-cols-2">
-                <CountRail title="أسباب الإلغاء وتكرارها" rows={report.cancellations.byReason} emptyText="لا توجد أسباب إلغاء مسجلة بالفترة." />
-                <CountRail title="الطرف المسؤول عن الإلغاء" rows={report.cancellations.byResponsibleParty} labelFor={(row) => responsiblePartyLabels[row.id] ?? row.label} emptyText="لا توجد أطراف مسؤولة مسجلة." />
-              </div>
-            </section>
-
-            {/* Ratings */}
-            <section aria-labelledby="ratings-report" className="space-y-6 rounded-[1.75rem] border border-[#c9a227]/30 bg-[#11110f] p-5 [content-visibility:auto] sm:p-7">
-              <SectionHeading code="06 / CUSTOMER REVIEWS" title="تقييمات وصوت العملاء" description="تحليل متوسط التقييمات وتوزيع النجوم والتقييمات حسب الفرع والخدمة." />
-              <div className="grid gap-3 sm:grid-cols-3">
-                <MetricCard label="إجمالي التقييمات" value={number(report.customerRatings.totalCount)} tone="gold" />
-                <MetricCard label="متوسط التقييم العام" value={`${report.customerRatings.averageScore} / 5`} note={report.customerRatings.averageScore >= 4.5 ? 'أداء ممتاز' : report.customerRatings.totalCount > 0 ? 'يحتاج متابعة' : 'لا توجد تقييمات'} tone="gold" />
-                <MetricCard label="التقييمات المعتمدة للنشر" value={number(report.customerRatings.approvedCount)} tone="teal" />
-              </div>
-              <div className="grid gap-4 lg:grid-cols-3">
-                <CountRail title="توزيع النجوم" rows={report.customerRatings.byScore} />
-                <CountValueTable title="التقييمات حسب الخدمة" rows={report.customerRatings.byService} />
-                <CountValueTable title="التقييمات حسب الفرع" rows={report.customerRatings.byBranch} />
-              </div>
-            </section>
-
-            {/* Source Rows */}
-            <section aria-labelledby="details-report" className="space-y-5 rounded-[1.75rem] border border-white/10 bg-[#11110f] p-5 [content-visibility:auto] sm:p-7">
-              <SectionHeading code="07 / SOURCE ROWS" title="سجل الحجوزات المطابق" description={`يعرض ${number(report.rows.length)} صفًا. ملف CSV يضم هذا السجل وجميع الملخصات والتجميعات أعلاه.`} />
-              <BookingsTable rows={report.rows} />
-            </section>
-          </>
-        ) : (
-          /* ======================================================== */
-          /* Monthly Revenue Ledger & Financial Transactions Integrated */
-          /* ======================================================== */
-          <div className="space-y-8">
-            {/* Month Switcher Carousel / Pills */}
-            <section aria-labelledby="revenue-month-select" className="rounded-3xl border border-white/10 bg-[#111] p-5 sm:p-6">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h2 id="revenue-month-select" className="text-lg font-black text-white flex items-center gap-2">
-                    <Calendar className="size-5 text-[#d4af37]" />
-                    <span>دفتر الإيرادات الشهرية</span>
-                  </h2>
-                  <p className="text-xs text-neutral-400 mt-1">اختر الشهر لمتابعة الإيرادات وصافي الأرباح وحركات الحجوزات والاشتراكات.</p>
-                </div>
-                <div className="text-xs font-bold text-[#d4af37] bg-[#d4af37]/10 px-3.5 py-1.5 rounded-full border border-[#d4af37]/20 self-start sm:self-auto">
-                  الشهر المحدد: {formatMonthLabel(selectedMonth)}
-                </div>
-              </div>
-              <div className="mt-5 flex gap-2 overflow-x-auto pb-2 scrollbar-thin">
-                {pastMonths.map((m) => {
-                  const isActive = m.key === selectedMonth;
-                  return (
-                    <Link
-                      key={m.key}
-                      href={`/admin/reports?tab=revenue&month=${m.key}`}
-                      className={`shrink-0 rounded-xl px-4 py-2 text-xs font-bold transition-all ${isActive ? 'bg-[#d4af37] text-black shadow-lg shadow-[#d4af37]/20 scale-105' : 'bg-neutral-900/90 text-neutral-400 hover:bg-neutral-800 hover:text-white border border-neutral-800'}`}
-                    >
-                      {m.label}
-                    </Link>
-                  );
-                })}
-              </div>
-            </section>
-
-            {/* Revenue Summary KPI Cards */}
-            <section aria-label="ملخص إيرادات الشهر" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-              <div className="rounded-2xl border border-[#d4af37]/40 bg-gradient-to-br from-[#d4af37]/15 to-transparent p-5 shadow-xl">
-                <div className="flex items-center justify-between text-xs font-bold text-[#f3e4a8]">
-                  <span>صافي الإيراد والأرباح</span>
-                  <Sparkles className="size-4 text-[#d4af37]" />
-                </div>
-                <p className="mt-3 text-2xl sm:text-3xl font-black text-white">{money(netRevenue)}</p>
-                <p className="mt-1 text-[11px] text-neutral-400">إجمالي المقبوضات ناقص الاستردادات</p>
-              </div>
-
-              <div className="rounded-2xl border border-neutral-800 bg-[#111] p-5">
-                <div className="flex items-center justify-between text-xs font-bold text-neutral-400">
-                  <span>إجمالي المقبوضات</span>
-                  <DollarSign className="size-4 text-neutral-400" />
-                </div>
-                <p className="mt-3 text-2xl sm:text-3xl font-black text-white">{money(totalGrossRevenue)}</p>
-                <p className="mt-1 text-[11px] text-neutral-400">الحجوزات + الاشتراكات</p>
-              </div>
-
-              <div className="rounded-2xl border border-neutral-800 bg-[#111] p-5">
-                <div className="flex items-center justify-between text-xs font-bold text-emerald-400">
-                  <span>إيراد الحجوزات</span>
-                  <CheckCircle2 className="size-4 text-emerald-400" />
-                </div>
-                <p className="mt-3 text-2xl font-black text-white">{money(totalBookingRevenue)}</p>
-                <p className="mt-1 text-[11px] text-neutral-400">{bookingPayments.length} حركة دفع حجز</p>
-              </div>
-
-              <div className="rounded-2xl border border-neutral-800 bg-[#111] p-5">
-                <div className="flex items-center justify-between text-xs font-bold text-sky-400">
-                  <span>إيراد الاشتراكات</span>
-                  <PackageCheck className="size-4 text-sky-400" />
-                </div>
-                <p className="mt-3 text-2xl font-black text-white">{money(totalSubscriptionRevenue)}</p>
-                <p className="mt-1 text-[11px] text-neutral-400">{subscriptionProofs.length} اشتراك مفعل</p>
-              </div>
-
-              <div className="rounded-2xl border border-neutral-800 bg-[#111] p-5">
-                <div className="flex items-center justify-between text-xs font-bold text-rose-400">
-                  <span>الاستردادات المعتمدة</span>
-                  <ShieldAlert className="size-4 text-rose-400" />
-                </div>
-                <p className="mt-3 text-2xl font-black text-rose-400">-{money(totalRefunds)}</p>
-                <p className="mt-1 text-[11px] text-neutral-400">{refunds.length} حركة استرداد</p>
-              </div>
-            </section>
-
-            {/* Breakdowns: Payment Method & Branches */}
-            <div className="grid gap-6 lg:grid-cols-2">
-              <section aria-labelledby="method-breakdown" className="rounded-3xl border border-neutral-800 bg-[#111] p-5 sm:p-6">
-                <h3 id="method-breakdown" className="text-base font-bold text-white flex items-center gap-2">
-                  <WalletCards className="size-5 text-[#d4af37]" />
-                  <span>توزيع الإيراد حسب وسيلة الدفع</span>
-                </h3>
-                <div className="mt-4 space-y-3">
-                  {Object.keys(paymentMethodMap).length === 0 ? (
-                    <p className="text-xs text-neutral-500 py-4 text-center">لا توجد عمليات مسجلة في هذا الشهر.</p>
-                  ) : (
-                    Object.entries(paymentMethodMap).map(([key, data]) => {
-                      const percentage = totalGrossRevenue > 0 ? Math.round((data.amount / totalGrossRevenue) * 100) : 0;
-                      return (
-                        <div key={key} className="rounded-xl border border-neutral-800/80 bg-neutral-900/50 p-3.5">
-                          <div className="flex items-center justify-between text-xs font-bold">
-                            <span className="text-neutral-200">{data.label}</span>
-                            <span className="font-mono text-[#f3e4a8]">{money(data.amount)} ({data.count} عملية)</span>
-                          </div>
-                          <div className="mt-2 flex items-center gap-3">
-                            <div className="h-2 flex-1 rounded-full bg-neutral-800 overflow-hidden">
-                              <div className="h-full rounded-full bg-[#d4af37]" style={{ width: `${percentage}%` }} />
-                            </div>
-                            <span className="text-[11px] font-bold text-neutral-400">{percentage}%</span>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              </section>
-
-              <section aria-labelledby="branch-revenue-breakdown" className="rounded-3xl border border-neutral-800 bg-[#111] p-5 sm:p-6">
-                <h3 id="branch-revenue-breakdown" className="text-base font-bold text-white flex items-center gap-2">
-                  <Building2 className="size-5 text-[#d4af37]" />
-                  <span>توزيع الإيراد حسب الفرع</span>
-                </h3>
-                <div className="mt-4 space-y-3">
-                  {Object.keys(branchMap).length === 0 ? (
-                    <p className="text-xs text-neutral-500 py-4 text-center">لا توجد عمليات مسجلة في هذا الشهر.</p>
-                  ) : (
-                    Object.entries(branchMap).map(([branchName, data]) => {
-                      const percentage = totalGrossRevenue > 0 ? Math.round((data.amount / totalGrossRevenue) * 100) : 0;
-                      return (
-                        <div key={branchName} className="rounded-xl border border-neutral-800/80 bg-neutral-900/50 p-3.5">
-                          <div className="flex items-center justify-between text-xs font-bold">
-                            <span className="text-neutral-200">{branchName}</span>
-                            <span className="font-mono text-emerald-400">{money(data.amount)} ({data.count} عملية)</span>
-                          </div>
-                          <div className="mt-2 flex items-center gap-3">
-                            <div className="h-2 flex-1 rounded-full bg-neutral-800 overflow-hidden">
-                              <div className="h-full rounded-full bg-emerald-400" style={{ width: `${percentage}%` }} />
-                            </div>
-                            <span className="text-[11px] font-bold text-neutral-400">{percentage}%</span>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              </section>
             </div>
+          </header>
 
-            {/* Financial Transactions Ledger Table */}
-            <section aria-labelledby="transactions-ledger" className="rounded-3xl border border-neutral-800 bg-[#111] p-5 sm:p-6 space-y-5">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <h3 id="transactions-ledger" className="text-base font-black text-white flex items-center gap-2">
-                    <TrendingUp className="size-5 text-[#d4af37]" />
-                    <span>سجل الحركات المالية الموثقة ({filteredTransactions.length} حركة)</span>
-                  </h3>
-                  <p className="text-xs text-neutral-400 mt-1">كشف تفصيلي بالاسم ورقم الهاتف والفرع وطريقة الدفع لكل حجز واشتراك واسترداد.</p>
+          {activeTab === 'overview' ? (
+            <>
+              {/* Operational Filters */}
+              <section aria-labelledby="report-filters-title" className="rounded-[1.75rem] border border-white/10 bg-[#11110f] p-5 sm:p-7">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <p className="font-mono text-[10px] tracking-[0.22em] text-[#d7b941]">FILTER BAY</p>
+                    <h2 id="report-filters-title" className="mt-2 text-xl font-black">نطاق القراءة</h2>
+                  </div>
+                  <p id="date-filter-help" className="max-w-3xl text-xs leading-6 text-neutral-500">
+                    الحجوزات والتشغيل حسب موعد الخدمة؛ الدفعات والاستردادات والإلغاءات والتفعيلات حسب وقت تسجيل الحدث. جميع المبالغ محصلة بالكامل عند إكمال الخدمة بتوقيت القاهرة.
+                  </p>
                 </div>
+                <form method="get" aria-describedby="date-filter-help" className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
+                  <input type="hidden" name="tab" value="overview" />
+                  <label className="space-y-2 text-xs font-bold text-neutral-300">
+                    <span>من</span>
+                    <input name="from" type="date" required defaultValue={filters.from} className="min-h-11 w-full rounded-xl border border-white/10 bg-[#080808] px-3 text-sm text-white outline-none focus:border-[#c9a227] focus:ring-2 focus:ring-[#c9a227]/20" />
+                  </label>
+                  <label className="space-y-2 text-xs font-bold text-neutral-300">
+                    <span>إلى</span>
+                    <input name="to" type="date" required defaultValue={filters.to} className="min-h-11 w-full rounded-xl border border-white/10 bg-[#080808] px-3 text-sm text-white outline-none focus:border-[#c9a227] focus:ring-2 focus:ring-[#c9a227]/20" />
+                  </label>
+                  <label className="space-y-2 text-xs font-bold text-neutral-300">
+                    <span>الفرع</span>
+                    <select name="branch" defaultValue={filters.branchId ?? ''} className="min-h-11 w-full rounded-xl border border-white/10 bg-[#080808] px-3 text-sm text-white outline-none focus:border-[#c9a227] focus:ring-2 focus:ring-[#c9a227]/20"><option value="">كل الفروع</option>{options.branches.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select>
+                  </label>
+                  <label className="space-y-2 text-xs font-bold text-neutral-300">
+                    <span>الفريق</span>
+                    <select name="team" defaultValue={filters.teamId ?? ''} className="min-h-11 w-full rounded-xl border border-white/10 bg-[#080808] px-3 text-sm text-white outline-none focus:border-[#c9a227] focus:ring-2 focus:ring-[#c9a227]/20"><option value="">كل الفرق</option>{options.teams.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select>
+                  </label>
+                  <label className="space-y-2 text-xs font-bold text-neutral-300">
+                    <span>الخدمة</span>
+                    <select name="service" defaultValue={filters.serviceId ?? ''} className="min-h-11 w-full rounded-xl border border-white/10 bg-[#080808] px-3 text-sm text-white outline-none focus:border-[#c9a227] focus:ring-2 focus:ring-[#c9a227]/20"><option value="">كل الخدمات</option>{options.services.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select>
+                  </label>
+                  <label className="space-y-2 text-xs font-bold text-neutral-300">
+                    <span>المنطقة</span>
+                    <select name="zone" defaultValue={filters.zoneId ?? ''} className="min-h-11 w-full rounded-xl border border-white/10 bg-[#080808] px-3 text-sm text-white outline-none focus:border-[#c9a227] focus:ring-2 focus:ring-[#c9a227]/20"><option value="">كل المناطق</option>{options.zones.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select>
+                  </label>
+                  <label className="space-y-2 text-xs font-bold text-neutral-300">
+                    <span>حالة الحجز</span>
+                    <select name="status" defaultValue={filters.bookingStatus ?? ''} className="min-h-11 w-full rounded-xl border border-white/10 bg-[#080808] px-3 text-sm text-white outline-none focus:border-[#c9a227] focus:ring-2 focus:ring-[#c9a227]/20"><option value="">كل الحالات</option>{Object.values(BookingStatus).map((status) => <option key={status} value={status}>{bookingStatusLabels[status]}</option>)}</select>
+                  </label>
+                  <label className="space-y-2 text-xs font-bold text-neutral-300">
+                    <span>حالة الدفع</span>
+                    <select name="payment" defaultValue={filters.paymentStatus ?? ''} className="min-h-11 w-full rounded-xl border border-white/10 bg-[#080808] px-3 text-sm text-white outline-none focus:border-[#c9a227] focus:ring-2 focus:ring-[#c9a227]/20"><option value="">كل الحالات</option>{Object.values(PaymentStatus).map((status) => <option key={status} value={status}>{paymentStatusLabels[status]}</option>)}</select>
+                  </label>
+                  <div className="flex gap-2 sm:col-span-2 lg:col-span-4 xl:col-span-8">
+                    <button type="submit" className="min-h-11 rounded-xl bg-white px-5 text-sm font-black text-black outline-none hover:bg-neutral-200 focus-visible:ring-2 focus-visible:ring-[#c9a227]">تطبيق الفلاتر</button>
+                    <Link href="/admin/reports?tab=overview" className="inline-flex min-h-11 items-center rounded-xl border border-white/15 px-5 text-sm font-bold text-neutral-300 outline-none hover:bg-white/5 focus-visible:ring-2 focus-visible:ring-white/60">إعادة الضبط</Link>
+                  </div>
+                </form>
+              </section>
 
-                <div className="flex flex-wrap items-center gap-2">
-                  {(
-                    [
-                      { type: 'all', label: 'الكل' },
-                      { type: 'booking', label: 'الحجوزات' },
-                      { type: 'subscription', label: 'الاشتراكات' },
-                      { type: 'refund', label: 'الاستردادات' },
-                    ] as const
-                  ).map((tab) => {
-                    const isActive = filterType === tab.type;
+              <OverviewStrip report={report} />
+
+              {/* Bookings Flow */}
+              <section aria-labelledby="bookings-report" className="space-y-6 rounded-[1.75rem] border border-white/10 bg-[#11110f] p-5 [content-visibility:auto] sm:p-7">
+                <SectionHeading code="01 / BOOKING FLOW" title="دفتر الحجوزات" description="كل حجز موعده داخل النطاق، مع تجميع القيمة والمحصّل بالكامل بعد تسليم الخدمة." />
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-8">
+                  <MetricCard label="الإجمالي" value={number(report.bookings.total)} tone="gold" />
+                  <MetricCard label="المكتملة" value={number(report.bookings.completed)} tone="teal" />
+                  <MetricCard label="الملغاة" value={number(report.bookings.cancelled)} tone="rose" />
+                  <MetricCard label="معدل الإلغاء" value={rate(report.bookings.cancellationRate)} note="من كل الحجوزات داخل الفترة" tone="rose" />
+                  <MetricCard label="المرفوضة" value={number(report.bookings.rejected)} tone="rose" />
+                  <MetricCard label="إعادة الحجز" value={rate(report.bookings.rebookingRate)} note={`${number(report.bookings.rebookedCustomerCount)} عميل أعاد الحجز`} tone="gold" />
+                  <MetricCard label="عدم حضور" value={number(report.bookings.noShow)} tone="neutral" />
+                  <MetricCard label="تعذر الدخول" value={number(report.bookings.accessDenied)} tone="neutral" />
+                </div>
+                <div className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
+                  <CountRail title="توزيع الحالات" rows={report.bookings.byStatus} labelFor={(row) => bookingStatusLabels[row.id as BookingStatus] ?? row.label} />
+                  <CountValueTable title="حسب الخدمة" rows={report.bookings.byService} />
+                </div>
+                <div className="grid gap-4 xl:grid-cols-3"><CountValueTable title="حسب الفرع" rows={report.bookings.byBranch} /><CountValueTable title="حسب المنطقة" rows={report.bookings.byZone} /><CountValueTable title="حسب الفريق" rows={report.bookings.byTeam} /></div>
+              </section>
+
+              {/* Financial Ledger */}
+              <section aria-labelledby="financial-report" className="space-y-6 rounded-[1.75rem] border border-[#c9a227]/20 bg-[#11110f] p-5 [content-visibility:auto] sm:p-7">
+                <SectionHeading code="02 / CASH LEDGER" title="الملخص المالي والتحصيل الفعلي" description="المبيعات الإجمالية مقابل المقبوضات المحصلة فعلياً (العربون + التحصيل عند الإكمال) والاستردادات." />
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+                  <MetricCard label="إجمالي المبيعات" value={money(report.financial.totalGrossSales)} note="حجوزات + اشتراكات" tone="gold" />
+                  <MetricCard label="المحصل الفعلي (الإيراد)" value={money(report.financial.verifiedPaymentAmount)} note={`${number(report.financial.verifiedPaymentCount)} دفعة محصلة`} tone="teal" />
+                  <MetricCard label="صافي الأرباح" value={money(report.financial.netCollected)} note="المحصل ناقص المسترد" tone="teal" />
+                  <MetricCard label="الاستردادات" value={money(report.financial.refunds)} note={`${number(report.financial.refundCount)} حركة مكتملة`} tone="rose" />
+                  <MetricCard label="المتبقي قيد التحصيل" value={money(report.financial.amountDue)} note="متبقي على حجوزات جارية" tone="gold" />
+                  <MetricCard label="متوسط قيمة الحجز" value={money(report.financial.averageBookingValue)} tone="gold" />
+                </div>
+                <div className="grid gap-4 xl:grid-cols-3"><RevenueTable title="الإيراد حسب الخدمة" rows={report.financial.byService} /><RevenueTable title="الإيراد حسب الفرع" rows={report.financial.byBranch} /><RevenueTable title="الإيراد حسب الفريق" rows={report.financial.byTeam} /></div>
+              </section>
+
+              {/* Operations Pulse */}
+              <section aria-labelledby="operations-report" className="space-y-6 rounded-[1.75rem] border border-cyan-300/15 bg-[#11110f] p-5 [content-visibility:auto] sm:p-7">
+                <SectionHeading code="03 / OPERATIONS PULSE" title="نبض التشغيل والجودة" description="معدلات استغلال الفرق، والوصول في الموعد، وقوائم الفحص، ومراجعات الجودة." />
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+                  <RateMeter label="استغلال الفرق" value={report.operations.utilizationRate} detail={`${number(report.operations.utilizedJobs)} وظيفة من ${number(report.operations.availableJobSlots)} خانة طاقة`} />
+                  <RateMeter label="الوصول في الموعد" value={report.operations.onTimeArrivalRate} detail={`${number(report.operations.onTimeArrivalCount)} من ${number(report.operations.arrivalSampleCount)} وصول مسجل`} />
+                  <RateMeter label="اكتمال قوائم الفحص" value={report.operations.checklistCompletionRate} detail={`${number(report.operations.checkedChecklistItems)} من ${number(report.operations.checklistItemCount)} عنصر`} />
+                  <RateMeter label="العودة من الجودة" value={report.operations.qualityReturnRate} detail={`${number(report.operations.qualityReturnCount)} من ${number(report.operations.qualityReviewCount)} مراجعة`} />
+                  <RateMeter label="معدل الشكاوى" value={report.operations.complaintRate} detail={`${number(report.operations.bookingsWithComplaints)} حجز له شكوى؛ ${number(report.operations.complaintCount)} شكوى`} />
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  <MetricCard label="متوسط مدة الخدمة" value={`${number(report.operations.averageServiceDurationMinutes)} دقيقة`} note={`${number(report.operations.durationSampleCount)} خدمة لها بداية ونهاية مسجلتا الوقت`} tone="teal" />
+                  <MetricCard label="متوسط التأخير" value={`${number(report.operations.averageDelayMinutes)} دقيقة`} note={`${number(report.operations.delayedArrivalCount)} وصول بعد نافذة السماح`} tone="rose" />
+                  <MetricCard label="أفضل موظف" value={report.operations.topEmployee?.label ?? '—'} note={report.operations.topEmployee ? `${number(report.operations.topEmployee.count)} خدمة مكتملة` : 'لا توجد خدمات مكتملة منسوبة لموظف'} tone="gold" />
+                </div>
+                <div className="grid gap-4 xl:grid-cols-3"><CompletionTable rows={report.operations.teamCompletion} /><CountRail title="الوظائف حسب الفريق" rows={report.operations.jobsByTeam} /><CountRail title="الوظائف حسب الموظف" rows={report.operations.jobsByEmployee} emptyText="لا توجد عضويات فرق مرتبطة بوظائف النطاق." /></div>
+              </section>
+
+              {/* Subscriptions */}
+              <section aria-labelledby="subscriptions-report" className="space-y-6 rounded-[1.75rem] border border-white/10 bg-[#11110f] p-5 [content-visibility:auto] sm:p-7">
+                <SectionHeading code="04 / SUBSCRIPTION BOOK" title="دفتر الاشتراكات" description="حركات الاشتراكات النشطة والمستهلكة والتفعيلات المسجلة." />
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+                  <MetricCard label="نشطة حاليًا" value={number(report.subscriptions.active)} tone="teal" />
+                  <MetricCard label="جديدة" value={number(report.subscriptions.newSubscriptions)} tone="gold" />
+                  <MetricCard label="انتهت" value={number(report.subscriptions.expired)} tone="neutral" />
+                  <MetricCard label="زيارات مستهلكة" value={number(report.subscriptions.visitsConsumed)} tone="gold" />
+                  <MetricCard label="زيارات متبقية" value={number(report.subscriptions.visitsRemaining)} tone="teal" />
+                  <MetricCard label="قيمة التفعيل" value={money(report.subscriptions.recordedRevenue)} note={`${number(report.subscriptions.activatedCount)} اشتراك مفعل`} tone="teal" />
+                </div>
+              </section>
+
+              {/* Exceptions */}
+              <section aria-labelledby="cancellations-report" className="space-y-6 rounded-[1.75rem] border border-rose-400/20 bg-[#11110f] p-5 [content-visibility:auto] sm:p-7">
+                <SectionHeading
+                  code="05 / CANCELLATION & REFUND LOG"
+                  title="سجل الإلغاء والاستردادات المالية"
+                  description="إحصائيات دقيقة لعدد الحجوزات الملغاة، نسبة الإلغاء، المبالغ المستردة للعملاء، وتوزيع الأسباب والأطراف المسؤولة."
+                />
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+                  <MetricCard label="الحجوزات الملغاة" value={number(report.bookings.cancelled)} note={`معدل الإلغاء: ${rate(report.bookings.cancellationRate)}`} tone="rose" />
+                  <MetricCard label="طلبات الإلغاء" value={number(report.cancellations.totalRequests)} note="الطلبات المسجلة بالفترة" tone="rose" />
+                  <MetricCard label="إجمالي المبالغ المستردة" value={money(report.financial.refunds || report.cancellations.refundTotal)} note={`${number(report.financial.refundCount)} عملية استرداد مكتملة`} tone="rose" />
+                  <MetricCard label="أُعيدت جدولتها" value={number(report.cancellations.rescheduledCount)} note="حجوزات تم تعديل موعدها" tone="gold" />
+                  <MetricCard label="الحجوزات المرفوضة" value={number(report.bookings.rejected)} note="رفض تشغيلي" tone="rose" />
+                  <MetricCard label="حالات عدم الحضور" value={number(report.bookings.noShow + report.bookings.accessDenied)} note="عدم حضور أو تعذر الدخول" tone="neutral" />
+                </div>
+                <div className="rounded-2xl border border-rose-500/20 bg-rose-500/[0.04] p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs leading-6 text-neutral-300">
+                  <div className="flex items-center gap-2.5">
+                    <ShieldAlert className="size-5 text-rose-400 shrink-0" />
+                    <span>يتم خصم مبالغ الاستردادات الفعلية (<strong>{money(report.financial.refunds || report.cancellations.refundTotal)}</strong>) مباشرة من إجمالي المقبوضات لاحتساب صافي الأرباح.</span>
+                  </div>
+                  <span className="font-mono font-bold text-rose-300 shrink-0">صافي الأرباح: {money(report.financial.netCollected)}</span>
+                </div>
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <CountRail title="أسباب الإلغاء وتكرارها" rows={report.cancellations.byReason} emptyText="لا توجد أسباب إلغاء مسجلة بالفترة." />
+                  <CountRail title="الطرف المسؤول عن الإلغاء" rows={report.cancellations.byResponsibleParty} labelFor={(row) => responsiblePartyLabels[row.id] ?? row.label} emptyText="لا توجد أطراف مسؤولة مسجلة." />
+                </div>
+              </section>
+
+              {/* Ratings */}
+              <section aria-labelledby="ratings-report" className="space-y-6 rounded-[1.75rem] border border-[#c9a227]/30 bg-[#11110f] p-5 [content-visibility:auto] sm:p-7">
+                <SectionHeading code="06 / CUSTOMER REVIEWS" title="تقييمات وصوت العملاء" description="تحليل متوسط التقييمات وتوزيع النجوم والتقييمات حسب الفرع والخدمة." />
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <MetricCard label="إجمالي التقييمات" value={number(report.customerRatings.totalCount)} tone="gold" />
+                  <MetricCard label="متوسط التقييم العام" value={`${report.customerRatings.averageScore} / 5`} note={report.customerRatings.averageScore >= 4.5 ? 'أداء ممتاز' : report.customerRatings.totalCount > 0 ? 'يحتاج متابعة' : 'لا توجد تقييمات'} tone="gold" />
+                  <MetricCard label="التقييمات المعتمدة للنشر" value={number(report.customerRatings.approvedCount)} tone="teal" />
+                </div>
+                <div className="grid gap-4 lg:grid-cols-3">
+                  <CountRail title="توزيع النجوم" rows={report.customerRatings.byScore} />
+                  <CountValueTable title="التقييمات حسب الخدمة" rows={report.customerRatings.byService} />
+                  <CountValueTable title="التقييمات حسب الفرع" rows={report.customerRatings.byBranch} />
+                </div>
+              </section>
+
+              {/* Source Rows */}
+              <section aria-labelledby="details-report" className="space-y-5 rounded-[1.75rem] border border-white/10 bg-[#11110f] p-5 [content-visibility:auto] sm:p-7">
+                <SectionHeading code="07 / SOURCE ROWS" title="سجل الحجوزات المطابق" description={`يعرض ${number(report.rows.length)} صفًا. ملف CSV يضم هذا السجل وجميع الملخصات والتجميعات أعلاه.`} />
+                <BookingsTable rows={report.rows} />
+              </section>
+            </>
+          ) : (
+            /* ======================================================== */
+            /* Monthly Revenue Ledger & Financial Transactions Integrated */
+            /* ======================================================== */
+            <div className="space-y-8">
+              {/* Month Switcher Carousel / Pills */}
+              <section aria-labelledby="revenue-month-select" className="rounded-3xl border border-white/10 bg-[#111] p-5 sm:p-6">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h2 id="revenue-month-select" className="text-lg font-black text-white flex items-center gap-2">
+                      <Calendar className="size-5 text-[#d4af37]" />
+                      <span>دفتر الإيرادات الشهرية</span>
+                    </h2>
+                    <p className="text-xs text-neutral-400 mt-1">اختر الشهر لمتابعة الإيرادات وصافي الأرباح وحركات الحجوزات والاشتراكات.</p>
+                  </div>
+                  <div className="text-xs font-bold text-[#d4af37] bg-[#d4af37]/10 px-3.5 py-1.5 rounded-full border border-[#d4af37]/20 self-start sm:self-auto">
+                    الشهر المحدد: {formatMonthLabel(selectedMonth)}
+                  </div>
+                </div>
+                <div className="mt-5 flex gap-2 overflow-x-auto pb-2 scrollbar-thin">
+                  {pastMonths.map((m) => {
+                    const isActive = m.key === selectedMonth;
                     return (
                       <Link
-                        key={tab.type}
-                        href={`/admin/reports?tab=revenue&month=${selectedMonth}&type=${tab.type}${searchQuery ? `&q=${encodeURIComponent(searchQuery)}` : ''}`}
-                        className={`rounded-xl px-3.5 py-1.5 text-xs font-bold transition-all ${isActive ? 'bg-[#d4af37] text-black shadow-md' : 'bg-neutral-900 text-neutral-400 hover:bg-neutral-800 hover:text-white border border-neutral-800'}`}
+                        key={m.key}
+                        href={`/admin/reports?tab=revenue&month=${m.key}`}
+                        className={`shrink-0 rounded-xl px-4 py-2 text-xs font-bold transition-all ${isActive ? 'bg-[#d4af37] text-black shadow-lg shadow-[#d4af37]/20 scale-105' : 'bg-neutral-900/90 text-neutral-400 hover:bg-neutral-800 hover:text-white border border-neutral-800'}`}
                       >
-                        {tab.label}
+                        {m.label}
                       </Link>
                     );
                   })}
                 </div>
-              </div>
+              </section>
 
-              {/* Search Bar */}
-              <form method="get" className="flex items-center gap-2">
-                <input type="hidden" name="tab" value="revenue" />
-                <input type="hidden" name="month" value={selectedMonth} />
-                <input type="hidden" name="type" value={filterType} />
-                <div className="relative flex-1">
-                  <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 size-4 text-neutral-500" />
-                  <input
-                    name="q"
-                    defaultValue={searchQuery}
-                    placeholder="ابحث باسم العميل، رقم الهاتف، رقم الحجز، أو الفرع…"
-                    className="w-full rounded-xl border border-neutral-800 bg-[#080808] py-2.5 pr-10 pl-4 text-xs text-white placeholder:text-neutral-500 focus:border-[#d4af37] focus:outline-none"
-                  />
+              {/* Revenue Summary KPI Cards */}
+              <section aria-label="ملخص إيرادات الشهر" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+                <div className="rounded-2xl border border-[#d4af37]/40 bg-gradient-to-br from-[#d4af37]/15 to-transparent p-5 shadow-xl">
+                  <div className="flex items-center justify-between text-xs font-bold text-[#f3e4a8]">
+                    <span>صافي الإيراد والأرباح</span>
+                    <Sparkles className="size-4 text-[#d4af37]" />
+                  </div>
+                  <p className="mt-3 text-2xl sm:text-3xl font-black text-white">{money(netRevenue)}</p>
+                  <p className="mt-1 text-[11px] text-neutral-400">إجمالي المقبوضات ناقص الاستردادات</p>
                 </div>
-                <button type="submit" className="rounded-xl bg-[#d4af37] px-4 py-2.5 text-xs font-bold text-black hover:bg-[#e0bd3a]">بحث</button>
-                {searchQuery ? (
-                  <Link
-                    href={`/admin/reports?tab=revenue&month=${selectedMonth}&type=${filterType}`}
-                    className="rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2.5 text-xs font-bold text-neutral-300 hover:bg-neutral-800"
-                  >
-                    مسح
-                  </Link>
-                ) : null}
-              </form>
 
-              {/* Transactions Table */}
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[850px] border-collapse text-right text-xs">
-                  <caption className="sr-only">سجل الحركات المالية الموثقة</caption>
-                  <thead className="border-b border-neutral-800 text-neutral-400">
-                    <tr>
-                      <th scope="col" className="px-3 py-3 font-medium">التاريخ والوقت</th>
-                      <th scope="col" className="px-3 py-3 font-medium">النوع والبيان</th>
-                      <th scope="col" className="px-3 py-3 font-medium">العميل</th>
-                      <th scope="col" className="px-3 py-3 font-medium">الفرع</th>
-                      <th scope="col" className="px-3 py-3 font-medium">وسيلة الدفع</th>
-                      <th scope="col" className="px-3 py-3 font-medium">المرجع</th>
-                      <th scope="col" className="px-3 py-3 font-medium text-left">المبلغ</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredTransactions.length === 0 ? (
-                      <tr>
-                        <td colSpan={7} className="px-3 py-10 text-center text-neutral-500">
-                          لا توجد حركات مالية مطابقة للبحث في هذا الشهر.
-                        </td>
-                      </tr>
+                <div className="rounded-2xl border border-neutral-800 bg-[#111] p-5">
+                  <div className="flex items-center justify-between text-xs font-bold text-neutral-400">
+                    <span>إجمالي المقبوضات</span>
+                    <DollarSign className="size-4 text-neutral-400" />
+                  </div>
+                  <p className="mt-3 text-2xl sm:text-3xl font-black text-white">{money(totalGrossRevenue)}</p>
+                  <p className="mt-1 text-[11px] text-neutral-400">الحجوزات + الاشتراكات</p>
+                </div>
+
+                <div className="rounded-2xl border border-neutral-800 bg-[#111] p-5">
+                  <div className="flex items-center justify-between text-xs font-bold text-emerald-400">
+                    <span>إيراد الحجوزات</span>
+                    <CheckCircle2 className="size-4 text-emerald-400" />
+                  </div>
+                  <p className="mt-3 text-2xl font-black text-white">{money(totalBookingRevenue)}</p>
+                  <p className="mt-1 text-[11px] text-neutral-400">{bookingPayments.length} حركة دفع حجز</p>
+                </div>
+
+                <div className="rounded-2xl border border-neutral-800 bg-[#111] p-5">
+                  <div className="flex items-center justify-between text-xs font-bold text-sky-400">
+                    <span>إيراد الاشتراكات</span>
+                    <PackageCheck className="size-4 text-sky-400" />
+                  </div>
+                  <p className="mt-3 text-2xl font-black text-white">{money(totalSubscriptionRevenue)}</p>
+                  <p className="mt-1 text-[11px] text-neutral-400">{subscriptionProofs.length} اشتراك مفعل</p>
+                </div>
+
+                <div className="rounded-2xl border border-neutral-800 bg-[#111] p-5">
+                  <div className="flex items-center justify-between text-xs font-bold text-rose-400">
+                    <span>الاستردادات المعتمدة</span>
+                    <ShieldAlert className="size-4 text-rose-400" />
+                  </div>
+                  <p className="mt-3 text-2xl font-black text-rose-400">-{money(totalRefunds)}</p>
+                  <p className="mt-1 text-[11px] text-neutral-400">{refunds.length} حركة استرداد</p>
+                </div>
+              </section>
+
+              {/* Breakdowns: Payment Method & Branches */}
+              <div className="grid gap-6 lg:grid-cols-2">
+                <section aria-labelledby="method-breakdown" className="rounded-3xl border border-neutral-800 bg-[#111] p-5 sm:p-6">
+                  <h3 id="method-breakdown" className="text-base font-bold text-white flex items-center gap-2">
+                    <WalletCards className="size-5 text-[#d4af37]" />
+                    <span>توزيع الإيراد حسب وسيلة الدفع</span>
+                  </h3>
+                  <div className="mt-4 space-y-3">
+                    {Object.keys(paymentMethodMap).length === 0 ? (
+                      <p className="text-xs text-neutral-500 py-4 text-center">لا توجد عمليات مسجلة في هذا الشهر.</p>
                     ) : (
-                      filteredTransactions.map((tx) => {
-                        const isPositive = tx.amount > 0;
+                      Object.entries(paymentMethodMap).map(([key, data]) => {
+                        const percentage = totalGrossRevenue > 0 ? Math.round((data.amount / totalGrossRevenue) * 100) : 0;
                         return (
-                          <tr key={tx.id} className="border-b border-neutral-900 hover:bg-white/[0.02]">
-                            <td className="px-3 py-3 font-mono text-neutral-400 text-[11px]" dir="ltr">
-                              {formatDateTime(tx.date)}
-                            </td>
-                            <td className="px-3 py-3">
-                              <span className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[10px] font-bold ${tx.type === 'BOOKING' ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20' : tx.type === 'SUBSCRIPTION' ? 'bg-sky-500/10 text-sky-300 border border-sky-500/20' : 'bg-rose-500/10 text-rose-300 border border-rose-500/20'}`}>
-                                {tx.type === 'BOOKING' ? 'حجز' : tx.type === 'SUBSCRIPTION' ? 'اشتراك' : 'استرداد'}
-                              </span>
-                              <span className="mr-2 text-white font-medium">{tx.title}</span>
-                            </td>
-                            <td className="px-3 py-3">
-                              <p className="font-bold text-neutral-200">{tx.customerName}</p>
-                              <p className="font-mono text-[10px] text-neutral-500" dir="ltr">{tx.customerPhone}</p>
-                            </td>
-                            <td className="px-3 py-3 text-neutral-300">{tx.branchName}</td>
-                            <td className="px-3 py-3 text-neutral-300">{tx.paymentMethod}</td>
-                            <td className="px-3 py-3 font-mono text-neutral-400 text-[11px]" dir="ltr">{tx.reference}</td>
-                            <td className="px-3 py-3 text-left font-mono font-bold">
-                              <span className={isPositive ? 'text-emerald-400' : 'text-rose-400'}>
-                                {isPositive ? '+' : ''}{money(tx.amount)}
-                              </span>
-                            </td>
-                          </tr>
+                          <div key={key} className="rounded-xl border border-neutral-800/80 bg-neutral-900/50 p-3.5">
+                            <div className="flex items-center justify-between text-xs font-bold">
+                              <span className="text-neutral-200">{data.label}</span>
+                              <span className="font-mono text-[#f3e4a8]">{money(data.amount)} ({data.count} عملية)</span>
+                            </div>
+                            <div className="mt-2 flex items-center gap-3">
+                              <div className="h-2 flex-1 rounded-full bg-neutral-800 overflow-hidden">
+                                <div className="h-full rounded-full bg-[#d4af37]" style={{ width: `${percentage}%` }} />
+                              </div>
+                              <span className="text-[11px] font-bold text-neutral-400">{percentage}%</span>
+                            </div>
+                          </div>
                         );
                       })
                     )}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          </div>
-        )}
+                  </div>
+                </section>
 
-        <footer className="flex flex-col gap-2 border-t border-white/10 py-5 text-xs text-neutral-600 sm:flex-row sm:items-center sm:justify-between">
-          <span>تقرير وإيرادات داخلية موحدة — Owner / System Super Admin / Operations Manager</span>
-          <span>آخر توليد: {generatedAt}</span>
-        </footer>
-      </div>
-    </main>
+                <section aria-labelledby="branch-revenue-breakdown" className="rounded-3xl border border-neutral-800 bg-[#111] p-5 sm:p-6">
+                  <h3 id="branch-revenue-breakdown" className="text-base font-bold text-white flex items-center gap-2">
+                    <Building2 className="size-5 text-[#d4af37]" />
+                    <span>توزيع الإيراد حسب الفرع</span>
+                  </h3>
+                  <div className="mt-4 space-y-3">
+                    {Object.keys(branchMap).length === 0 ? (
+                      <p className="text-xs text-neutral-500 py-4 text-center">لا توجد عمليات مسجلة في هذا الشهر.</p>
+                    ) : (
+                      Object.entries(branchMap).map(([branchName, data]) => {
+                        const percentage = totalGrossRevenue > 0 ? Math.round((data.amount / totalGrossRevenue) * 100) : 0;
+                        return (
+                          <div key={branchName} className="rounded-xl border border-neutral-800/80 bg-neutral-900/50 p-3.5">
+                            <div className="flex items-center justify-between text-xs font-bold">
+                              <span className="text-neutral-200">{branchName}</span>
+                              <span className="font-mono text-emerald-400">{money(data.amount)} ({data.count} عملية)</span>
+                            </div>
+                            <div className="mt-2 flex items-center gap-3">
+                              <div className="h-2 flex-1 rounded-full bg-neutral-800 overflow-hidden">
+                                <div className="h-full rounded-full bg-emerald-400" style={{ width: `${percentage}%` }} />
+                              </div>
+                              <span className="text-[11px] font-bold text-neutral-400">{percentage}%</span>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </section>
+              </div>
+
+              {/* Financial Transactions Ledger Table */}
+              <section aria-labelledby="transactions-ledger" className="rounded-3xl border border-neutral-800 bg-[#111] p-5 sm:p-6 space-y-5">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <h3 id="transactions-ledger" className="text-base font-black text-white flex items-center gap-2">
+                      <TrendingUp className="size-5 text-[#d4af37]" />
+                      <span>سجل الحركات المالية الموثقة ({filteredTransactions.length} حركة)</span>
+                    </h3>
+                    <p className="text-xs text-neutral-400 mt-1">كشف تفصيلي بالاسم ورقم الهاتف والفرع وطريقة الدفع لكل حجز واشتراك واسترداد.</p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    {(
+                      [
+                        { type: 'all', label: 'الكل' },
+                        { type: 'booking', label: 'الحجوزات' },
+                        { type: 'subscription', label: 'الاشتراكات' },
+                        { type: 'refund', label: 'الاستردادات' },
+                      ] as const
+                    ).map((tab) => {
+                      const isActive = filterType === tab.type;
+                      return (
+                        <Link
+                          key={tab.type}
+                          href={`/admin/reports?tab=revenue&month=${selectedMonth}&type=${tab.type}${searchQuery ? `&q=${encodeURIComponent(searchQuery)}` : ''}`}
+                          className={`rounded-xl px-3.5 py-1.5 text-xs font-bold transition-all ${isActive ? 'bg-[#d4af37] text-black shadow-md' : 'bg-neutral-900 text-neutral-400 hover:bg-neutral-800 hover:text-white border border-neutral-800'}`}
+                        >
+                          {tab.label}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Search Bar */}
+                <form method="get" className="flex items-center gap-2">
+                  <input type="hidden" name="tab" value="revenue" />
+                  <input type="hidden" name="month" value={selectedMonth} />
+                  <input type="hidden" name="type" value={filterType} />
+                  <div className="relative flex-1">
+                    <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 size-4 text-neutral-500" />
+                    <input
+                      name="q"
+                      defaultValue={searchQuery}
+                      placeholder="ابحث باسم العميل، رقم الهاتف، رقم الحجز، أو الفرع…"
+                      className="w-full rounded-xl border border-neutral-800 bg-[#080808] py-2.5 pr-10 pl-4 text-xs text-white placeholder:text-neutral-500 focus:border-[#d4af37] focus:outline-none"
+                    />
+                  </div>
+                  <button type="submit" className="rounded-xl bg-[#d4af37] px-4 py-2.5 text-xs font-bold text-black hover:bg-[#e0bd3a]">بحث</button>
+                  {searchQuery ? (
+                    <Link
+                      href={`/admin/reports?tab=revenue&month=${selectedMonth}&type=${filterType}`}
+                      className="rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2.5 text-xs font-bold text-neutral-300 hover:bg-neutral-800"
+                    >
+                      مسح
+                    </Link>
+                  ) : null}
+                </form>
+
+                {/* Transactions Table */}
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[850px] border-collapse text-right text-xs">
+                    <caption className="sr-only">سجل الحركات المالية الموثقة</caption>
+                    <thead className="border-b border-neutral-800 text-neutral-400">
+                      <tr>
+                        <th scope="col" className="px-3 py-3 font-medium">التاريخ والوقت</th>
+                        <th scope="col" className="px-3 py-3 font-medium">النوع والبيان</th>
+                        <th scope="col" className="px-3 py-3 font-medium">العميل</th>
+                        <th scope="col" className="px-3 py-3 font-medium">الفرع</th>
+                        <th scope="col" className="px-3 py-3 font-medium">وسيلة الدفع</th>
+                        <th scope="col" className="px-3 py-3 font-medium">المرجع</th>
+                        <th scope="col" className="px-3 py-3 font-medium text-left">المبلغ</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredTransactions.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="px-3 py-10 text-center text-neutral-500">
+                            لا توجد حركات مالية مطابقة للبحث في هذا الشهر.
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredTransactions.map((tx) => {
+                          const isPositive = tx.amount > 0;
+                          return (
+                            <tr key={tx.id} className="border-b border-neutral-900 hover:bg-white/[0.02]">
+                              <td className="px-3 py-3 font-mono text-neutral-400 text-[11px]" dir="ltr">
+                                {formatDateTime(tx.date)}
+                              </td>
+                              <td className="px-3 py-3">
+                                <span className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[10px] font-bold ${tx.type === 'BOOKING' ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20' : tx.type === 'SUBSCRIPTION' ? 'bg-sky-500/10 text-sky-300 border border-sky-500/20' : 'bg-rose-500/10 text-rose-300 border border-rose-500/20'}`}>
+                                  {tx.type === 'BOOKING' ? 'حجز' : tx.type === 'SUBSCRIPTION' ? 'اشتراك' : 'استرداد'}
+                                </span>
+                                <span className="mr-2 text-white font-medium">{tx.title}</span>
+                              </td>
+                              <td className="px-3 py-3">
+                                <p className="font-bold text-neutral-200">{tx.customerName}</p>
+                                <p className="font-mono text-[10px] text-neutral-500" dir="ltr">{tx.customerPhone}</p>
+                              </td>
+                              <td className="px-3 py-3 text-neutral-300">{tx.branchName}</td>
+                              <td className="px-3 py-3 text-neutral-300">{tx.paymentMethod}</td>
+                              <td className="px-3 py-3 font-mono text-neutral-400 text-[11px]" dir="ltr">{tx.reference}</td>
+                              <td className="px-3 py-3 text-left font-mono font-bold">
+                                <span className={isPositive ? 'text-emerald-400' : 'text-rose-400'}>
+                                  {isPositive ? '+' : ''}{money(tx.amount)}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            </div>
+          )}
+
+          <footer className="flex flex-col gap-2 border-t border-white/10 py-5 text-xs text-neutral-600 sm:flex-row sm:items-center sm:justify-between">
+            <span>تقرير وإيرادات داخلية موحدة — Owner / System Super Admin / Operations Manager</span>
+            <span>آخر توليد: {generatedAt}</span>
+          </footer>
+        </div>
+      </main>
+    </div>
   );
 }

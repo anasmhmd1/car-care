@@ -1,22 +1,52 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
+  Activity,
   AlertTriangle,
   ArrowLeftRight,
+  BadgeDollarSign,
   Ban,
+  BarChart3,
+  Boxes,
+  Building2,
   Calendar,
   CalendarClock,
+  CalendarDays,
   CheckCircle2,
+  ClipboardCheck,
   ExternalLink,
+  FileSearch,
   FileText,
+  Globe,
+  History,
+  KeyRound,
+  LayoutDashboard,
   Lock,
+  LogOut,
+  Menu,
+  MessageSquareText,
+  PackageCheck,
+  Phone,
+  RefreshCcw,
+  Search,
+  ShieldAlert,
   ShieldCheck,
   Unlock,
+  User,
+  UserRound,
   Users,
+  UsersRound,
   X,
 } from 'lucide-react';
+import BareeqLogo from '@/components/BareeqLogo';
+import { logoutAction } from '@/app/actions/auth';
+import SubscriptionManagementPanel, {
+  type ManagedSubscription,
+} from '@/app/admin/subscriptions/SubscriptionManagementPanel';
 import {
   assignTeamManuallyAction,
   cancelBookingByOperationsAction,
@@ -41,8 +71,10 @@ import {
 } from './pagination';
 
 type DateValue = string | Date;
-type Tab = OperationsDashboardQueueKey;
+type Tab = OperationsDashboardQueueKey | 'cases' | 'subscriptions' | 'quality';
 type ProofDecision = 'VERIFY' | 'REJECT' | 'SHORT' | 'REUPLOAD' | 'DUPLICATE';
+
+export type { ManagedSubscription };
 
 interface UserSummary {
   id: string;
@@ -100,13 +132,14 @@ interface UnassignedBooking {
   branch: { nameAr: string };
   service: { nameAr: string };
   coverageArea: { compound: string };
+  customer?: { user: UserSummary };
 }
 
 interface TeamSummary {
   id: string;
   branchId: string;
   name: string;
-  members: Array<{ id: string }>;
+  members: Array<{ id: string; fullName?: string }>;
 }
 
 interface BranchSummary {
@@ -157,10 +190,21 @@ interface Props {
   teams: TeamSummary[];
   activeBookings: ActiveBooking[];
   terminalBookings: TerminalBooking[];
+  managedSubscriptions?: ManagedSubscription[];
   activeBookingQuery: string;
   terminalBookingQuery: string;
-  initialTab?: Tab;
-  pagination: Record<Tab, QueuePagination>;
+  initialTab?: OperationsDashboardQueueKey;
+  pagination: Record<OperationsDashboardQueueKey, QueuePagination>;
+  caseQueuesSlot?: ReactNode;
+  qualityQueuesSlot?: ReactNode;
+  openCasesCount?: number;
+  qualityBookingsCount?: number;
+  selectedDate?: string;
+  todayDate?: string;
+  tomorrowDate?: string;
+  canOpenWorkforce?: boolean;
+  canOpenPricing?: boolean;
+  canOpenCustomerReviews?: boolean;
 }
 
 interface Feedback {
@@ -168,49 +212,150 @@ interface Feedback {
   message: string;
 }
 
-function formatDateTime(value: DateValue) {
-  return new Intl.DateTimeFormat('ar-EG', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-    timeZone: 'Africa/Cairo',
-  }).format(new Date(value));
+const currencyFormatter = new Intl.NumberFormat('ar-EG', {
+  style: 'currency',
+  currency: 'EGP',
+  maximumFractionDigits: 0,
+});
+const numberFormatter = new Intl.NumberFormat('ar-EG');
+const dateTimeFormatter = new Intl.DateTimeFormat('ar-EG', {
+  timeZone: 'Africa/Cairo',
+  dateStyle: 'medium',
+  timeStyle: 'short',
+});
+
+function formatCurrency(value: number) {
+  return currencyFormatter.format(value);
 }
 
-function MetricButton({
-  active,
-  count,
-  label,
-  onClick,
-  icon,
-}: {
-  active: boolean;
-  count: number | string;
-  label: string;
-  onClick: () => void;
-  icon: React.ReactNode;
-}) {
+function formatNumber(value: number) {
+  return numberFormatter.format(value);
+}
+
+function formatDateTime(value: DateValue) {
+  return dateTimeFormatter.format(new Date(value));
+}
+
+const badgeTone: Record<string, string> = {
+  ACTIVE: 'border-emerald-400/30 bg-emerald-400/10 text-emerald-200',
+  VERIFIED: 'border-emerald-400/30 bg-emerald-400/10 text-emerald-200',
+  FULLY_PAID: 'border-emerald-400/30 bg-emerald-400/10 text-emerald-200',
+  SERVICE_COMPLETED: 'border-emerald-400/30 bg-emerald-400/10 text-emerald-200',
+  DELIVERED: 'border-emerald-400/30 bg-emerald-400/10 text-emerald-200',
+  CLOSED: 'border-emerald-400/30 bg-emerald-400/10 text-emerald-200',
+  PENDING: 'border-amber-300/30 bg-amber-300/10 text-amber-100',
+  UNDER_REVIEW: 'border-amber-300/30 bg-amber-300/10 text-amber-100',
+  PAYMENT_UNDER_REVIEW: 'border-amber-300/30 bg-amber-300/10 text-amber-100',
+  AWAITING_OPERATIONS_REVIEW: 'border-amber-300/30 bg-amber-300/10 text-amber-100',
+  AWAITING_ASSIGNMENT: 'border-amber-300/30 bg-amber-300/10 text-amber-100',
+  QUALITY_REVIEW: 'border-violet-300/30 bg-violet-300/10 text-violet-100',
+  OPEN: 'border-red-300/30 bg-red-300/10 text-red-100',
+  ACTION_REQUIRED: 'border-red-300/30 bg-red-300/10 text-red-100',
+  REJECTED: 'border-red-300/30 bg-red-300/10 text-red-100',
+  CANCELLED: 'border-red-300/30 bg-red-300/10 text-red-100',
+};
+
+const inputClass =
+  'w-full rounded-xl border border-neutral-800 bg-[#121215] px-4 py-2.5 text-xs sm:text-sm text-white placeholder:text-neutral-500 hover:border-neutral-700 focus-visible:border-[#d4af37] focus-visible:ring-2 focus-visible:ring-[#d4af37]/30 disabled:cursor-not-allowed disabled:opacity-60 transition-all';
+const primaryButtonClass =
+  'inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#d4af37] via-[#e5c45a] to-[#d4af37] px-4 py-2.5 text-xs sm:text-sm font-bold text-neutral-950 hover:brightness-110 active:scale-98 shadow-md shadow-[#d4af37]/20 focus-visible:ring-2 focus-visible:ring-[#f0d879] disabled:cursor-not-allowed disabled:opacity-55 transition-all';
+const secondaryButtonClass =
+  'inline-flex items-center justify-center gap-2 rounded-xl border border-neutral-800 bg-neutral-900/80 px-4 py-2.5 text-xs sm:text-sm font-semibold text-neutral-200 hover:border-neutral-700 hover:bg-neutral-800 hover:text-white active:scale-98 focus-visible:ring-2 focus-visible:ring-neutral-600 disabled:cursor-not-allowed disabled:opacity-55 transition-all';
+
+function StatusBadge({ status, label }: { status: string; label?: string }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={`rounded-3xl border p-5 text-right transition-colors ${
-        active
-          ? 'border-[#c9a227] bg-[#c9a227]/10'
-          : 'border-neutral-800 bg-[#141414] hover:border-neutral-600'
+    <span
+      className={`inline-flex rounded-full border px-2.5 py-0.5 text-[11px] font-bold tracking-wide ${
+        badgeTone[status] ?? 'border-neutral-800 bg-neutral-900/80 text-neutral-300'
       }`}
     >
-      <span className="flex items-center justify-between gap-3 text-xs font-semibold text-neutral-300">
-        {label}
-        {icon}
-      </span>
-      <span className="mt-3 block text-3xl font-black text-[#e5c45a]">{count}</span>
-    </button>
+      {label ?? status}
+    </span>
   );
 }
 
-function pagedCount(count: number, queue: QueuePagination) {
-  return queue.hasNextPage ? `${count}+` : count;
+function SectionHeader({
+  eyebrow,
+  title,
+  description,
+  action,
+}: {
+  eyebrow: string;
+  title: string;
+  description: string;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between border-b border-neutral-800/80 pb-5">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="size-2 rounded-full bg-[#d4af37] shadow-sm shadow-[#d4af37]" />
+          <p className="text-xs font-bold uppercase tracking-widest text-[#d4af37]">{eyebrow}</p>
+        </div>
+        <h2 className="mt-1 text-balance text-2xl font-black tracking-tight text-white sm:text-3xl">
+          {title}
+        </h2>
+        <p className="mt-1.5 max-w-3xl text-pretty text-xs sm:text-sm leading-6 text-neutral-400">{description}</p>
+      </div>
+      {action}
+    </div>
+  );
+}
+
+function MetricCard({
+  label,
+  value,
+  hint,
+  icon,
+  tone = 'gold',
+  active = false,
+  onClick,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  icon: ReactNode;
+  tone?: 'gold' | 'green' | 'red' | 'blue';
+  active?: boolean;
+  onClick?: () => void;
+}) {
+  const toneClass = {
+    gold: 'bg-amber-500/10 text-[#d4af37] border-amber-500/25 shadow-amber-500/10',
+    green: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25 shadow-emerald-500/10',
+    red: 'bg-rose-500/10 text-rose-300 border-rose-500/25 shadow-rose-500/10',
+    blue: 'bg-sky-500/10 text-sky-300 border-sky-500/25 shadow-sky-500/10',
+  }[tone];
+
+  return (
+    <article
+      onClick={onClick}
+      className={`group relative flex flex-col justify-between overflow-hidden rounded-2xl border transition-all duration-300 p-5 ${
+        onClick ? 'cursor-pointer hover:scale-[1.01]' : ''
+      } ${
+        active
+          ? 'border-[#d4af37] bg-[#1a170f] shadow-xl shadow-[#d4af37]/10 ring-1 ring-[#d4af37]/40'
+          : 'border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md hover:border-[#d4af37]/50 hover:shadow-xl hover:shadow-[#d4af37]/5'
+      }`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-xs sm:text-sm font-bold text-neutral-300 leading-snug">{label}</p>
+          <p className="mt-2.5 text-2xl sm:text-3xl font-black tracking-tight tabular-nums text-white group-hover:text-[#f3e4a8] transition-colors">
+            {value}
+          </p>
+        </div>
+        <div className={`flex size-11 shrink-0 items-center justify-center rounded-2xl border shadow-md transition-transform duration-300 group-hover:scale-105 ${toneClass}`}>
+          {icon}
+        </div>
+      </div>
+      {hint ? (
+        <p className="mt-3 text-xs leading-relaxed text-neutral-400 border-t border-neutral-800/60 pt-2.5 flex items-center gap-1.5">
+          <span className="size-1.5 rounded-full bg-neutral-600 shrink-0" />
+          <span className="break-words">{hint}</span>
+        </p>
+      ) : null}
+    </article>
+  );
 }
 
 export default function OperationsDashboardClient({
@@ -222,12 +367,24 @@ export default function OperationsDashboardClient({
   teams,
   activeBookings,
   terminalBookings,
+  managedSubscriptions = [],
   activeBookingQuery,
   terminalBookingQuery,
   initialTab,
   pagination,
+  caseQueuesSlot,
+  qualityQueuesSlot,
+  openCasesCount = 0,
+  qualityBookingsCount = 0,
+  selectedDate,
+  todayDate,
+  tomorrowDate,
+  canOpenWorkforce = true,
+  canOpenPricing = true,
+  canOpenCustomerReviews = true,
 }: Props) {
   const router = useRouter();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>(
     initialTab ?? (manager.role === 'OWNER' && terminalBookingQuery
       ? 'terminal'
@@ -235,6 +392,8 @@ export default function OperationsDashboardClient({
         ? 'bookings'
         : 'proofs'),
   );
+
+  // Modals state
   const [selectedProof, setSelectedProof] = useState<PendingProof | null>(null);
   const [selectedReview, setSelectedReview] = useState<ReviewBooking | null>(null);
   const [selectedBooking, setSelectedBooking] = useState<UnassignedBooking | null>(null);
@@ -243,23 +402,19 @@ export default function OperationsDashboardClient({
   const [selectedOverrideClose, setSelectedOverrideClose] = useState<ActiveBooking | null>(null);
   const [selectedReopen, setSelectedReopen] = useState<TerminalBooking | null>(null);
   const [selectedTerminalReview, setSelectedTerminalReview] = useState<ActiveBooking | null>(null);
-
-  // New Operational Modals State
   const [selectedCancelBooking, setSelectedCancelBooking] = useState<{ id: string; bookingNumber: string; customerName?: string } | null>(null);
   const [cancelReason, setCancelReason] = useState('');
-
   const [selectedRescheduleBooking, setSelectedRescheduleBooking] = useState<{ id: string; bookingNumber: string; startAt: DateValue } | null>(null);
   const [rescheduleDate, setRescheduleDate] = useState('');
   const [rescheduleTime, setRescheduleTime] = useState('');
   const [rescheduleReason, setRescheduleReason] = useState('');
-
   const [selectedTransferBooking, setSelectedTransferBooking] = useState<{ id: string; bookingNumber: string; branchId?: string; currentTeamId?: string | null } | null>(null);
   const [transferTeamId, setTransferTeamId] = useState('');
   const [transferReason, setTransferReason] = useState('');
-
   const [selectedLockBranch, setSelectedLockBranch] = useState<BranchSummary | null>(null);
   const [lockReason, setLockReason] = useState('');
 
+  // Form Fields
   const [selectedTeamId, setSelectedTeamId] = useState('');
   const [reviewNotes, setReviewNotes] = useState('');
   const [assignmentReason, setAssignmentReason] = useState('');
@@ -283,6 +438,26 @@ export default function OperationsDashboardClient({
     const queue = parameter === 'bookingQuery' ? 'bookings' : 'terminal';
     params.delete(operationsQueuePageParam(queue));
     params.set('dashboardTab', queue);
+    const search = params.toString();
+    router.push(search ? `/operations?${search}` : '/operations');
+  }
+
+  function handleSelectDate(newDate?: string) {
+    const params = new URLSearchParams(window.location.search);
+    if (newDate) {
+      params.set('date', newDate);
+    } else {
+      params.delete('date');
+    }
+    if (activeTab) {
+      params.set('dashboardTab', activeTab);
+    }
+    params.delete('page_proofs');
+    params.delete('page_review');
+    params.delete('page_unassigned');
+    params.delete('page_bookings');
+    params.delete('page_terminal');
+    params.delete('page_quality');
     const search = params.toString();
     router.push(search ? `/operations?${search}` : '/operations');
   }
@@ -314,18 +489,18 @@ export default function OperationsDashboardClient({
 
   useEffect(() => {
     const modalOpen = Boolean(
-      selectedProof
-      || selectedReview
-      || selectedBooking
-      || selectedSettlement
-      || selectedClose
-      || selectedOverrideClose
-      || selectedReopen
-      || selectedTerminalReview
-      || selectedCancelBooking
-      || selectedRescheduleBooking
-      || selectedTransferBooking
-      || selectedLockBranch
+      selectedProof ||
+      selectedReview ||
+      selectedBooking ||
+      selectedSettlement ||
+      selectedClose ||
+      selectedOverrideClose ||
+      selectedReopen ||
+      selectedTerminalReview ||
+      selectedCancelBooking ||
+      selectedRescheduleBooking ||
+      selectedTransferBooking ||
+      selectedLockBranch
     );
     if (!modalOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
@@ -643,557 +818,1222 @@ export default function OperationsDashboardClient({
     }
   }
 
+  const primaryPendingCount =
+    pendingProofs.length + reviewBookings.length + unassignedBookings.length;
+
+  const pendingSubscriptionProofsCount = (managedSubscriptions || []).filter(
+    (s) => s.paymentProof && s.paymentProof.status === 'UNDER_REVIEW',
+  ).length;
+
+  const sectionNav: Array<{
+    id?: string;
+    href?: string;
+    label: string;
+    icon: typeof LayoutDashboard;
+    badgeCount?: number;
+  }> = [
+    {
+      id: 'overview',
+      label: 'الرئيسية',
+      icon: LayoutDashboard,
+      badgeCount: primaryPendingCount,
+    },
+    {
+      href: '/admin/calendar',
+      label: 'تقويم التشغيل',
+      icon: CalendarDays,
+    },
+    {
+      href: '/admin/reports',
+      label: 'تقارير التشغيل',
+      icon: BarChart3,
+    },
+    {
+      href: '/operations/resources',
+      label: 'المخزون',
+      icon: Boxes,
+    },
+    ...(canOpenWorkforce
+      ? [
+          {
+            href: '/operations/workforce',
+            label: 'الموظفون',
+            icon: UsersRound,
+          },
+        ]
+      : []),
+    ...(canOpenPricing
+      ? [
+          {
+            href: '/operations/pricing',
+            label: 'إدارة الأسعار',
+            icon: BadgeDollarSign,
+          },
+        ]
+      : []),
+    ...(canOpenCustomerReviews
+      ? [
+          {
+            href: '/admin/reviews',
+            label: 'تقييمات العملاء',
+            icon: ClipboardCheck,
+          },
+        ]
+      : []),
+    {
+      href: '/operations/audit',
+      label: 'سجل التدقيق',
+      icon: History,
+    },
+    {
+      href: '/operations/password-resets',
+      label: 'كلمات المرور',
+      icon: KeyRound,
+    },
+  ];
+
   return (
-    <div className="space-y-8">
-      <div aria-live="polite" className="min-h-6">
-        {feedback && (
-          <p
-            className={`rounded-xl border px-4 py-3 text-sm ${
-              feedback.tone === 'success'
-                ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
-                : 'border-red-500/40 bg-red-500/10 text-red-300'
-            }`}
-          >
-            {feedback.message}
-          </p>
-        )}
-      </div>
+    <div dir="rtl" className="min-h-screen bg-[#09090c] text-white selection:bg-[#d4af37]/30 selection:text-white">
+      <a
+        href="#operations-main"
+        className="sr-only rounded-lg bg-[#d4af37] px-4 py-2 font-bold text-black focus:not-sr-only focus:fixed focus:right-4 focus:top-4 focus:z-[60]"
+      >
+        تخطي إلى المحتوى
+      </a>
 
-      <p className="text-sm text-neutral-400">
-        المستخدم الحالي: <span className="font-bold text-white">{manager.fullName}</span>
-      </p>
+      {/* Executive Command Header matching Owner Navbar Identity */}
+      <header className="sticky top-0 z-50 bg-[#080808]/90 backdrop-blur-md border-b border-[#cea355]/20 py-3 shadow-xl">
+        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 flex flex-row items-center justify-between">
+          {/* Brand Official Logo */}
+          <div className="flex items-center shrink-0">
+            <Link href="/operations" className="flex items-center" aria-label="بريق | BAREEQ">
+              <BareeqLogo size="md" />
+            </Link>
+          </div>
 
-      {branches && branches.length > 0 && (
-        <section aria-labelledby="schedule-lock-heading" className="rounded-3xl border border-[#c9a227]/30 bg-[#141414] p-5 sm:p-6">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="space-y-1">
-              <h2 id="schedule-lock-heading" className="flex items-center gap-2 text-base font-bold text-white">
-                <Lock className="size-4 text-[#c9a227]" aria-hidden="true" />
-                التحكم في استقبال الحجوزات وجداول المواعيد
-              </h2>
-              <p className="text-xs text-neutral-400">
-                يمكن لمدير التشغيل قفل جدول المواعيد مؤقتًا لأي فرع لإيقاف الحجز من الموقع فوراً أو إعادة فتحه
-              </p>
+          {/* Action Buttons, Manager Identity & Mobile Menu */}
+          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+            {/* Manager Pill Badge (Desktop / Tablet) */}
+            <div className="hidden sm:flex items-center gap-1.5 xs:gap-2 px-3 py-1.5 xs:px-4 xs:py-2 rounded-xl gold-gradient text-white font-bold text-xs xs:text-sm shadow-lg shadow-[#cea355]/25">
+              <User className="w-3.5 h-3.5 xs:w-4 xs:h-4 text-white" aria-hidden="true" />
+              <span>{manager.fullName}</span>
+              <span className="text-[10px] bg-black/30 text-white px-2 py-0.5 rounded font-black border border-white/20">
+                OPERATIONS
+              </span>
             </div>
-            <div className="flex flex-wrap items-center gap-3">
-              {branches.map((branch) => {
-                const isLocked = branch.status !== 'ACTIVE';
-                return (
-                  <div key={branch.id} className={`flex items-center gap-3 rounded-2xl border px-4 py-2.5 text-xs ${isLocked ? 'border-red-500/40 bg-red-500/10' : 'border-emerald-500/40 bg-emerald-500/10'}`}>
-                    <div>
-                      <span className="font-bold text-white">{branch.nameAr}:</span>{' '}
-                      <span className={isLocked ? 'text-red-400 font-semibold' : 'text-emerald-400 font-semibold'}>
-                        {isLocked ? 'مقفل مؤقتًا (لا يستقبل حجوزات)' : 'مفتوح ويستقبل الحجوزات'}
-                      </span>
-                    </div>
+
+            {/* Website Link */}
+            <Link
+              href="/"
+              target="_blank"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 xs:px-3.5 xs:py-2 rounded-xl bg-[#141414] border border-white/20 text-neutral-200 hover:border-[#cea355]/50 hover:text-white transition-all text-xs font-semibold"
+            >
+              <Globe className="w-3.5 h-3.5 text-neutral-400" />
+              <span>الموقع</span>
+              <ExternalLink className="w-3 h-3 text-neutral-500" />
+            </Link>
+
+            {/* Mobile Menu Button */}
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(true)}
+              className="inline-flex lg:hidden items-center gap-1.5 rounded-xl border border-[#c9a227]/40 bg-[#c9a227]/10 px-3 py-2 text-xs font-bold text-[#e5c45a] transition hover:bg-[#c9a227]/20 focus:outline-none focus:ring-2 focus:ring-[#e5c45a]"
+              aria-label="فتح قائمة لوحة التشغيل"
+            >
+              <Menu className="size-4" aria-hidden="true" />
+              <span>القائمة</span>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Slide-over Mobile Drawer for Small Screens */}
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm transition-opacity"
+            onClick={() => setMobileMenuOpen(false)}
+            aria-hidden="true"
+          />
+
+          {/* Drawer Panel */}
+          <div
+            className="fixed inset-y-0 right-0 z-50 flex w-[85%] max-w-xs flex-col justify-between border-l border-[#c9a227]/30 bg-[#121212] p-5 shadow-2xl transition-transform duration-300 overflow-y-auto"
+            dir="rtl"
+          >
+            <div>
+              {/* Drawer Header */}
+              <div className="flex items-center justify-between border-b border-neutral-800 pb-4">
+                <BareeqLogo size="sm" />
+                <button
+                  type="button"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="inline-flex size-8 items-center justify-center rounded-lg border border-neutral-700 bg-neutral-800 text-neutral-400 hover:text-white focus:outline-none focus:ring-2 focus:ring-[#e5c45a]"
+                  aria-label="إغلاق القائمة"
+                >
+                  <X className="size-4" aria-hidden="true" />
+                </button>
+              </div>
+
+              {/* Manager Info Card in Mobile Drawer */}
+              <div className="mt-4 rounded-2xl border border-neutral-800 bg-[#080808] p-3.5">
+                <div className="flex items-center gap-1.5 text-[10px] font-bold text-[#e5c45a]">
+                  <ShieldCheck className="size-3 text-[#d4af37]" />
+                  <span>لوحة مدير التشغيل</span>
+                </div>
+                <p className="mt-0.5 truncate text-sm font-black text-white">{manager.fullName}</p>
+              </div>
+
+              {/* Section Links */}
+              <nav className="mt-4 flex flex-col gap-1.5" aria-label="أقسام لوحة التشغيل">
+                {sectionNav.map((item) => {
+                  const Icon = item.icon;
+                  const active = item.id ? (item.id === 'overview' ? activeTab !== 'cases' : activeTab === 'cases') : false;
+
+                  return (
                     <button
+                      key={item.label}
                       type="button"
-                      disabled={isSubmitting}
                       onClick={() => {
-                        setSelectedLockBranch(branch);
-                        setLockReason('');
-                        setFeedback(null);
+                        setMobileMenuOpen(false);
+                        if (item.id === 'overview') setActiveTab('proofs');
+                        else if (item.id === 'subscriptions') setActiveTab('subscriptions');
+                        else if (item.id === 'cases') setActiveTab('cases');
+                        else if (item.href) router.push(item.href);
                       }}
-                      className={`rounded-xl px-3 py-1.5 font-bold transition ${
-                        isLocked
-                          ? 'bg-emerald-500 text-black hover:bg-emerald-400'
-                          : 'bg-red-500/20 text-red-300 border border-red-500/40 hover:bg-red-500/30'
+                      className={`inline-flex min-h-11 w-full items-center justify-between gap-3 rounded-xl px-3.5 text-xs font-bold transition-all ${
+                        active
+                          ? 'border border-[#cea355] bg-[#cea355]/15 text-[#edce8b] shadow-sm shadow-[#cea355]/10 font-black ring-1 ring-[#cea355]/30'
+                          : 'border border-transparent text-neutral-400 hover:border-neutral-800 hover:bg-white/[0.04] hover:text-white'
                       }`}
                     >
-                      {isLocked ? 'فتح استقبال الحجز' : 'قفل جدول المواعيد'}
+                      <span className="flex items-center gap-2.5">
+                        <Icon className={`size-4 shrink-0 ${active ? 'text-[#edce8b]' : 'text-[#c9a227]'}`} />
+                        <span>{item.label}</span>
+                      </span>
+                      {item.badgeCount && item.badgeCount > 0 ? (
+                        <span className="rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 px-2 py-0.5 text-[10px] font-black">
+                          {formatNumber(item.badgeCount)}
+                        </span>
+                      ) : null}
                     </button>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </nav>
+            </div>
+
+            {/* Bottom Actions in Drawer */}
+            <div className="mt-6 space-y-2 border-t border-neutral-800 pt-4">
+              <form action={logoutAction}>
+                <button
+                  type="submit"
+                  className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-red-500/20 bg-red-500/10 px-3 text-xs font-bold text-red-300 transition hover:bg-red-500/15"
+                >
+                  <LogOut className="size-4 text-rose-400" />
+                  <span>تسجيل الخروج</span>
+                </button>
+              </form>
             </div>
           </div>
-        </section>
+        </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        <MetricButton
-          active={activeTab === 'proofs'}
-          count={pagedCount(pendingProofs.length, pagination.proofs)}
-          label="إثباتات بانتظار المراجعة"
-          onClick={() => setActiveTab('proofs')}
-          icon={<FileText className="size-5 text-[#c9a227]" aria-hidden="true" />}
-        />
-        <MetricButton
-          active={activeTab === 'review'}
-          count={pagedCount(reviewBookings.length, pagination.review)}
-          label="حجوزات بانتظار القرار"
-          onClick={() => setActiveTab('review')}
-          icon={<ShieldCheck className="size-5 text-[#c9a227]" aria-hidden="true" />}
-        />
-        <MetricButton
-          active={activeTab === 'unassigned'}
-          count={pagedCount(unassignedBookings.length, pagination.unassigned)}
-          label="حجوزات تحتاج فريقًا"
-          onClick={() => setActiveTab('unassigned')}
-          icon={<Users className="size-5 text-[#c9a227]" aria-hidden="true" />}
-        />
-        <MetricButton
-          active={activeTab === 'bookings'}
-          count={pagedCount(activeBookings.length, pagination.bookings)}
-          label="الحجوزات النشطة"
-          onClick={() => setActiveTab('bookings')}
-          icon={<Calendar className="size-5 text-[#c9a227]" aria-hidden="true" />}
-        />
-        {manager.role === 'OWNER' ? (
-          <MetricButton
-            active={activeTab === 'terminal'}
-            count={pagedCount(terminalBookings.length, pagination.terminal)}
-            label="حجوزات طرفية قابلة للمراجعة"
-            onClick={() => setActiveTab('terminal')}
-            icon={<AlertTriangle className="size-5 text-amber-300" aria-hidden="true" />}
-          />
-        ) : null}
-      </div>
+      {/* Main Content & Desktop Sticky Sidebar */}
+      <main
+        id="operations-main"
+        className="mx-auto max-w-[1600px] gap-6 px-4 py-6 sm:px-6 lg:grid lg:grid-cols-[250px_minmax(0,1fr)] lg:px-8 lg:py-8"
+      >
+        {/* Sticky Desktop Sidebar */}
+        <aside aria-label="أقسام لوحة التشغيل" className="hidden lg:block min-w-0 lg:sticky lg:top-[90px] lg:self-start">
+          <nav className="rounded-2xl border border-neutral-800/80 bg-[#0e0e12]/90 backdrop-blur-xl p-2.5 shadow-xl space-y-1">
+            {sectionNav.map((item) => {
+              const Icon = item.icon;
+              const active = item.id
+                ? (item.id === 'overview'
+                    ? activeTab !== 'cases' && activeTab !== 'subscriptions'
+                    : activeTab === item.id)
+                : false;
 
-      {activeTab === 'proofs' && (
-        <section aria-labelledby="proofs-heading" className="space-y-5 rounded-3xl border border-[#c9a227]/20 bg-[#141414] p-5 sm:p-8">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 id="proofs-heading" className="flex items-center gap-2 text-xl font-bold">
-              <FileText className="size-5 text-[#c9a227]" aria-hidden="true" />
-              مراجعة إثباتات التحويل
-            </h2>
-            <span className="text-xs text-neutral-500">مراجعة يدوية دون OCR</span>
-          </div>
-          {pendingProofs.length === 0 ? (
-            <p className="rounded-2xl bg-[#080808] p-10 text-center text-sm text-neutral-500">لا توجد إثباتات معلّقة.</p>
-          ) : pendingProofs.map((proof) => (
-            <article key={proof.id} className="flex flex-col justify-between gap-5 rounded-2xl border border-neutral-800 bg-[#080808] p-5 lg:flex-row lg:items-center">
-              <div className="space-y-2 text-sm text-neutral-300">
-                <h3 className="font-bold text-[#e5c45a]">{proof.booking.bookingNumber} — {proof.booking.service.nameAr}</h3>
-                <p>{proof.booking.customer.user.fullName} • {proof.booking.customer.user.phone}</p>
-                <p>المحوّل: {proof.senderName} ({proof.senderPhoneOrAccount})</p>
-                <p>المبلغ: <strong className="text-white">{proof.amountSubmitted} ج.م</strong> • المطلوب أوليًا: {Math.max(0, proof.booking.depositAmount - proof.booking.amountPaid)} ج.م</p>
-              </div>
-              <button type="button" onClick={() => { setSelectedProof(proof); setReviewNotes(''); setFeedback(null); }} className="rounded-xl bg-[#c9a227] px-5 py-3 text-sm font-bold text-black hover:bg-[#e5c45a]">
-                فتح المراجعة
-              </button>
-            </article>
-          ))}
-          <OperationsQueuePagination queueKey="proofs" pagination={pagination.proofs} dashboardTab="proofs" />
-        </section>
-      )}
-
-      {activeTab === 'review' && (
-        <section aria-labelledby="review-heading" className="space-y-5 rounded-3xl border border-[#c9a227]/20 bg-[#141414] p-5 sm:p-8">
-          <h2 id="review-heading" className="flex items-center gap-2 text-xl font-bold">
-            <ShieldCheck className="size-5 text-[#c9a227]" aria-hidden="true" />
-            مراجعة الحجوزات تشغيليًا
-          </h2>
-          {reviewBookings.length === 0 ? (
-            <p className="rounded-2xl bg-[#080808] p-10 text-center text-sm text-neutral-500">لا توجد حجوزات بانتظار القرار.</p>
-          ) : reviewBookings.map((booking) => (
-            <article key={booking.id} className="flex flex-col justify-between gap-5 rounded-2xl border border-neutral-800 bg-[#080808] p-5 lg:flex-row lg:items-center">
-              <div className="space-y-2 text-sm text-neutral-300">
-                <h3 className="font-bold text-[#e5c45a]">{booking.bookingNumber} — {booking.service.nameAr}</h3>
-                <p>{booking.customer.user.fullName} • {booking.vehicle.make} {booking.vehicle.model}</p>
-                <p>{booking.branch.nameAr} • {booking.coverageArea.compound} • {formatDateTime(booking.startAt)}</p>
-                <p>الدفع: {booking.paymentStatus} • مدفوع {booking.amountPaid} ج.م • متبقٍ {booking.amountDue} ج.م</p>
-              </div>
-              <button type="button" onClick={() => { setSelectedReview(booking); setReviewNotes(''); setFeedback(null); }} className="rounded-xl bg-[#c9a227] px-5 py-3 text-sm font-bold text-black hover:bg-[#e5c45a]">
-                اتخاذ القرار
-              </button>
-            </article>
-          ))}
-          <OperationsQueuePagination queueKey="review" pagination={pagination.review} dashboardTab="review" />
-        </section>
-      )}
-
-      {activeTab === 'unassigned' && (
-        <section aria-labelledby="assignment-heading" className="space-y-5 rounded-3xl border border-[#c9a227]/20 bg-[#141414] p-5 sm:p-8">
-          <h2 id="assignment-heading" className="flex items-center gap-2 text-xl font-bold">
-            <Users className="size-5 text-[#c9a227]" aria-hidden="true" />
-            قائمة التوزيع اليدوي
-          </h2>
-          {unassignedBookings.length === 0 ? (
-            <p className="rounded-2xl bg-[#080808] p-10 text-center text-sm text-neutral-500">كل الحجوزات المقبولة مسندة.</p>
-          ) : unassignedBookings.map((booking) => (
-            <article key={booking.id} className="flex flex-col justify-between gap-5 rounded-2xl border border-neutral-800 bg-[#080808] p-5 lg:flex-row lg:items-center">
-              <div className="space-y-2 text-sm text-neutral-300">
-                <h3 className="font-bold text-[#e5c45a]">{booking.bookingNumber} — {booking.service.nameAr}</h3>
-                <p>{booking.branch.nameAr} • {booking.coverageArea.compound}</p>
-                <p>{formatDateTime(booking.startAt)} • {booking.bookingStatus}</p>
-              </div>
-              <button type="button" onClick={() => { setSelectedBooking(booking); setAssignmentReason(''); setFeedback(null); }} className="rounded-xl border border-[#c9a227]/50 px-5 py-3 text-sm font-bold text-[#e5c45a] hover:bg-[#c9a227]/10">
-                اختيار فريق
-              </button>
-            </article>
-          ))}
-          <OperationsQueuePagination queueKey="unassigned" pagination={pagination.unassigned} dashboardTab="unassigned" />
-        </section>
-      )}
-
-      {activeTab === 'bookings' && (
-        <section aria-labelledby="active-heading" className="space-y-5 rounded-3xl border border-[#c9a227]/20 bg-[#141414] p-5 sm:p-8">
-          <h2 id="active-heading" className="flex items-center gap-2 text-xl font-bold">
-            <Calendar className="size-5 text-[#c9a227]" aria-hidden="true" />
-            الحجوزات النشطة القادمة
-          </h2>
-          <form onSubmit={(event) => { event.preventDefault(); submitServerSearch('bookingQuery', activeSearch); }} className="flex max-w-2xl flex-col gap-2 sm:flex-row">
-            <label className="sr-only" htmlFor="active-booking-search">ابحث في الحجوزات النشطة</label>
-            <input id="active-booking-search" value={activeSearch} onChange={(event) => setActiveSearch(event.target.value)} type="search" placeholder="رقم الحجز أو العميل أو الهاتف أو الخدمة" className="min-h-11 flex-1 rounded-xl border border-neutral-700 bg-[#080808] px-4 text-sm text-white outline-none focus:border-[#c9a227]" />
-            <button type="submit" className="min-h-11 rounded-xl border border-[#c9a227]/45 px-5 text-sm font-bold text-[#e5c45a]">بحث شامل</button>
-          </form>
-          {activeBookings.length === 0 ? (
-            <p className="rounded-2xl bg-[#080808] p-10 text-center text-sm text-neutral-500">لا توجد حجوزات نشطة.</p>
-          ) : (
-            <div className="overflow-x-auto rounded-2xl border border-neutral-800">
-              <table className="min-w-full divide-y divide-neutral-800 text-right text-sm">
-                <thead className="bg-[#080808] text-neutral-400">
-                  <tr><th className="p-4">الحجز</th><th className="p-4">العميل</th><th className="p-4">الموعد</th><th className="p-4">الفريق</th><th className="p-4">الحالة</th><th className="p-4">التسوية</th></tr>
-                </thead>
-                <tbody className="divide-y divide-neutral-800">
-                  {activeBookings.map((booking) => (
-                    <tr key={booking.id}>
-                      <td className="p-4 font-bold text-white">{booking.bookingNumber}<span className="block text-xs font-normal text-neutral-500">{booking.service.nameAr}</span></td>
-                      <td className="p-4 text-neutral-300">{booking.customer.user.fullName}</td>
-                      <td className="whitespace-nowrap p-4 text-neutral-300">{formatDateTime(booking.startAt)}</td>
-                      <td className="p-4 text-neutral-300">{booking.assignedTeam?.name ?? 'غير مسند'}</td>
-                      <td className="p-4"><span className="rounded-full bg-[#c9a227]/10 px-3 py-1 text-xs text-[#e5c45a]">{booking.bookingStatus}</span></td>
-                      <td className="p-4">
-                        <div className="flex min-w-44 flex-col gap-2">
-                          <div className="flex flex-wrap items-center gap-1.5 border-b border-neutral-800 pb-2">
-                            <button
-                              type="button"
-                              title="تعديل أو تأجيل الموعد"
-                              onClick={() => {
-                                setSelectedRescheduleBooking(booking);
-                                const d = new Date(booking.startAt);
-                                setRescheduleDate(d.toISOString().slice(0, 10));
-                                setRescheduleTime(d.toTimeString().slice(0, 5));
-                                setRescheduleReason('');
-                                setFeedback(null);
-                              }}
-                              className="inline-flex items-center gap-1 rounded-lg border border-sky-500/40 bg-sky-500/10 px-2 py-1 text-[10px] font-bold text-sky-300 hover:bg-sky-500/20"
-                            >
-                              <CalendarClock className="size-3" /> تأجيل / تعديل
-                            </button>
-                            <button
-                              type="button"
-                              title="نقل الحجز لفريق آخر"
-                              onClick={() => {
-                                setSelectedTransferBooking({
-                                  id: booking.id,
-                                  bookingNumber: booking.bookingNumber,
-                                  branchId: booking.branchId,
-                                  currentTeamId: booking.assignedTeamId,
-                                });
-                                setTransferTeamId('');
-                                setTransferReason('');
-                                setFeedback(null);
-                              }}
-                              className="inline-flex items-center gap-1 rounded-lg border border-purple-500/40 bg-purple-500/10 px-2 py-1 text-[10px] font-bold text-purple-300 hover:bg-purple-500/20"
-                            >
-                              <ArrowLeftRight className="size-3" /> نقل تيم
-                            </button>
-                            <button
-                              type="button"
-                              title="إلغاء الحجز بقرار تشغيلي"
-                              onClick={() => {
-                                setSelectedCancelBooking({
-                                  id: booking.id,
-                                  bookingNumber: booking.bookingNumber,
-                                  customerName: booking.customer.user.fullName,
-                                });
-                                setCancelReason('');
-                                setFeedback(null);
-                              }}
-                              className="inline-flex items-center gap-1 rounded-lg border border-red-500/40 bg-red-500/10 px-2 py-1 text-[10px] font-bold text-red-300 hover:bg-red-500/20"
-                            >
-                              <Ban className="size-3" /> إلغاء
-                            </button>
-                          </div>
-                          {booking.terminalReopenSourceStatus ? (
-                            <>
-                              <span className="rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs leading-5 text-amber-100">
-                                مراجعة فقط · الحالة الأصلية {booking.terminalReopenSourceStatus}
-                              </span>
-                              {manager.role === 'OWNER' ? (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setSelectedTerminalReview(booking);
-                                    setTerminalReviewReason('');
-                                    setFeedback(null);
-                                  }}
-                                  className="rounded-lg border border-amber-400/50 px-3 py-2 text-xs font-bold text-amber-200"
-                                >
-                                  إغلاق المراجعة
-                                </button>
-                              ) : null}
-                            </>
-                          ) : (
-                            <>
-                              {booking.amountDue > 0 && booking.canRecordBalancePayment ? (
-                                <button type="button" onClick={() => { setSelectedSettlement(booking); setSettlementNotes(''); setFeedback(null); }} className="rounded-lg border border-[#c9a227]/40 px-3 py-2 text-xs font-bold text-[#e5c45a]">
-                                  تحصيل {booking.amountDue} ج.م
-                                </button>
-                              ) : booking.amountDue === 0 ? <span className="text-xs font-bold text-emerald-300">مدفوع بالكامل</span> : null}
-                              {booking.canCloseBooking && booking.bookingStatus === 'DELIVERED' && booking.amountDue === 0 ? (
-                                <button type="button" onClick={() => { setSelectedClose(booking); setFeedback(null); }} className="rounded-lg bg-emerald-500 px-3 py-2 text-xs font-bold text-black">
-                                  إغلاق الحجز
-                                </button>
-                              ) : null}
-                              {booking.canManagerOverrideClose
-                                && ['IN_SERVICE', 'QUALITY_REVIEW'].includes(booking.bookingStatus)
-                                && booking.amountDue === 0 ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setSelectedOverrideClose(booking);
-                                      setOverrideReason('');
-                                      setFeedback(null);
-                                    }}
-                                    className="rounded-lg border border-amber-400/50 bg-amber-400/10 px-3 py-2 text-xs font-bold text-amber-200"
-                                  >
-                                    إغلاق باستثناء إداري
-                                  </button>
-                                ) : null}
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-          <OperationsQueuePagination queueKey="bookings" pagination={pagination.bookings} dashboardTab="bookings" />
-        </section>
-      )}
-
-      {activeTab === 'terminal' && manager.role === 'OWNER' ? (
-        <section aria-labelledby="terminal-heading" className="space-y-5 rounded-3xl border border-amber-400/20 bg-[#141414] p-5 sm:p-8">
-          <div className="space-y-2">
-            <h2 id="terminal-heading" className="flex items-center gap-2 text-xl font-bold">
-              <AlertTriangle className="size-5 text-amber-300" aria-hidden="true" />
-              مراجعة الحجوزات الطرفية
-            </h2>
-            <p className="text-sm text-neutral-400">
-              إعادة الفتح تنقل الحجز إلى ADMIN_REVIEW_REQUIRED فقط، ولا تعكس استردادًا أو زيارة اشتراك أو حجز موعد سابقًا.
-            </p>
-          </div>
-          <form onSubmit={(event) => { event.preventDefault(); submitServerSearch('terminalQuery', terminalSearch); }} className="flex max-w-2xl flex-col gap-2 sm:flex-row">
-            <label className="sr-only" htmlFor="terminal-booking-search">ابحث في الحجوزات الطرفية</label>
-            <input id="terminal-booking-search" value={terminalSearch} onChange={(event) => setTerminalSearch(event.target.value)} type="search" placeholder="رقم الحجز أو العميل أو الهاتف أو الخدمة" className="min-h-11 flex-1 rounded-xl border border-neutral-700 bg-[#080808] px-4 text-sm text-white outline-none focus:border-amber-400" />
-            <button type="submit" className="min-h-11 rounded-xl border border-amber-400/45 px-5 text-sm font-bold text-amber-200">بحث شامل</button>
-          </form>
-          {terminalBookings.length === 0 ? (
-            <p className="rounded-2xl bg-[#080808] p-10 text-center text-sm text-neutral-500">لا توجد حجوزات طرفية حديثة.</p>
-          ) : (
-            <div className="grid gap-4 lg:grid-cols-2">
-              {terminalBookings.map((booking) => (
-                <article key={booking.id} className="rounded-2xl border border-neutral-800 bg-[#080808] p-5">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <h3 className="font-bold text-[#e5c45a]">{booking.bookingNumber} — {booking.service.nameAr}</h3>
-                      <p className="mt-1 text-sm text-neutral-400">{booking.customer.user.fullName} • {booking.branch.nameAr}</p>
-                    </div>
-                    <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-xs font-bold text-amber-200">{booking.bookingStatus}</span>
-                  </div>
-                  <dl className="mt-4 grid grid-cols-2 gap-3 text-xs text-neutral-400">
-                    <div><dt>الدفع</dt><dd className="mt-1 font-bold text-white">{booking.paymentStatus}</dd></div>
-                    <div><dt>الرصيد المستحق</dt><dd className="mt-1 font-bold text-white">{booking.amountDue} ج.م</dd></div>
-                    <div><dt>المدفوع</dt><dd className="mt-1 font-bold text-white">{booking.amountPaid} ج.م</dd></div>
-                    <div><dt>آخر تحديث</dt><dd className="mt-1 font-bold text-white">{formatDateTime(booking.updatedAt)}</dd></div>
-                  </dl>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedReopen(booking);
-                      setReopenReason('');
-                      setFeedback(null);
-                    }}
-                    className="mt-4 w-full rounded-xl border border-amber-400/50 px-4 py-3 text-sm font-bold text-amber-200 hover:bg-amber-400/10"
+              if (item.href) {
+                return (
+                  <Link
+                    key={item.label}
+                    href={item.href}
+                    className="flex items-center justify-between gap-3 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-semibold text-neutral-300 hover:text-white hover:bg-white/[0.06] transition-all duration-200"
                   >
-                    إعادة فتح للمراجعة الإدارية
-                  </button>
-                </article>
-              ))}
-            </div>
-          )}
-          <OperationsQueuePagination queueKey="terminal" pagination={pagination.terminal} dashboardTab="terminal" />
-        </section>
-      ) : null}
+                    <span className="flex items-center gap-2.5">
+                      <Icon aria-hidden="true" className="size-4 text-neutral-400" />
+                      {item.label}
+                    </span>
+                  </Link>
+                );
+              }
 
-      {selectedProof && (
-        <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/85 p-4" role="presentation">
-          <div role="dialog" aria-modal="true" aria-labelledby="proof-dialog-title" className="my-8 w-full max-w-2xl space-y-5 rounded-3xl border border-[#c9a227]/40 bg-[#141414] p-5 shadow-2xl sm:p-8">
-            <div className="flex items-center justify-between gap-4">
-              <h2 id="proof-dialog-title" className="text-xl font-bold">مراجعة إثبات {selectedProof.booking.bookingNumber}</h2>
-              <button type="button" aria-label="إغلاق" disabled={isSubmitting} onClick={() => setSelectedProof(null)} className="rounded-lg p-2 text-neutral-400 hover:bg-white/10 hover:text-white"><X className="size-5" /></button>
+              return (
+                <button
+                  key={item.label}
+                  type="button"
+                  onClick={() => {
+                    if (item.id === 'overview') setActiveTab('proofs');
+                    else if (item.id === 'subscriptions') setActiveTab('subscriptions');
+                    else if (item.id === 'cases') setActiveTab('cases');
+                  }}
+                  className={`flex w-full items-center justify-between gap-3 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-semibold transition-all duration-200 ${
+                    active
+                      ? 'bg-gradient-to-r from-[#d4af37] via-[#e5c45a] to-[#d4af37] text-neutral-950 shadow-md shadow-[#d4af37]/20 font-bold'
+                      : 'text-neutral-300 hover:text-white hover:bg-white/[0.06]'
+                  }`}
+                >
+                  <span className="flex items-center gap-2.5">
+                    <Icon aria-hidden="true" className={`size-4 ${active ? 'text-neutral-950' : 'text-neutral-400'}`} />
+                    {item.label}
+                  </span>
+                  {item.badgeCount && item.badgeCount > 0 ? (
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[11px] font-black tabular-nums ${
+                        active
+                          ? 'bg-black/20 text-neutral-950'
+                          : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                      }`}
+                    >
+                      {formatNumber(item.badgeCount)}
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })}
+
+            {/* Logout Button in Sidebar */}
+            <div className="pt-2 mt-2 border-t border-neutral-800/80">
+              <form action={logoutAction}>
+                <button
+                  type="submit"
+                  className="flex w-full items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-semibold text-rose-300 hover:bg-rose-500/10 transition-all border border-rose-500/20 bg-rose-500/5"
+                >
+                  <LogOut className="size-4 text-rose-400" />
+                  <span>تسجيل الخروج</span>
+                </button>
+              </form>
             </div>
-            <dl className="grid gap-3 rounded-2xl bg-[#080808] p-4 text-sm sm:grid-cols-2">
-              <div><dt className="text-neutral-500">الوسيلة</dt><dd>{selectedProof.paymentMethod.name}</dd></div>
-              <div><dt className="text-neutral-500">المرجع</dt><dd>{selectedProof.referenceNumber || 'غير مسجل'}</dd></div>
-              <div><dt className="text-neutral-500">وقت التحويل</dt><dd>{formatDateTime(selectedProof.transferTimestamp)}</dd></div>
-              <div><dt className="text-neutral-500">المبلغ</dt><dd>{selectedProof.amountSubmitted} ج.م</dd></div>
-            </dl>
-            {selectedProof.proofFileUrl && selectedProof.proofFileUrl.startsWith('/api/files/') ? (
-              <a href={selectedProof.proofFileUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-[#c9a227]/50 px-4 py-3 text-sm font-bold text-[#e5c45a] hover:bg-[#c9a227]/10">
-                فتح الملف الخاص <ExternalLink className="size-4" aria-hidden="true" />
-              </a>
-            ) : (
-              <p className="rounded-xl border border-neutral-800 bg-[#080808] p-3 text-xs text-neutral-400">
-                تم حذف صورة الإيصال تلقائيًا بعد القبول لتوفير المساحة.
+          </nav>
+        </aside>
+
+        {/* Main Work Area */}
+        <div className="min-w-0 space-y-7">
+          {/* Feedback Bar */}
+          <div aria-live="polite" className="min-h-5">
+            {feedback && (
+              <p
+                className={`rounded-2xl border px-4 py-3 text-sm font-semibold shadow-lg ${
+                  feedback.tone === 'success'
+                    ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
+                    : 'border-rose-500/40 bg-rose-500/10 text-rose-300'
+                }`}
+              >
+                {feedback.message}
               </p>
             )}
-            <div>
-              <label htmlFor="proof-notes" className="mb-2 block text-sm font-semibold">ملاحظات القرار</label>
-              <textarea id="proof-notes" value={reviewNotes} onChange={(event) => setReviewNotes(event.target.value)} rows={4} maxLength={1000} className="w-full rounded-xl border border-neutral-700 bg-[#080808] p-3 text-sm text-white focus:border-[#c9a227] focus:outline-none" placeholder="إلزامية لكل قرار عدا الاعتماد" />
+          </div>
+
+          {/* Executive Section Header */}
+          <SectionHeader
+            eyebrow="OPERATIONS COMMAND CENTER"
+            title="مركز قيادة العمليات والتشغيل"
+            description="إدارة شاملة ومباشرة للتحقق من إثباتات الدفع، اعتماد الحجوزات، إسناد الفرق، ضبط استقبال الفروع، والمتابعة الميدانية."
+            action={
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold flex items-center gap-1.5">
+                  <span className="size-2 rounded-full bg-emerald-400 animate-pulse" />
+                  {branches.filter((b) => b.status === 'ACTIVE').length} فروع تستقبل الحجز
+                </span>
+              </div>
+            }
+          />
+
+          {/* Operations Date Filter Toolbar */}
+          <div className="flex flex-col gap-3 rounded-2xl border border-neutral-800/80 bg-[#0e0e12]/90 backdrop-blur-xl p-3 sm:p-4 shadow-lg sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="flex items-center gap-1.5 text-xs font-bold text-[#d4af37]">
+                <CalendarDays className="size-4" />
+                <span>فلترة مواعيد التشغيل:</span>
+              </span>
+
+              <button
+                type="button"
+                onClick={() => handleSelectDate(undefined)}
+                className={`rounded-xl px-3.5 py-1.5 text-xs font-bold transition-all ${
+                  !selectedDate
+                    ? 'bg-[#d4af37] text-neutral-950 shadow-sm font-black'
+                    : 'border border-neutral-800 bg-neutral-900/80 text-neutral-300 hover:border-neutral-700 hover:text-white'
+                }`}
+              >
+                كافة المواعيد
+              </button>
+
+              {todayDate ? (
+                <button
+                  type="button"
+                  onClick={() => handleSelectDate(todayDate)}
+                  className={`rounded-xl px-3.5 py-1.5 text-xs font-bold transition-all ${
+                    selectedDate === todayDate
+                      ? 'bg-[#d4af37] text-neutral-950 shadow-sm font-black'
+                      : 'border border-neutral-800 bg-neutral-900/80 text-neutral-300 hover:border-neutral-700 hover:text-white'
+                  }`}
+                >
+                  اليوم
+                </button>
+              ) : null}
+
+              {tomorrowDate ? (
+                <button
+                  type="button"
+                  onClick={() => handleSelectDate(tomorrowDate)}
+                  className={`rounded-xl px-3.5 py-1.5 text-xs font-bold transition-all ${
+                    selectedDate === tomorrowDate
+                      ? 'bg-[#d4af37] text-neutral-950 shadow-sm font-black'
+                      : 'border border-neutral-800 bg-neutral-900/80 text-neutral-300 hover:border-neutral-700 hover:text-white'
+                  }`}
+                >
+                  غداً
+                </button>
+              ) : null}
             </div>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <button type="button" disabled={isSubmitting} onClick={() => handleReviewProof('VERIFY')} className="rounded-xl bg-emerald-500 px-4 py-3 text-sm font-bold text-black disabled:opacity-50">اعتماد الإثبات</button>
-              <button type="button" disabled={isSubmitting} onClick={() => handleReviewProof('SHORT')} className="rounded-xl bg-amber-500 px-4 py-3 text-sm font-bold text-black disabled:opacity-50">المبلغ ناقص</button>
-              <button type="button" disabled={isSubmitting} onClick={() => handleReviewProof('REUPLOAD')} className="rounded-xl bg-sky-500 px-4 py-3 text-sm font-bold text-black disabled:opacity-50">طلب إعادة رفع</button>
-              <button type="button" disabled={isSubmitting} onClick={() => handleReviewProof('DUPLICATE')} className="rounded-xl border border-purple-500/60 px-4 py-3 text-sm font-bold text-purple-300 disabled:opacity-50">اشتباه تكرار</button>
-              <button type="button" disabled={isSubmitting} onClick={() => handleReviewProof('REJECT')} className="rounded-xl bg-red-600 px-4 py-3 text-sm font-bold text-white disabled:opacity-50">رفض الإثبات</button>
+
+            <div className="flex items-center gap-2">
+              <label htmlFor="ops-custom-date" className="text-xs text-neutral-400 font-medium whitespace-nowrap">
+                تاريخ مخصص:
+              </label>
+              <input
+                id="ops-custom-date"
+                type="date"
+                value={selectedDate ?? ''}
+                onChange={(e) => handleSelectDate(e.target.value || undefined)}
+                className="rounded-xl border border-neutral-700/80 bg-neutral-950 px-3 py-1.5 text-xs font-bold text-white focus:border-[#d4af37] focus:outline-none focus:ring-1 focus:ring-[#d4af37]"
+              />
+              {selectedDate ? (
+                <button
+                  type="button"
+                  onClick={() => handleSelectDate(undefined)}
+                  className="rounded-lg p-1.5 text-neutral-400 hover:bg-neutral-800 hover:text-white text-xs"
+                  title="إلغاء التحديد وعرض الكل"
+                >
+                  <X className="size-4" />
+                </button>
+              ) : null}
             </div>
           </div>
-        </div>
-      )}
 
-      {selectedReview && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/85 p-4" role="presentation">
-          <div role="dialog" aria-modal="true" aria-labelledby="booking-review-title" className="w-full max-w-lg space-y-5 rounded-3xl border border-[#c9a227]/40 bg-[#141414] p-5 sm:p-8">
-            <div className="flex items-center justify-between gap-4"><h2 id="booking-review-title" className="text-xl font-bold">قرار الحجز {selectedReview.bookingNumber}</h2><button type="button" aria-label="إغلاق" disabled={isSubmitting} onClick={() => setSelectedReview(null)} className="rounded-lg p-2 text-neutral-400 hover:bg-white/10"><X className="size-5" /></button></div>
-            <p className="rounded-2xl bg-[#080808] p-4 text-sm text-neutral-300">{selectedReview.service.nameAr} • {selectedReview.customer.user.fullName}<br />{formatDateTime(selectedReview.startAt)} • {selectedReview.branch.assignmentMode === 'AUTOMATIC' ? 'توزيع تلقائي' : 'توزيع يدوي'}</p>
-            <div><label htmlFor="booking-review-reason" className="mb-2 block text-sm font-semibold">سبب القرار</label><textarea id="booking-review-reason" value={reviewNotes} onChange={(event) => setReviewNotes(event.target.value)} rows={4} maxLength={1000} className="w-full rounded-xl border border-neutral-700 bg-[#080808] p-3 text-sm text-white focus:border-[#c9a227] focus:outline-none" /></div>
-            <div className="grid grid-cols-2 gap-3"><button type="button" disabled={isSubmitting} onClick={() => handleBookingReview('ACCEPT')} className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-3 text-sm font-bold text-black disabled:opacity-50"><CheckCircle2 className="size-4" />اعتماد</button><button type="button" disabled={isSubmitting} onClick={() => handleBookingReview('REJECT')} className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-3 text-sm font-bold disabled:opacity-50"><AlertTriangle className="size-4" />رفض</button></div>
+          {/* Queue Tab Selector */}
+          <div className="flex gap-2 overflow-x-auto rounded-2xl border border-neutral-800/80 bg-[#0e0e12]/90 backdrop-blur-xl p-1.5 shadow-md">
+            {[
+              { id: 'proofs', label: 'إثباتات الدفع', count: pendingProofs.length, icon: FileText },
+              { id: 'subscriptions', label: 'الاشتراكات', count: (managedSubscriptions || []).length, icon: PackageCheck },
+              { id: 'review', label: 'مراجعة الحجوزات', count: reviewBookings.length, icon: ShieldCheck },
+              { id: 'unassigned', label: 'قائمة الإسناد', count: unassignedBookings.length, icon: Users },
+              { id: 'bookings', label: 'الحجوزات النشطة', count: activeBookings.length, icon: Calendar },
+              { id: 'quality', label: 'مراجعة واعتماد الجودة', count: qualityBookingsCount, icon: ShieldCheck },
+              { id: 'cases', label: 'الحالات والشكاوى', count: openCasesCount, icon: ShieldAlert },
+              ...(manager.role === 'OWNER'
+                ? [{ id: 'terminal', label: 'الحجوزات الطرفية', count: terminalBookings.length, icon: AlertTriangle }]
+                : []),
+            ].map((tab) => {
+              const Icon = tab.icon;
+              const active = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id as Tab)}
+                  className={`flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all ${
+                    active
+                      ? 'bg-gradient-to-r from-[#d4af37] via-[#e5c45a] to-[#d4af37] text-neutral-950 shadow-md shadow-[#d4af37]/20 font-black'
+                      : 'text-neutral-300 hover:bg-white/[0.05] hover:text-white'
+                  }`}
+                >
+                  <Icon className={`size-4 ${active ? 'text-neutral-950' : 'text-neutral-400'}`} />
+                  <span>{tab.label}</span>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-black tabular-nums ${
+                      active ? 'bg-black/20 text-neutral-950' : 'bg-neutral-800 text-neutral-400'
+                    }`}
+                  >
+                    {formatNumber(tab.count)}
+                  </span>
+                </button>
+              );
+            })}
           </div>
-        </div>
-      )}
 
-      {selectedBooking && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/85 p-4" role="presentation">
-          <div role="dialog" aria-modal="true" aria-labelledby="assignment-dialog-title" className="w-full max-w-lg space-y-5 rounded-3xl border border-[#c9a227]/40 bg-[#141414] p-5 sm:p-8">
-            <div className="flex items-center justify-between gap-4"><h2 id="assignment-dialog-title" className="text-xl font-bold">إسناد {selectedBooking.bookingNumber}</h2><button type="button" aria-label="إغلاق" disabled={isSubmitting} onClick={() => setSelectedBooking(null)} className="rounded-lg p-2 text-neutral-400 hover:bg-white/10"><X className="size-5" /></button></div>
-            {visibleTeams.length ? (
-              <><div><label htmlFor="team-id" className="mb-2 block text-sm font-semibold">الفريق</label><select id="team-id" value={selectedTeamId} onChange={(event) => setSelectedTeamId(event.target.value)} className="w-full rounded-xl border border-neutral-700 bg-[#080808] p-3 text-sm text-white focus:border-[#c9a227] focus:outline-none">{visibleTeams.map((team) => <option key={team.id} value={team.id}>{team.name} — {team.members.length} أعضاء</option>)}</select></div><div><label htmlFor="assignment-reason" className="mb-2 block text-sm font-semibold">سبب الإسناد/التجاوز</label><textarea id="assignment-reason" value={assignmentReason} onChange={(event) => setAssignmentReason(event.target.value)} rows={3} maxLength={500} className="w-full rounded-xl border border-neutral-700 bg-[#080808] p-3 text-sm text-white focus:border-[#c9a227] focus:outline-none" /></div><button type="button" disabled={isSubmitting} onClick={handleAssignTeam} className="w-full rounded-xl bg-[#c9a227] px-4 py-3 text-sm font-bold text-black disabled:opacity-50">إعادة الفحص ثم الإسناد</button></>
-            ) : <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">لا توجد فرق نشطة تابعة لهذا الفرع.</p>}
-          </div>
-        </div>
-      )}
+          {/* 1. TAB: PROOFS */}
+          {activeTab === 'proofs' && (
+            <section aria-labelledby="proofs-heading" className="space-y-4">
+              <div className="flex items-center justify-between border-b border-neutral-800/80 pb-3">
+                <h3 id="proofs-heading" className="flex items-center gap-2 text-lg font-black text-white">
+                  <FileText className="size-5 text-[#d4af37]" />
+                  مراجعة إثباتات التحويل والدفع
+                </h3>
+                <span className="text-xs text-neutral-400">مراجعة يدوية وتدقيق الحساب</span>
+              </div>
 
-      {selectedSettlement && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/85 p-4" role="presentation">
-          <div role="dialog" aria-modal="true" aria-labelledby="settlement-title" className="w-full max-w-lg space-y-5 rounded-3xl border border-[#c9a227]/40 bg-[#141414] p-5 sm:p-8">
-            <div className="flex items-center justify-between gap-4"><h2 id="settlement-title" className="text-xl font-bold">تأكيد تحصيل الرصيد</h2><button type="button" aria-label="إغلاق" disabled={isSubmitting} onClick={() => setSelectedSettlement(null)} className="rounded-lg p-2 text-neutral-400 hover:bg-white/10"><X className="size-5" /></button></div>
-            <div className="rounded-2xl bg-[#080808] p-4 text-sm text-neutral-300"><p className="font-bold text-[#e5c45a]">{selectedSettlement.bookingNumber}</p><p className="mt-2">المبلغ المستحق كاملًا: <strong className="text-white">{selectedSettlement.amountDue} ج.م</strong></p><p className="mt-1 text-xs text-neutral-500">لن يقبل الخادم مبلغًا أكبر من الرصيد الحالي، ومفتاح العملية يمنع التكرار.</p></div>
-            <div><label htmlFor="settlement-method" className="mb-2 block text-sm font-semibold">وسيلة التحصيل</label><select id="settlement-method" value={settlementMethod} onChange={(event) => setSettlementMethod(event.target.value)} className="w-full rounded-xl border border-neutral-700 bg-[#080808] p-3 text-sm text-white"><option value="CASH">نقدي</option><option value="BANK_TRANSFER">تحويل بنكي</option><option value="MOBILE_WALLET">محفظة إلكترونية</option><option value="POS">بطاقة عبر POS</option></select></div>
-            <div><label htmlFor="settlement-reference" className="mb-2 block text-sm font-semibold">رقم المرجع (اختياري)</label><input id="settlement-reference" value={settlementReference} onChange={(event) => setSettlementReference(event.target.value)} className="w-full rounded-xl border border-neutral-700 bg-[#080808] p-3 text-sm text-white" dir="ltr" /></div>
-            <div><label htmlFor="settlement-notes" className="mb-2 block text-sm font-semibold">ملاحظات التحصيل</label><textarea id="settlement-notes" required minLength={3} value={settlementNotes} onChange={(event) => setSettlementNotes(event.target.value)} rows={3} className="w-full rounded-xl border border-neutral-700 bg-[#080808] p-3 text-sm text-white" /></div>
-            <button type="button" disabled={isSubmitting} onClick={handleRecordSettlement} className="w-full rounded-xl bg-[#c9a227] px-4 py-3 text-sm font-bold text-black disabled:opacity-50">تأكيد تسجيل {selectedSettlement.amountDue} ج.م</button>
-          </div>
-        </div>
-      )}
+              {pendingProofs.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-neutral-800/80 bg-neutral-950/40 p-12 text-center text-neutral-400">
+                  <FileSearch className="mx-auto size-8 text-neutral-500 mb-3" />
+                  <p className="text-sm font-bold text-white">لا توجد إثباتات دفع معلّقة حاليًا</p>
+                  <p className="mt-1 text-xs text-neutral-500">تمت مراجعة واعتماد جميع التحويلات المستلمة.</p>
+                </div>
+              ) : (
+                <div className="grid gap-4 md:grid-cols-2">
+                  {pendingProofs.map((proof) => (
+                    <article
+                      key={proof.id}
+                      className="flex flex-col justify-between rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-md transition-all hover:border-neutral-700"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between gap-2 border-b border-neutral-800/60 pb-3">
+                          <div className="flex items-center gap-2">
+                            <span className="size-2 rounded-full bg-[#d4af37]" />
+                            <span dir="ltr" className="font-mono text-sm font-black text-white">
+                              {proof.booking.bookingNumber}
+                            </span>
+                          </div>
+                          <span className="rounded-full border border-amber-300/30 bg-amber-300/10 px-2.5 py-0.5 text-[11px] font-bold text-amber-200">
+                            {proof.paymentMethod.name}
+                          </span>
+                        </div>
 
-      {selectedClose && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/85 p-4" role="presentation">
-          <div role="dialog" aria-modal="true" aria-labelledby="close-booking-title" className="w-full max-w-lg space-y-5 rounded-3xl border border-emerald-500/35 bg-[#141414] p-5 sm:p-8">
-            <div className="flex items-center justify-between gap-4"><h2 id="close-booking-title" className="text-xl font-bold">الإغلاق النهائي للحجز</h2><button type="button" aria-label="إغلاق" disabled={isSubmitting} onClick={() => setSelectedClose(null)} className="rounded-lg p-2 text-neutral-400 hover:bg-white/10"><X className="size-5" /></button></div>
-            <p className="rounded-2xl bg-[#080808] p-4 text-sm text-neutral-300">الحجز <strong className="text-white">{selectedClose.bookingNumber}</strong> في مرحلة التسليم ورصيده مسدد. سيُسجل الإغلاق في سجل الحالات والتدقيق.</p>
-            <div><label htmlFor="close-reason" className="mb-2 block text-sm font-semibold">سبب الإغلاق</label><textarea id="close-reason" required minLength={3} value={closeReason} onChange={(event) => setCloseReason(event.target.value)} rows={3} className="w-full rounded-xl border border-neutral-700 bg-[#080808] p-3 text-sm text-white" /></div>
-            <button type="button" disabled={isSubmitting} onClick={handleCloseBooking} className="w-full rounded-xl bg-emerald-500 px-4 py-3 text-sm font-bold text-black disabled:opacity-50">تأكيد الإغلاق النهائي</button>
-          </div>
-        </div>
-      )}
+                        <div className="mt-3 space-y-1.5 text-xs">
+                          <p className="text-sm font-bold text-white">{proof.booking.service.nameAr}</p>
+                          <p className="text-neutral-300 font-semibold">{proof.booking.customer.user.fullName}</p>
+                          <p className="text-neutral-400">
+                            اسم المحوّل: <strong className="text-neutral-200">{proof.senderName}</strong> ({proof.senderPhoneOrAccount})
+                          </p>
+                          {proof.referenceNumber ? (
+                            <p className="text-neutral-400">
+                              رقم المرجع: <span dir="ltr" className="font-mono text-neutral-200">{proof.referenceNumber}</span>
+                            </p>
+                          ) : null}
+                          <div className="mt-2 flex items-center justify-between rounded-xl bg-neutral-950/60 p-2.5 border border-neutral-800/60">
+                            <span className="text-neutral-400">المبلغ المحول:</span>
+                            <span className="font-black text-base text-[#f3e4a8]">{formatCurrency(proof.amountSubmitted)}</span>
+                          </div>
+                        </div>
+                      </div>
 
-      {selectedOverrideClose && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/85 p-4" role="presentation">
-          <div role="dialog" aria-modal="true" aria-labelledby="override-close-title" className="w-full max-w-lg space-y-5 rounded-3xl border border-amber-400/40 bg-[#141414] p-5 sm:p-8">
-            <div className="flex items-center justify-between gap-4">
-              <h2 id="override-close-title" className="text-xl font-bold">إغلاق باستثناء إداري</h2>
-              <button type="button" aria-label="إغلاق" disabled={isSubmitting} onClick={() => setSelectedOverrideClose(null)} className="rounded-lg p-2 text-neutral-400 hover:bg-white/10"><X className="size-5" /></button>
-            </div>
-            <div className="rounded-2xl border border-amber-400/25 bg-amber-400/[0.07] p-4 text-sm text-amber-100">
-              <p className="font-bold">{selectedOverrideClose.bookingNumber} — {selectedOverrideClose.bookingStatus}</p>
-              <p className="mt-2 leading-6">سيُتجاوز فقط اكتمال قوائم الفحص المطلوبة وصور ما بعد الخدمة واعتماد الجودة. لن يُتجاوز إسناد الفريق أو الرصيد المستحق، وستُسجل زيارة الاشتراك إن وجدت.</p>
-            </div>
-            <div>
-              <label htmlFor="override-close-reason" className="mb-2 block text-sm font-semibold">سبب الاستثناء الإداري</label>
-              <textarea id="override-close-reason" required minLength={3} maxLength={1000} value={overrideReason} onChange={(event) => setOverrideReason(event.target.value)} rows={4} className="w-full rounded-xl border border-neutral-700 bg-[#080808] p-3 text-sm text-white focus:border-amber-400 focus:outline-none" />
-            </div>
-            <button type="button" disabled={isSubmitting} onClick={handleManagerOverrideClose} className="w-full rounded-xl bg-amber-400 px-4 py-3 text-sm font-bold text-black disabled:opacity-50">
-              تأكيد الاستثناء والإغلاق
-            </button>
-          </div>
-        </div>
-      )}
+                      <div className="mt-4 flex items-center justify-between gap-3 border-t border-neutral-800/60 pt-3">
+                        <a
+                          href={`tel:${proof.booking.customer.user.phone}`}
+                          className="text-xs font-bold text-[#d4af37] hover:text-[#f3e4a8] flex items-center gap-1.5"
+                        >
+                          <Phone className="size-3.5" />
+                          <span>اتصال بالعميل</span>
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedProof(proof);
+                            setReviewNotes('');
+                            setFeedback(null);
+                          }}
+                          className={primaryButtonClass}
+                        >
+                          فتح المراجعة
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+              <OperationsQueuePagination queueKey="proofs" pagination={pagination.proofs} dashboardTab="proofs" />
+            </section>
+          )}
 
-      {selectedTerminalReview && manager.role === 'OWNER' ? (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/85 p-4" role="presentation">
-          <div role="dialog" aria-modal="true" aria-labelledby="close-terminal-review-title" className="w-full max-w-lg space-y-5 rounded-3xl border border-amber-400/40 bg-[#141414] p-5 sm:p-8">
-            <div className="flex items-center justify-between gap-4">
-              <h2 id="close-terminal-review-title" className="text-xl font-bold">إغلاق المراجعة الإدارية</h2>
-              <button type="button" aria-label="إغلاق" disabled={isSubmitting} onClick={() => setSelectedTerminalReview(null)} className="rounded-lg p-2 text-neutral-400 hover:bg-white/10"><X className="size-5" /></button>
-            </div>
-            <div className="rounded-2xl border border-amber-400/25 bg-amber-400/[0.07] p-4 text-sm leading-7 text-amber-100">
-              <p className="font-bold">{selectedTerminalReview.bookingNumber}</p>
-              <p>سيعود الحجز إلى {selectedTerminalReview.terminalReopenSourceStatus} مع إبقاء الدفعات والاستردادات والإسناد وسجل الزيارات كما هي. لا يمكن تشغيل الحجز أو إسناده أثناء هذه المراجعة.</p>
-            </div>
-            <div>
-              <label htmlFor="terminal-review-close-reason" className="mb-2 block text-sm font-semibold">سبب إغلاق المراجعة</label>
-              <textarea id="terminal-review-close-reason" required minLength={3} maxLength={1000} value={terminalReviewReason} onChange={(event) => setTerminalReviewReason(event.target.value)} rows={4} className="w-full rounded-xl border border-neutral-700 bg-[#080808] p-3 text-sm text-white focus:border-amber-400 focus:outline-none" />
-            </div>
-            <button type="button" disabled={isSubmitting} onClick={handleCloseTerminalReview} className="w-full rounded-xl bg-amber-400 px-4 py-3 text-sm font-bold text-black disabled:opacity-50">
-              إغلاق المراجعة وإعادة الحالة الأصلية
-            </button>
-          </div>
-        </div>
-      ) : null}
+          {/* TAB: SUBSCRIPTIONS */}
+          {activeTab === 'subscriptions' && (
+            <section aria-labelledby="subscriptions-heading" className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-neutral-800/80 pb-3">
+                <div>
+                  <h3 id="subscriptions-heading" className="flex items-center gap-2 text-lg font-black text-white">
+                    <PackageCheck className="size-5 text-[#d4af37]" />
+                    إدارة الاشتراكات الشهرية وإثباتات السداد
+                  </h3>
+                  <p className="text-xs text-neutral-400 mt-1">
+                    مراجعة إثباتات الدفع للاشتراكات الجديدة، تفعيل الباقات، تجميد أو تمديد الصلاحية، وتعديل رصيد الزيارات.
+                  </p>
+                </div>
+                <span className="rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-1.5 text-xs font-bold text-neutral-300 shrink-0">
+                  {formatNumber((managedSubscriptions || []).length)} اشتراك
+                </span>
+              </div>
+              <SubscriptionManagementPanel subscriptions={managedSubscriptions || []} />
+            </section>
+          )}
 
-      {selectedReopen && manager.role === 'OWNER' ? (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/85 p-4" role="presentation">
-          <div role="dialog" aria-modal="true" aria-labelledby="reopen-terminal-title" className="w-full max-w-lg space-y-5 rounded-3xl border border-amber-400/40 bg-[#141414] p-5 sm:p-8">
-            <div className="flex items-center justify-between gap-4">
-              <h2 id="reopen-terminal-title" className="text-xl font-bold">إعادة فتح حجز طرفي</h2>
-              <button type="button" aria-label="إغلاق" disabled={isSubmitting} onClick={() => setSelectedReopen(null)} className="rounded-lg p-2 text-neutral-400 hover:bg-white/10"><X className="size-5" /></button>
-            </div>
-            <div className="rounded-2xl border border-amber-400/25 bg-amber-400/[0.07] p-4 text-sm text-amber-100">
-              <p className="font-bold">{selectedReopen.bookingNumber}: {selectedReopen.bookingStatus} → ADMIN_REVIEW_REQUIRED</p>
-              <p className="mt-2 leading-6">ستبقى كل الدفعات والاستردادات وقيود الزيارات والحجوزات المؤقتة السابقة كما هي. إعادة الفتح لا تعني إعادة الخدمة أو المال تلقائيًا.</p>
-            </div>
-            <dl className="grid grid-cols-2 gap-3 rounded-2xl bg-[#080808] p-4 text-sm">
-              <div><dt className="text-neutral-500">حالة الدفع</dt><dd className="mt-1 font-bold">{selectedReopen.paymentStatus}</dd></div>
-              <div><dt className="text-neutral-500">الرصيد المستحق</dt><dd className="mt-1 font-bold">{selectedReopen.amountDue} ج.م</dd></div>
-            </dl>
-            <div>
-              <label htmlFor="reopen-terminal-reason" className="mb-2 block text-sm font-semibold">سبب إعادة الفتح</label>
-              <textarea id="reopen-terminal-reason" required minLength={3} maxLength={1000} value={reopenReason} onChange={(event) => setReopenReason(event.target.value)} rows={4} className="w-full rounded-xl border border-neutral-700 bg-[#080808] p-3 text-sm text-white focus:border-amber-400 focus:outline-none" />
-            </div>
-            <button type="button" disabled={isSubmitting} onClick={handleReopenTerminalBooking} className="w-full rounded-xl bg-amber-400 px-4 py-3 text-sm font-bold text-black disabled:opacity-50">
-              إعادة الفتح للمراجعة الإدارية
-            </button>
-          </div>
-        </div>
-      ) : null}
+          {/* 2. TAB: REVIEW */}
+          {activeTab === 'review' && (
+            <section aria-labelledby="review-heading" className="space-y-4">
+              <div className="flex items-center justify-between border-b border-neutral-800/80 pb-3">
+                <h3 id="review-heading" className="flex items-center gap-2 text-lg font-black text-white">
+                  <ShieldCheck className="size-5 text-[#d4af37]" />
+                  مراجعة الحجوزات تشغيليًا وقبولها
+                </h3>
+                <span className="text-xs text-neutral-400">تأكيد الموعد وإحالته للإسناد</span>
+              </div>
 
-      {/* Operational Modal: Reschedule / Shift */}
-      {selectedRescheduleBooking && (
-        <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/85 p-4" role="presentation">
-          <div role="dialog" aria-modal="true" aria-labelledby="reschedule-modal-title" className="my-8 w-full max-w-lg space-y-5 rounded-3xl border border-sky-500/40 bg-[#141414] p-5 shadow-2xl sm:p-8">
-            <div className="flex items-center justify-between gap-4">
-              <h2 id="reschedule-modal-title" className="text-lg font-bold flex items-center gap-2 text-white">
-                <CalendarClock className="size-5 text-sky-400" />
-                تعديل / تأجيل موعد {selectedRescheduleBooking.bookingNumber}
-              </h2>
-              <button type="button" aria-label="إغلاق" disabled={isSubmitting} onClick={() => setSelectedRescheduleBooking(null)} className="rounded-lg p-2 text-neutral-400 hover:bg-white/10 hover:text-white">
+              {reviewBookings.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-neutral-800/80 bg-neutral-950/40 p-12 text-center text-neutral-400">
+                  <FileSearch className="mx-auto size-8 text-neutral-500 mb-3" />
+                  <p className="text-sm font-bold text-white">لا توجد حجوزات بانتظار القرار</p>
+                  <p className="mt-1 text-xs text-neutral-500">تم اعتماد أو توزيع كافة الطلبات الواردة.</p>
+                </div>
+              ) : (
+                <div className="grid gap-4 md:grid-cols-2">
+                  {reviewBookings.map((booking) => (
+                    <article
+                      key={booking.id}
+                      className="flex flex-col justify-between rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-md transition-all hover:border-neutral-700"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between gap-2 border-b border-neutral-800/60 pb-3">
+                          <div className="flex items-center gap-2">
+                            <span className="size-2 rounded-full bg-sky-400" />
+                            <span dir="ltr" className="font-mono text-sm font-black text-white">
+                              {booking.bookingNumber}
+                            </span>
+                          </div>
+                          <span className="rounded-full border border-sky-300/30 bg-sky-300/10 px-2.5 py-0.5 text-[11px] font-bold text-sky-200">
+                            {booking.branch.nameAr}
+                          </span>
+                        </div>
+
+                        <div className="mt-3 space-y-2 text-xs">
+                          <p className="text-sm font-bold text-white">{booking.service.nameAr}</p>
+                          <p className="text-neutral-300 font-semibold">{booking.customer.user.fullName}</p>
+                          <p className="text-neutral-400">
+                            السيارة: <strong className="text-neutral-200">{booking.vehicle.make} {booking.vehicle.model}</strong> · {booking.coverageArea.compound}
+                          </p>
+                          <p className="text-neutral-400">
+                            الموعد: <strong className="text-white">{formatDateTime(booking.startAt)}</strong>
+                          </p>
+                          <div className="flex items-center justify-between rounded-xl bg-neutral-950/60 p-2.5 border border-neutral-800/60">
+                            <span className="text-neutral-400">المتبقي:</span>
+                            <span className="font-black text-sm text-[#f3e4a8]">{formatCurrency(booking.amountDue)}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 flex items-center justify-between gap-3 border-t border-neutral-800/60 pt-3">
+                        <a
+                          href={`tel:${booking.customer.user.phone}`}
+                          className="text-xs font-bold text-[#d4af37] hover:text-[#f3e4a8] flex items-center gap-1.5"
+                        >
+                          <Phone className="size-3.5" />
+                          <span>اتصال بالعميل</span>
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedReview(booking);
+                            setReviewNotes('');
+                            setFeedback(null);
+                          }}
+                          className={primaryButtonClass}
+                        >
+                          اتخاذ القرار
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+              <OperationsQueuePagination queueKey="review" pagination={pagination.review} dashboardTab="review" />
+            </section>
+          )}
+
+          {/* 3. TAB: UNASSIGNED */}
+          {activeTab === 'unassigned' && (
+            <section aria-labelledby="unassigned-heading" className="space-y-4">
+              <div className="flex items-center justify-between border-b border-neutral-800/80 pb-3">
+                <h3 id="unassigned-heading" className="flex items-center gap-2 text-lg font-black text-white">
+                  <Users className="size-5 text-[#d4af37]" />
+                  قائمة الإسناد والتوزيع اليدوي
+                </h3>
+                <span className="text-xs text-neutral-400">حجوزات مقبولة بانتظار تحديد الفريق المنفذ</span>
+              </div>
+
+              {unassignedBookings.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-neutral-800/80 bg-neutral-950/40 p-12 text-center text-neutral-400">
+                  <FileSearch className="mx-auto size-8 text-neutral-500 mb-3" />
+                  <p className="text-sm font-bold text-white">كل الحجوزات المقبولة مسندة للفرق</p>
+                  <p className="mt-1 text-xs text-neutral-500">لا توجد حجوزات معلقة بدون فريق منفذ.</p>
+                </div>
+              ) : (
+                <div className="grid gap-4 md:grid-cols-2">
+                  {unassignedBookings.map((booking) => (
+                    <article
+                      key={booking.id}
+                      className="flex flex-col justify-between rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-md transition-all hover:border-neutral-700"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between gap-2 border-b border-neutral-800/60 pb-3">
+                          <div className="flex items-center gap-2">
+                            <span className="size-2 rounded-full bg-rose-400" />
+                            <span dir="ltr" className="font-mono text-sm font-black text-white">
+                              {booking.bookingNumber}
+                            </span>
+                          </div>
+                          <span className="rounded-full border border-rose-300/30 bg-rose-300/10 px-2.5 py-0.5 text-[11px] font-bold text-rose-200">
+                            {booking.branch.nameAr}
+                          </span>
+                        </div>
+
+                        <div className="mt-3 space-y-2 text-xs">
+                          <p className="text-sm font-bold text-white">{booking.service.nameAr}</p>
+                          {booking.customer ? (
+                            <p className="text-neutral-300 font-semibold">{booking.customer.user.fullName}</p>
+                          ) : null}
+                          <p className="text-neutral-400">
+                            المنطقة: <strong className="text-neutral-200">{booking.coverageArea.compound}</strong>
+                          </p>
+                          <p className="text-neutral-400">
+                            الموعد المحدد: <strong className="text-white">{formatDateTime(booking.startAt)}</strong>
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 flex items-center justify-between gap-3 border-t border-neutral-800/60 pt-3">
+                        {booking.customer ? (
+                          <a
+                            href={`tel:${booking.customer.user.phone}`}
+                            className="text-xs font-bold text-[#d4af37] hover:text-[#f3e4a8] flex items-center gap-1.5"
+                          >
+                            <Phone className="size-3.5" />
+                            <span>اتصال بالعميل</span>
+                          </a>
+                        ) : <span />}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedBooking(booking);
+                            setAssignmentReason('');
+                            setFeedback(null);
+                          }}
+                          className={primaryButtonClass}
+                        >
+                          إسناد فريق
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+              <OperationsQueuePagination queueKey="unassigned" pagination={pagination.unassigned} dashboardTab="unassigned" />
+            </section>
+          )}
+
+          {/* 4. TAB: ACTIVE BOOKINGS */}
+          {activeTab === 'bookings' && (
+            <section aria-labelledby="active-heading" className="space-y-4">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-neutral-800/80 pb-4">
+                <h3 id="active-heading" className="flex items-center gap-2 text-lg font-black text-white">
+                  <Calendar className="size-5 text-[#d4af37]" />
+                  الحجوزات النشطة والميدانية
+                </h3>
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    submitServerSearch('bookingQuery', activeSearch);
+                  }}
+                  className="flex max-w-md w-full gap-2"
+                >
+                  <input
+                    value={activeSearch}
+                    onChange={(event) => setActiveSearch(event.target.value)}
+                    type="search"
+                    placeholder="رقم الحجز أو اسم العميل أو الهاتف..."
+                    className={inputClass}
+                  />
+                  <button type="submit" className={primaryButtonClass}>
+                    <Search className="size-4" />
+                    <span>بحث</span>
+                  </button>
+                </form>
+              </div>
+
+              {activeBookings.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-neutral-800/80 bg-neutral-950/40 p-12 text-center text-neutral-400">
+                  <FileSearch className="mx-auto size-8 text-neutral-500 mb-3" />
+                  <p className="text-sm font-bold text-white">لا توجد حجوزات نشطة تطابق البحث</p>
+                </div>
+              ) : (
+                <div className="grid gap-4">
+                  {activeBookings.map((booking) => (
+                    <article
+                      key={booking.id}
+                      className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-md transition-all hover:border-neutral-700"
+                    >
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2.5">
+                            <span className="size-2 rounded-full bg-[#d4af37]" />
+                            <p dir="ltr" className="font-mono font-bold text-white text-base tracking-wide">
+                              {booking.bookingNumber}
+                            </p>
+                          </div>
+                          <p className="mt-1.5 truncate text-xs sm:text-sm text-neutral-400">
+                            <span className="font-semibold text-neutral-200">{booking.customer.user.fullName}</span> ·{' '}
+                            {booking.service.nameAr}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          <StatusBadge status={booking.bookingStatus} />
+                          <StatusBadge status={booking.paymentStatus} />
+                        </div>
+                      </div>
+
+                      <dl className="mt-4 grid gap-3 text-xs sm:text-sm sm:grid-cols-2 lg:grid-cols-4 rounded-xl bg-neutral-950/40 border border-neutral-800/60 p-3.5">
+                        <div>
+                          <dt className="text-neutral-500 text-[11px] font-medium">الموعد المحدد</dt>
+                          <dd className="mt-1 font-semibold text-neutral-200">{formatDateTime(booking.startAt)}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-neutral-500 text-[11px] font-medium">الفريق المنفذ</dt>
+                          <dd className="mt-1 font-medium text-neutral-300">{booking.assignedTeam?.name ?? 'غير مسند'}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-neutral-500 text-[11px] font-medium">المبلغ المدفوع</dt>
+                          <dd className="mt-1 font-semibold text-emerald-400">{formatCurrency(booking.amountPaid)}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-neutral-500 text-[11px] font-medium">المبلغ المستحق</dt>
+                          <dd className="mt-1 font-black tabular-nums text-[#f3e4a8]">{formatCurrency(booking.amountDue)}</dd>
+                        </div>
+                      </dl>
+
+                      <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-neutral-800/60 pt-3.5">
+                        <a
+                          href={`tel:${booking.customer.user.phone}`}
+                          className="text-xs sm:text-sm font-bold text-[#d4af37] hover:text-[#f3e4a8] transition-colors flex items-center gap-1.5 pl-2"
+                        >
+                          <Phone className="size-3.5" />
+                          <span>اتصال ({booking.customer.user.phone})</span>
+                        </a>
+
+                        <span className="flex-1" />
+
+                        {/* Operational Quick Actions */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedRescheduleBooking(booking);
+                            const d = new Date(booking.startAt);
+                            setRescheduleDate(d.toISOString().slice(0, 10));
+                            setRescheduleTime(d.toTimeString().slice(0, 5));
+                            setRescheduleReason('');
+                            setFeedback(null);
+                          }}
+                          className="inline-flex items-center gap-1 rounded-xl border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-xs font-bold text-sky-300 hover:bg-sky-500/20"
+                        >
+                          <CalendarClock className="size-3.5" />
+                          <span>تأجيل / تعديل</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedTransferBooking({
+                              id: booking.id,
+                              bookingNumber: booking.bookingNumber,
+                              branchId: booking.branchId,
+                              currentTeamId: booking.assignedTeamId,
+                            });
+                            setTransferTeamId('');
+                            setTransferReason('');
+                            setFeedback(null);
+                          }}
+                          className="inline-flex items-center gap-1 rounded-xl border border-purple-500/40 bg-purple-500/10 px-3 py-2 text-xs font-bold text-purple-300 hover:bg-purple-500/20"
+                        >
+                          <ArrowLeftRight className="size-3.5" />
+                          <span>نقل لفريق</span>
+                        </button>
+
+                        {booking.amountDue > 0 && booking.canRecordBalancePayment ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedSettlement(booking);
+                              setSettlementNotes('');
+                              setFeedback(null);
+                            }}
+                            className={primaryButtonClass}
+                          >
+                            تحصيل {formatCurrency(booking.amountDue)}
+                          </button>
+                        ) : null}
+
+                        {booking.canCloseBooking && booking.bookingStatus === 'DELIVERED' && booking.amountDue === 0 ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedClose(booking);
+                              setFeedback(null);
+                            }}
+                            className="inline-flex items-center gap-1 rounded-xl bg-emerald-500 px-3.5 py-2 text-xs font-bold text-black hover:bg-emerald-400"
+                          >
+                            <CheckCircle2 className="size-3.5" />
+                            <span>إغلاق الحجز</span>
+                          </button>
+                        ) : null}
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedCancelBooking({
+                              id: booking.id,
+                              bookingNumber: booking.bookingNumber,
+                              customerName: booking.customer.user.fullName,
+                            });
+                            setCancelReason('');
+                            setFeedback(null);
+                          }}
+                          className="inline-flex items-center gap-1 rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs font-bold text-rose-300 hover:bg-rose-500/20"
+                        >
+                          <Ban className="size-3.5" />
+                          <span>إلغاء</span>
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+              <OperationsQueuePagination queueKey="bookings" pagination={pagination.bookings} dashboardTab="bookings" />
+            </section>
+          )}
+
+          {/* 5. TAB: QUALITY REVIEWS */}
+          {activeTab === 'quality' && (
+            <div className="space-y-6">
+              {qualityQueuesSlot}
+            </div>
+          )}
+
+          {/* 6. TAB: CASES & COMPLAINTS */}
+          {activeTab === 'cases' && (
+            <div className="space-y-6">
+              {caseQueuesSlot}
+            </div>
+          )}
+
+          {/* 6. TAB: TERMINAL BOOKINGS (OWNER ONLY) */}
+          {activeTab === 'terminal' && manager.role === 'OWNER' && (
+            <section aria-labelledby="terminal-heading" className="space-y-4">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-neutral-800/80 pb-4">
+                <div>
+                  <h3 id="terminal-heading" className="flex items-center gap-2 text-lg font-black text-amber-300">
+                    <AlertTriangle className="size-5 text-amber-300" />
+                    مراجعة الحجوزات الطرفية
+                  </h3>
+                  <p className="text-xs text-neutral-400">إعادة الفتح تنقل الحجز إلى ADMIN_REVIEW_REQUIRED للمراجعة الإدارية.</p>
+                </div>
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    submitServerSearch('terminalQuery', terminalSearch);
+                  }}
+                  className="flex max-w-md w-full gap-2"
+                >
+                  <input
+                    value={terminalSearch}
+                    onChange={(event) => setTerminalSearch(event.target.value)}
+                    type="search"
+                    placeholder="رقم الحجز أو العميل..."
+                    className={inputClass}
+                  />
+                  <button type="submit" className={primaryButtonClass}>
+                    <span>بحث</span>
+                  </button>
+                </form>
+              </div>
+
+              {terminalBookings.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-neutral-800/80 bg-neutral-950/40 p-12 text-center text-neutral-400">
+                  <FileSearch className="mx-auto size-8 text-neutral-500 mb-3" />
+                  <p className="text-sm font-bold text-white">لا توجد حجوزات طرفية حديثة</p>
+                </div>
+              ) : (
+                <div className="grid gap-4 md:grid-cols-2">
+                  {terminalBookings.map((booking) => (
+                    <article
+                      key={booking.id}
+                      className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-md"
+                    >
+                      <div className="flex items-center justify-between gap-2 border-b border-neutral-800/60 pb-3">
+                        <span dir="ltr" className="font-mono text-sm font-black text-white">{booking.bookingNumber}</span>
+                        <StatusBadge status={booking.bookingStatus} />
+                      </div>
+                      <div className="mt-3 space-y-1 text-xs">
+                        <p className="font-bold text-white">{booking.service.nameAr}</p>
+                        <p className="text-neutral-300">{booking.customer.user.fullName} · {booking.branch.nameAr}</p>
+                        <p className="text-neutral-400">المستحق: {formatCurrency(booking.amountDue)} · المدفوع: {formatCurrency(booking.amountPaid)}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedReopen(booking);
+                          setReopenReason('');
+                          setFeedback(null);
+                        }}
+                        className="mt-4 w-full rounded-xl border border-amber-400/50 bg-amber-400/10 px-4 py-2.5 text-xs font-bold text-amber-200 hover:bg-amber-400/20"
+                      >
+                        إعادة فتح للمراجعة الإدارية
+                      </button>
+                    </article>
+                  ))}
+                </div>
+              )}
+              <OperationsQueuePagination queueKey="terminal" pagination={pagination.terminal} dashboardTab="terminal" />
+            </section>
+          )}
+        </div>
+      </main>
+
+      {/* --- OPERATIONAL ACTION DIALOGS --- */}
+
+      {/* 1. Modal: Review Payment Proof */}
+      {selectedProof && (
+        <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/85 backdrop-blur-sm p-4" role="presentation">
+          <div role="dialog" aria-modal="true" className="my-8 w-full max-w-2xl space-y-5 rounded-3xl border border-[#d4af37]/40 bg-[#141414] p-5 sm:p-8 shadow-2xl">
+            <div className="flex items-center justify-between gap-4 border-b border-neutral-800/80 pb-4">
+              <h2 className="text-xl font-black text-white">مراجعة إثبات التحويل #{selectedProof.booking.bookingNumber}</h2>
+              <button type="button" disabled={isSubmitting} onClick={() => setSelectedProof(null)} className="rounded-xl p-2 text-neutral-400 hover:bg-neutral-800">
                 <X className="size-5" />
               </button>
             </div>
+            <dl className="grid gap-3 rounded-2xl bg-[#080808] p-4 text-xs sm:text-sm sm:grid-cols-2 border border-neutral-800/60">
+              <div><dt className="text-neutral-500">الوسيلة</dt><dd className="font-bold text-white mt-0.5">{selectedProof.paymentMethod.name}</dd></div>
+              <div><dt className="text-neutral-500">اسم المحوّل</dt><dd className="font-bold text-white mt-0.5">{selectedProof.senderName}</dd></div>
+              <div><dt className="text-neutral-500">رقم الهاتف / الحساب</dt><dd className="font-bold text-white mt-0.5" dir="ltr">{selectedProof.senderPhoneOrAccount}</dd></div>
+              <div><dt className="text-neutral-500">المبلغ المحول</dt><dd className="font-black text-[#f3e4a8] mt-0.5">{formatCurrency(selectedProof.amountSubmitted)}</dd></div>
+            </dl>
+            {selectedProof.proofFileUrl && selectedProof.proofFileUrl.startsWith('/api/files/') ? (
+              <a href={selectedProof.proofFileUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-[#d4af37]/50 bg-[#d4af37]/10 px-4 py-2.5 text-xs font-bold text-[#e5c45a] hover:bg-[#d4af37]/20">
+                <span>فتح ملف الإيصال المرفوع</span>
+                <ExternalLink className="size-4" />
+              </a>
+            ) : null}
+            {feedback && (
+              <div
+                role="status"
+                className={`rounded-2xl border p-4 text-xs font-bold ${
+                  feedback.tone === 'error'
+                    ? 'border-rose-500/40 bg-rose-500/10 text-rose-200'
+                    : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200'
+                }`}
+              >
+                {feedback.message}
+              </div>
+            )}
+            <div>
+              <label htmlFor="proof-notes" className="mb-2 block text-xs font-bold text-neutral-300">ملاحظات القرار</label>
+              <textarea id="proof-notes" value={reviewNotes} onChange={(e) => setReviewNotes(e.target.value)} rows={3} maxLength={1000} className={inputClass} placeholder="إلزامية في حالة الرفض أو المبالغ الناقصة..." />
+            </div>
+            <div className="grid gap-2 sm:grid-cols-3 pt-2">
+              <button type="button" disabled={isSubmitting} onClick={() => handleReviewProof('VERIFY')} className="rounded-xl bg-emerald-500 px-4 py-2.5 text-xs font-bold text-neutral-950 hover:bg-emerald-400">اعتماد الإثبات</button>
+              <button type="button" disabled={isSubmitting} onClick={() => handleReviewProof('SHORT')} className="rounded-xl bg-amber-500 px-4 py-2.5 text-xs font-bold text-neutral-950 hover:bg-amber-400">المبلغ ناقص</button>
+              <button type="button" disabled={isSubmitting} onClick={() => handleReviewProof('REUPLOAD')} className="rounded-xl bg-sky-500 px-4 py-2.5 text-xs font-bold text-neutral-950 hover:bg-sky-400">طلب إعادة رفع</button>
+              <button type="button" disabled={isSubmitting} onClick={() => handleReviewProof('DUPLICATE')} className="rounded-xl border border-purple-500/60 px-4 py-2.5 text-xs font-bold text-purple-300 hover:bg-purple-500/20">اشتباه تكرار</button>
+              <button type="button" disabled={isSubmitting} onClick={() => handleReviewProof('REJECT')} className="rounded-xl bg-rose-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-rose-500">رفض الإثبات</button>
+            </div>
+          </div>
+        </div>
+      )}
 
-            <div className="rounded-2xl bg-[#080808] p-4 text-xs text-neutral-300 space-y-1">
-              <p>الموعد الحالي: <strong className="text-white">{formatDateTime(selectedRescheduleBooking.startAt)}</strong></p>
+      {/* 2. Modal: Review Booking Decision */}
+      {selectedReview && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/85 backdrop-blur-sm p-4" role="presentation">
+          <div role="dialog" aria-modal="true" className="w-full max-w-lg space-y-5 rounded-3xl border border-[#d4af37]/40 bg-[#141414] p-5 sm:p-8 shadow-2xl">
+            <div className="flex items-center justify-between gap-4 border-b border-neutral-800/80 pb-4">
+              <h2 className="text-xl font-black text-white">اعتماد أو رفض الحجز #{selectedReview.bookingNumber}</h2>
+              <button type="button" disabled={isSubmitting} onClick={() => setSelectedReview(null)} className="rounded-xl p-2 text-neutral-400 hover:bg-neutral-800"><X className="size-5" /></button>
+            </div>
+            <div className="rounded-2xl bg-[#080808] p-4 text-xs sm:text-sm text-neutral-300 space-y-1 border border-neutral-800/60">
+              <p><strong className="text-white">{selectedReview.service.nameAr}</strong> · {selectedReview.customer.user.fullName}</p>
+              <p>{selectedReview.branch.nameAr} · {selectedReview.coverageArea.compound}</p>
+              <p>الموعد: <strong className="text-white">{formatDateTime(selectedReview.startAt)}</strong></p>
+            </div>
+            {feedback && (
+              <div
+                role="status"
+                className={`rounded-2xl border p-4 text-xs font-bold ${
+                  feedback.tone === 'error'
+                    ? 'border-rose-500/40 bg-rose-500/10 text-rose-200'
+                    : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200'
+                }`}
+              >
+                {feedback.message}
+              </div>
+            )}
+            <div>
+              <label htmlFor="booking-review-reason" className="mb-2 block text-xs font-bold text-neutral-300">سبب القرار</label>
+              <textarea id="booking-review-reason" value={reviewNotes} onChange={(e) => setReviewNotes(e.target.value)} rows={3} maxLength={1000} className={inputClass} placeholder="اكتب سبب القرار بالتفصيل..." />
+            </div>
+            <div className="grid grid-cols-2 gap-3 pt-2">
+              <button type="button" disabled={isSubmitting} onClick={() => handleBookingReview('ACCEPT')} className="rounded-xl bg-emerald-500 px-4 py-2.5 text-xs font-bold text-neutral-950 hover:bg-emerald-400">اعتماد وقبول</button>
+              <button type="button" disabled={isSubmitting} onClick={() => handleBookingReview('REJECT')} className="rounded-xl bg-rose-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-rose-500">رفض الحجز</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 3. Modal: Manual Team Assignment */}
+      {selectedBooking && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/85 backdrop-blur-sm p-4" role="presentation">
+          <div role="dialog" aria-modal="true" className="w-full max-w-lg space-y-5 rounded-3xl border border-[#d4af37]/40 bg-[#141414] p-5 sm:p-8 shadow-2xl">
+            <div className="flex items-center justify-between gap-4 border-b border-neutral-800/80 pb-4">
+              <h2 className="text-xl font-black text-white">إسناد فريق للحجز #{selectedBooking.bookingNumber}</h2>
+              <button type="button" disabled={isSubmitting} onClick={() => setSelectedBooking(null)} className="rounded-xl p-2 text-neutral-400 hover:bg-neutral-800"><X className="size-5" /></button>
+            </div>
+            {feedback && (
+              <div
+                role="status"
+                className={`rounded-2xl border p-4 text-xs font-bold ${
+                  feedback.tone === 'error'
+                    ? 'border-rose-500/40 bg-rose-500/10 text-rose-200'
+                    : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200'
+                }`}
+              >
+                {feedback.message}
+              </div>
+            )}
+            {visibleTeams.length ? (
+              <>
+                <div>
+                  <label htmlFor="team-id" className="mb-2 block text-xs font-bold text-neutral-300">اختر الفريق المنفذ</label>
+                  <select id="team-id" value={selectedTeamId} onChange={(e) => setSelectedTeamId(e.target.value)} className={inputClass}>
+                    {visibleTeams.map((team) => (
+                      <option key={team.id} value={team.id}>{team.name} ({team.members.length} أعضاء)</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="assignment-reason" className="mb-2 block text-xs font-bold text-neutral-300">سبب الإسناد أو التجاوز اليدوي</label>
+                  <textarea id="assignment-reason" value={assignmentReason} onChange={(e) => setAssignmentReason(e.target.value)} rows={3} maxLength={500} className={inputClass} placeholder="اكتب سبب الإسناد..." />
+                </div>
+                <button type="button" disabled={isSubmitting} onClick={handleAssignTeam} className={primaryButtonClass}>
+                  تأكيد الإسناد
+                </button>
+              </>
+            ) : (
+              <p className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs sm:text-sm text-amber-200">
+                لا توجد فرق نشطة تابعة لفرع هذا الحجز حالياً.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 4. Modal: Settlement Recording */}
+      {selectedSettlement && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/85 backdrop-blur-sm p-4" role="presentation">
+          <div role="dialog" aria-modal="true" className="w-full max-w-lg space-y-5 rounded-3xl border border-[#d4af37]/40 bg-[#141414] p-5 sm:p-8 shadow-2xl">
+            <div className="flex items-center justify-between gap-4 border-b border-neutral-800/80 pb-4">
+              <h2 className="text-xl font-black text-white">تسجيل تحصيل الرصيد #{selectedSettlement.bookingNumber}</h2>
+              <button type="button" disabled={isSubmitting} onClick={() => setSelectedSettlement(null)} className="rounded-xl p-2 text-neutral-400 hover:bg-neutral-800"><X className="size-5" /></button>
+            </div>
+            <div className="rounded-2xl bg-[#080808] p-4 text-xs sm:text-sm border border-neutral-800/60 space-y-1">
+              <p className="text-neutral-400">الرصيد المستحق:</p>
+              <p className="text-2xl font-black text-[#f3e4a8]">{formatCurrency(selectedSettlement.amountDue)}</p>
+            </div>
+            {feedback && (
+              <div
+                role="status"
+                className={`rounded-2xl border p-4 text-xs font-bold ${
+                  feedback.tone === 'error'
+                    ? 'border-rose-500/40 bg-rose-500/10 text-rose-200'
+                    : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200'
+                }`}
+              >
+                {feedback.message}
+              </div>
+            )}
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label htmlFor="settlement-method" className="mb-2 block text-xs font-bold text-neutral-300">وسيلة التحصيل</label>
+                <select id="settlement-method" value={settlementMethod} onChange={(e) => setSettlementMethod(e.target.value)} className={inputClass}>
+                  <option value="CASH">نقدي (كاش)</option>
+                  <option value="BANK_TRANSFER">تحويل بنكي</option>
+                  <option value="MOBILE_WALLET">محفظة إلكترونية</option>
+                  <option value="POS">بطاقة عبر POS</option>
+                </select>
+              </div>
+              <div>
+                <label htmlFor="settlement-reference" className="mb-2 block text-xs font-bold text-neutral-300">رقم المرجع (اختياري)</label>
+                <input id="settlement-reference" value={settlementReference} onChange={(e) => setSettlementReference(e.target.value)} className={inputClass} dir="ltr" />
+              </div>
+            </div>
+            <div>
+              <label htmlFor="settlement-notes" className="mb-2 block text-xs font-bold text-neutral-300">ملاحظات التحصيل</label>
+              <textarea id="settlement-notes" required minLength={3} value={settlementNotes} onChange={(e) => setSettlementNotes(e.target.value)} rows={2} className={inputClass} />
+            </div>
+            <button type="button" disabled={isSubmitting} onClick={handleRecordSettlement} className={primaryButtonClass}>
+              تأكيد تحصيل {formatCurrency(selectedSettlement.amountDue)}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 5. Modal: Close Booking */}
+      {selectedClose && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/85 backdrop-blur-sm p-4" role="presentation">
+          <div role="dialog" aria-modal="true" className="w-full max-w-lg space-y-5 rounded-3xl border border-emerald-500/40 bg-[#141414] p-5 sm:p-8 shadow-2xl">
+            <div className="flex items-center justify-between gap-4 border-b border-neutral-800/80 pb-4">
+              <h2 className="text-xl font-black text-white">الإغلاق النهائي للحجز #{selectedClose.bookingNumber}</h2>
+              <button type="button" disabled={isSubmitting} onClick={() => setSelectedClose(null)} className="rounded-xl p-2 text-neutral-400 hover:bg-neutral-800"><X className="size-5" /></button>
+            </div>
+            <p className="rounded-2xl bg-[#080808] p-4 text-xs sm:text-sm text-neutral-300 border border-neutral-800/60">
+              الحجز في مرحلة التسليم ورصيده مسدد بالكامل. سيتم إغلاقه وتوثيق ذلك تشغيليًا.
+            </p>
+            <div>
+              <label htmlFor="close-reason" className="mb-2 block text-xs font-bold text-neutral-300">ملاحظة الإغلاق</label>
+              <textarea id="close-reason" required minLength={3} value={closeReason} onChange={(e) => setCloseReason(e.target.value)} rows={3} className={inputClass} />
+            </div>
+            <button type="button" disabled={isSubmitting} onClick={handleCloseBooking} className="w-full rounded-xl bg-emerald-500 px-4 py-2.5 text-xs sm:text-sm font-bold text-neutral-950 hover:bg-emerald-400">
+              تأكيد الإغلاق النهائي
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 6. Modal: Reschedule / Shift */}
+      {selectedRescheduleBooking && (
+        <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/85 backdrop-blur-sm p-4" role="presentation">
+          <div role="dialog" aria-modal="true" className="my-8 w-full max-w-lg space-y-5 rounded-3xl border border-sky-500/40 bg-[#141414] p-5 sm:p-8 shadow-2xl">
+            <div className="flex items-center justify-between gap-4 border-b border-neutral-800/80 pb-4">
+              <h2 className="text-lg font-black flex items-center gap-2 text-white">
+                <CalendarClock className="size-5 text-sky-400" />
+                تعديل وتأجيل موعد #{selectedRescheduleBooking.bookingNumber}
+              </h2>
+              <button type="button" disabled={isSubmitting} onClick={() => setSelectedRescheduleBooking(null)} className="rounded-xl p-2 text-neutral-400 hover:bg-neutral-800"><X className="size-5" /></button>
             </div>
 
-            <div className="space-y-3">
-              <span className="block text-xs font-bold text-neutral-400">خيارات سريعة للتشغيل:</span>
+            <div className="rounded-2xl bg-[#080808] p-4 text-xs text-neutral-300 border border-neutral-800/60">
+              الموعد الحالي: <strong className="text-white">{formatDateTime(selectedRescheduleBooking.startAt)}</strong>
+            </div>
+            {feedback && (
+              <div
+                role="status"
+                className={`rounded-2xl border p-4 text-xs font-bold ${
+                  feedback.tone === 'error'
+                    ? 'border-rose-500/40 bg-rose-500/10 text-rose-200'
+                    : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200'
+                }`}
+              >
+                {feedback.message}
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <span className="block text-xs font-bold text-neutral-400">خيارات سريعة:</span>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 text-xs">
                 <button
                   type="button"
@@ -1248,169 +2088,102 @@ export default function OperationsDashboardClient({
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label htmlFor="reschedule-date" className="mb-2 block text-xs font-semibold text-neutral-300">التاريخ الجديد</label>
-                <input
-                  id="reschedule-date"
-                  type="date"
-                  value={rescheduleDate}
-                  onChange={(e) => setRescheduleDate(e.target.value)}
-                  className="w-full rounded-xl border border-neutral-700 bg-[#080808] p-3 text-sm text-white focus:border-sky-400 focus:outline-none"
-                />
+                <label htmlFor="reschedule-date" className="mb-2 block text-xs font-bold text-neutral-300">التاريخ الجديد</label>
+                <input id="reschedule-date" type="date" value={rescheduleDate} onChange={(e) => setRescheduleDate(e.target.value)} className={inputClass} />
               </div>
               <div>
-                <label htmlFor="reschedule-time" className="mb-2 block text-xs font-semibold text-neutral-300">الوقت الجديد</label>
-                <input
-                  id="reschedule-time"
-                  type="time"
-                  value={rescheduleTime}
-                  onChange={(e) => setRescheduleTime(e.target.value)}
-                  className="w-full rounded-xl border border-neutral-700 bg-[#080808] p-3 text-sm text-white focus:border-sky-400 focus:outline-none"
-                />
+                <label htmlFor="reschedule-time" className="mb-2 block text-xs font-bold text-neutral-300">الوقت الجديد</label>
+                <input id="reschedule-time" type="time" value={rescheduleTime} onChange={(e) => setRescheduleTime(e.target.value)} className={inputClass} />
               </div>
             </div>
 
             <div>
-              <label htmlFor="reschedule-reason" className="mb-2 block text-xs font-semibold text-neutral-300">سبب التأجيل أو تعديل الموعد</label>
-              <textarea
-                id="reschedule-reason"
-                required
-                minLength={3}
-                maxLength={500}
-                value={rescheduleReason}
-                onChange={(e) => setRescheduleReason(e.target.value)}
-                placeholder="مثلاً: طلب العميل هاتفياً، ازدحام طارئ، تأخير في الطريق..."
-                rows={3}
-                className="w-full rounded-xl border border-neutral-700 bg-[#080808] p-3 text-sm text-white focus:border-sky-400 focus:outline-none"
-              />
+              <label htmlFor="reschedule-reason" className="mb-2 block text-xs font-bold text-neutral-300">سبب التأجيل أو تعديل الموعد</label>
+              <textarea id="reschedule-reason" required minLength={3} maxLength={500} value={rescheduleReason} onChange={(e) => setRescheduleReason(e.target.value)} placeholder="طلب العميل هاتفياً، ازدحام طارئ..." rows={2} className={inputClass} />
             </div>
 
-            <button
-              type="button"
-              disabled={isSubmitting || !rescheduleDate || !rescheduleTime}
-              onClick={handleRescheduleBooking}
-              className="w-full rounded-xl bg-sky-500 px-4 py-3 text-sm font-bold text-black hover:bg-sky-400 disabled:opacity-50"
-            >
-              حفظ الموعد الجديد وتحديث الحجز
+            <button type="button" disabled={isSubmitting || !rescheduleDate || !rescheduleTime} onClick={handleRescheduleBooking} className="w-full rounded-xl bg-sky-500 px-4 py-2.5 text-xs sm:text-sm font-bold text-neutral-950 hover:bg-sky-400 disabled:opacity-50">
+              حفظ الموعد الجديد
             </button>
           </div>
         </div>
       )}
 
-      {/* Operational Modal: Transfer Team */}
+      {/* 7. Modal: Transfer Team */}
       {selectedTransferBooking && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/85 p-4" role="presentation">
-          <div role="dialog" aria-modal="true" aria-labelledby="transfer-dialog-title" className="w-full max-w-lg space-y-5 rounded-3xl border border-purple-500/40 bg-[#141414] p-5 sm:p-8">
-            <div className="flex items-center justify-between gap-4">
-              <h2 id="transfer-dialog-title" className="text-lg font-bold flex items-center gap-2 text-white">
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/85 backdrop-blur-sm p-4" role="presentation">
+          <div role="dialog" aria-modal="true" className="w-full max-w-lg space-y-5 rounded-3xl border border-purple-500/40 bg-[#141414] p-5 sm:p-8 shadow-2xl">
+            <div className="flex items-center justify-between gap-4 border-b border-neutral-800/80 pb-4">
+              <h2 className="text-lg font-black flex items-center gap-2 text-white">
                 <ArrowLeftRight className="size-5 text-purple-400" />
-                نقل الحجز {selectedTransferBooking.bookingNumber} لفريق آخر
+                نقل الحجز #{selectedTransferBooking.bookingNumber} لفريق آخر
               </h2>
-              <button type="button" aria-label="إغلاق" disabled={isSubmitting} onClick={() => setSelectedTransferBooking(null)} className="rounded-lg p-2 text-neutral-400 hover:bg-white/10 hover:text-white">
-                <X className="size-5" />
-              </button>
+              <button type="button" disabled={isSubmitting} onClick={() => setSelectedTransferBooking(null)} className="rounded-xl p-2 text-neutral-400 hover:bg-neutral-800"><X className="size-5" /></button>
             </div>
 
             {visibleTeamsForTransfer.length > 0 ? (
               <>
                 <div>
-                  <label htmlFor="transfer-team-select" className="mb-2 block text-xs font-semibold text-neutral-300">اختر الفريق الجديد</label>
-                  <select
-                    id="transfer-team-select"
-                    value={transferTeamId}
-                    onChange={(e) => setTransferTeamId(e.target.value)}
-                    className="w-full rounded-xl border border-neutral-700 bg-[#080808] p-3 text-sm text-white focus:border-purple-400 focus:outline-none"
-                  >
+                  <label htmlFor="transfer-team-select" className="mb-2 block text-xs font-bold text-neutral-300">اختر الفريق الجديد</label>
+                  <select id="transfer-team-select" value={transferTeamId} onChange={(e) => setTransferTeamId(e.target.value)} className={inputClass}>
                     <option value="">-- اختر الفريق --</option>
                     {visibleTeamsForTransfer.map((team) => (
-                      <option key={team.id} value={team.id}>
-                        {team.name} ({team.members.length} أعضاء)
-                      </option>
+                      <option key={team.id} value={team.id}>{team.name} ({team.members.length} أعضاء)</option>
                     ))}
                   </select>
                 </div>
                 <div>
-                  <label htmlFor="transfer-reason" className="mb-2 block text-xs font-semibold text-neutral-300">سبب نقل الحجز</label>
-                  <textarea
-                    id="transfer-reason"
-                    required
-                    minLength={3}
-                    maxLength={500}
-                    value={transferReason}
-                    onChange={(e) => setTransferReason(e.target.value)}
-                    placeholder="مثلاً: إعادة توزيع أحمال، عطل سيارة الفريق السابق..."
-                    rows={3}
-                    className="w-full rounded-xl border border-neutral-700 bg-[#080808] p-3 text-sm text-white focus:border-purple-400 focus:outline-none"
-                  />
+                  <label htmlFor="transfer-reason" className="mb-2 block text-xs font-bold text-neutral-300">سبب نقل الحجز</label>
+                  <textarea id="transfer-reason" required minLength={3} maxLength={500} value={transferReason} onChange={(e) => setTransferReason(e.target.value)} placeholder="إعادة توزيع أحمال، عطل سيارة الفريق السابق..." rows={2} className={inputClass} />
                 </div>
-                <button
-                  type="button"
-                  disabled={isSubmitting || !transferTeamId}
-                  onClick={handleTransferTeam}
-                  className="w-full rounded-xl bg-purple-500 px-4 py-3 text-sm font-bold text-white hover:bg-purple-400 disabled:opacity-50"
-                >
-                  تأكيد نقل الحجز للفريق الجديد
+                <button type="button" disabled={isSubmitting || !transferTeamId} onClick={handleTransferTeam} className="w-full rounded-xl bg-purple-500 px-4 py-2.5 text-xs sm:text-sm font-bold text-white hover:bg-purple-400 disabled:opacity-50">
+                  تأكيد النقل
                 </button>
               </>
             ) : (
-              <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
-                لا توجد فرق أخرى متاحة في هذا الفرع لنقل الحجز إليها.
+              <p className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs text-amber-200">
+                لا توجد فرق أخرى متاحة في هذا الفرع.
               </p>
             )}
           </div>
         </div>
       )}
 
-      {/* Operational Modal: Cancel Booking */}
+      {/* 8. Modal: Cancel Booking */}
       {selectedCancelBooking && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/85 p-4" role="presentation">
-          <div role="dialog" aria-modal="true" aria-labelledby="cancel-modal-title" className="w-full max-w-lg space-y-5 rounded-3xl border border-red-500/40 bg-[#141414] p-5 sm:p-8">
-            <div className="flex items-center justify-between gap-4">
-              <h2 id="cancel-modal-title" className="text-lg font-bold flex items-center gap-2 text-red-400">
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/85 backdrop-blur-sm p-4" role="presentation">
+          <div role="dialog" aria-modal="true" className="w-full max-w-lg space-y-5 rounded-3xl border border-rose-500/40 bg-[#141414] p-5 sm:p-8 shadow-2xl">
+            <div className="flex items-center justify-between gap-4 border-b border-neutral-800/80 pb-4">
+              <h2 className="text-lg font-black flex items-center gap-2 text-rose-400">
                 <Ban className="size-5" />
-                إلغاء الحجز {selectedCancelBooking.bookingNumber}
+                إلغاء الحجز #{selectedCancelBooking.bookingNumber}
               </h2>
-              <button type="button" aria-label="إغلاق" disabled={isSubmitting} onClick={() => setSelectedCancelBooking(null)} className="rounded-lg p-2 text-neutral-400 hover:bg-white/10 hover:text-white">
-                <X className="size-5" />
-              </button>
+              <button type="button" disabled={isSubmitting} onClick={() => setSelectedCancelBooking(null)} className="rounded-xl p-2 text-neutral-400 hover:bg-neutral-800"><X className="size-5" /></button>
             </div>
-
-            <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">
-              <p className="font-bold">تحذير:</p>
-              <p className="mt-1 text-xs leading-5">
-                سيتم إلغاء الحجز فورًا وتحرير أي حجز مؤقت على الموعد وتسجيل الإلغاء في سجلات التدقيق والحالات.
-              </p>
+            <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-xs leading-5 text-rose-200">
+              سيتم إلغاء الحجز وتحرير الموعد المسجل فوراً وتوثيق الإجراء في سجلات التدقيق.
             </div>
-
-            <div>
-              <label htmlFor="cancel-reason-input" className="mb-2 block text-xs font-semibold text-neutral-300">سبب الإلغاء الإداري</label>
-              <textarea
-                id="cancel-reason-input"
-                required
-                minLength={3}
-                maxLength={1000}
-                value={cancelReason}
-                onChange={(e) => setCancelReason(e.target.value)}
-                placeholder="اكتب سبب إلغاء الحجز..."
-                rows={3}
-                className="w-full rounded-xl border border-neutral-700 bg-[#080808] p-3 text-sm text-white focus:border-red-400 focus:outline-none"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                disabled={isSubmitting}
-                onClick={() => setSelectedCancelBooking(null)}
-                className="rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-3 text-sm font-bold text-white hover:bg-neutral-700"
+            {feedback && (
+              <div
+                role="status"
+                className={`rounded-2xl border p-4 text-xs font-bold ${
+                  feedback.tone === 'error'
+                    ? 'border-rose-500/40 bg-rose-500/10 text-rose-200'
+                    : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200'
+                }`}
               >
+                {feedback.message}
+              </div>
+            )}
+            <div>
+              <label htmlFor="cancel-reason-input" className="mb-2 block text-xs font-bold text-neutral-300">سبب الإلغاء</label>
+              <textarea id="cancel-reason-input" required minLength={3} maxLength={1000} value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} rows={3} className={inputClass} placeholder="اكتب سبب إلغاء الحجز..." />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <button type="button" disabled={isSubmitting} onClick={() => setSelectedCancelBooking(null)} className={secondaryButtonClass}>
                 تراجع
               </button>
-              <button
-                type="button"
-                disabled={isSubmitting || cancelReason.trim().length < 3}
-                onClick={handleCancelBooking}
-                className="rounded-xl bg-red-600 px-4 py-3 text-sm font-bold text-white hover:bg-red-500 disabled:opacity-50"
-              >
+              <button type="button" disabled={isSubmitting || cancelReason.trim().length < 3} onClick={handleCancelBooking} className="rounded-xl bg-rose-600 px-4 py-2.5 text-xs sm:text-sm font-bold text-white hover:bg-rose-500 disabled:opacity-50">
                 تأكيد الإلغاء
               </button>
             </div>
@@ -1418,61 +2191,43 @@ export default function OperationsDashboardClient({
         </div>
       )}
 
-      {/* Operational Modal: Schedule Lock / Pause Bookings */}
+      {/* 9. Modal: Branch Schedule Lock */}
       {selectedLockBranch && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/85 p-4" role="presentation">
-          <div role="dialog" aria-modal="true" aria-labelledby="lock-modal-title" className="w-full max-w-lg space-y-5 rounded-3xl border border-[#c9a227]/40 bg-[#141414] p-5 sm:p-8">
-            <div className="flex items-center justify-between gap-4">
-              <h2 id="lock-modal-title" className="text-lg font-bold flex items-center gap-2 text-white">
-                {selectedLockBranch.status === 'ACTIVE' ? <Lock className="size-5 text-red-400" /> : <Unlock className="size-5 text-emerald-400" />}
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/85 backdrop-blur-sm p-4" role="presentation">
+          <div role="dialog" aria-modal="true" className="w-full max-w-lg space-y-5 rounded-3xl border border-[#d4af37]/40 bg-[#141414] p-5 sm:p-8 shadow-2xl">
+            <div className="flex items-center justify-between gap-4 border-b border-neutral-800/80 pb-4">
+              <h2 className="text-lg font-black flex items-center gap-2 text-white">
+                {selectedLockBranch.status === 'ACTIVE' ? <Lock className="size-5 text-rose-400" /> : <Unlock className="size-5 text-emerald-400" />}
                 {selectedLockBranch.status === 'ACTIVE'
-                  ? `قفل جدول مواعيد ${selectedLockBranch.nameAr}`
-                  : `فتح جدول مواعيد ${selectedLockBranch.nameAr}`}
+                  ? `قفل جدول مواعيد فرع ${selectedLockBranch.nameAr}`
+                  : `فتح جدول مواعيد فرع ${selectedLockBranch.nameAr}`}
               </h2>
-              <button type="button" aria-label="إغلاق" disabled={isSubmitting} onClick={() => setSelectedLockBranch(null)} className="rounded-lg p-2 text-neutral-400 hover:bg-white/10 hover:text-white">
-                <X className="size-5" />
-              </button>
+              <button type="button" disabled={isSubmitting} onClick={() => setSelectedLockBranch(null)} className="rounded-xl p-2 text-neutral-400 hover:bg-neutral-800"><X className="size-5" /></button>
             </div>
-
-            <div className={`rounded-2xl border p-4 text-xs leading-6 ${selectedLockBranch.status === 'ACTIVE' ? 'border-red-500/30 bg-red-500/10 text-red-200' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'}`}>
+            <div className={`rounded-2xl border p-4 text-xs leading-6 ${selectedLockBranch.status === 'ACTIVE' ? 'border-rose-500/30 bg-rose-500/10 text-rose-200' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'}`}>
               {selectedLockBranch.status === 'ACTIVE'
-                ? 'عند قفل جدول المواعيد، لن يتمكن أي عميل من اختيار مواعيد أو حجز خدمات من الموقع لهذا الفرع حتى تقوم بإلغاء القفل.'
-                : 'سيتم فتح جدول المواعيد فوراً وإتاحة الحجز واستقبال طلبات العملاء من الموقع.'}
+                ? 'عند قفل جدول المواعيد، سيتوقف استقبال الحجوزات الجديدة من الموقع فوراً لهذا الفرع.'
+                : 'سيتم استئناف استقبال الحجوزات وفتح المواعيد المتاحة للعملاء من الموقع.'}
             </div>
-
             <div>
-              <label htmlFor="lock-reason-input" className="mb-2 block text-xs font-semibold text-neutral-300">ملاحظة / سبب الإجراء (اختياري)</label>
-              <textarea
-                id="lock-reason-input"
-                maxLength={500}
-                value={lockReason}
-                onChange={(e) => setLockReason(e.target.value)}
-                placeholder={selectedLockBranch.status === 'ACTIVE' ? 'مثلاً: أعمال صيانة وتجهيز تشغيلي، طقس غير مناسب...' : 'استئناف العمل بشكل طبيعي'}
-                rows={3}
-                className="w-full rounded-xl border border-neutral-700 bg-[#080808] p-3 text-sm text-white focus:border-[#c9a227] focus:outline-none"
-              />
+              <label htmlFor="lock-reason-input" className="mb-2 block text-xs font-bold text-neutral-300">ملاحظة أو سبب الإجراء</label>
+              <textarea id="lock-reason-input" maxLength={500} value={lockReason} onChange={(e) => setLockReason(e.target.value)} rows={2} className={inputClass} placeholder="صيانة، طقس، طاقة تشغيلية..." />
             </div>
-
             <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                disabled={isSubmitting}
-                onClick={() => setSelectedLockBranch(null)}
-                className="rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-3 text-sm font-bold text-white hover:bg-neutral-700"
-              >
+              <button type="button" disabled={isSubmitting} onClick={() => setSelectedLockBranch(null)} className={secondaryButtonClass}>
                 إلغاء
               </button>
               <button
                 type="button"
                 disabled={isSubmitting}
                 onClick={handleToggleScheduleLock}
-                className={`rounded-xl px-4 py-3 text-sm font-bold disabled:opacity-50 ${
+                className={`rounded-xl px-4 py-2.5 text-xs sm:text-sm font-bold disabled:opacity-50 ${
                   selectedLockBranch.status === 'ACTIVE'
-                    ? 'bg-red-600 text-white hover:bg-red-500'
-                    : 'bg-emerald-500 text-black hover:bg-emerald-400'
+                    ? 'bg-rose-600 text-white hover:bg-rose-500'
+                    : 'bg-emerald-500 text-neutral-950 hover:bg-emerald-400'
                 }`}
               >
-                {selectedLockBranch.status === 'ACTIVE' ? 'تأكيد قفل الجدول' : 'تأكيد فتح واستئناف الحجز'}
+                {selectedLockBranch.status === 'ACTIVE' ? 'تأكيد قفل الجدول' : 'تأكيد فتح الجدول'}
               </button>
             </div>
           </div>

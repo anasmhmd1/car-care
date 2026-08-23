@@ -1,8 +1,4 @@
-import BareeqLogo from '@/components/BareeqLogo';
-import Link from 'next/link';
 import { requireRole } from '@/lib/auth/session';
-import { logoutAction } from '@/app/actions/auth';
-import { BadgeDollarSign, Boxes, ClipboardList, Crown, LogOut, MessageSquareText, UsersRound } from 'lucide-react';
 import { db } from '@/lib/db';
 import { BookingStatus, FileType, Prisma, UserRole } from '@prisma/client';
 import {
@@ -10,6 +6,7 @@ import {
   sanitizeClientData,
 } from '@/lib/auth/authorization';
 import { hasOperationalBookingFilePermission } from '@/lib/auth/booking-file-access';
+import { localDateBoundsUtc } from '@/lib/engine/time';
 import OperationsDashboardClient from './OperationsDashboardClient';
 import OperationsCaseQueues from './OperationsCaseQueues';
 import {
@@ -99,11 +96,38 @@ type ScopedBooking = {
   branchId: string;
   assignedTeamId: string | null;
 };
+function getCairoDateKey(date: Date = new Date()): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Africa/Cairo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map((p) => [p.type, p.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
 
 export default async function OperationsDashboardPage({ searchParams }: OperationsDashboardPageProps) {
   const query = await searchParams;
   const activeBookingQuery = searchValue(query.bookingQuery);
   const terminalBookingQuery = searchValue(query.terminalQuery);
+  const todayDate = getCairoDateKey(new Date());
+  const tomorrowObj = new Date();
+  tomorrowObj.setDate(tomorrowObj.getDate() + 1);
+  const tomorrowDate = getCairoDateKey(tomorrowObj);
+  const rawDateParam = Array.isArray(query.date) ? query.date[0] : query.date;
+  const selectedDate = typeof rawDateParam === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(rawDateParam)
+    ? rawDateParam
+    : undefined;
+  const dateBounds = selectedDate ? localDateBoundsUtc(selectedDate, 'Africa/Cairo') : null;
+  const bookingDateWhere: Prisma.BookingWhereInput = dateBounds
+    ? {
+        startAt: {
+          gte: dateBounds.start,
+          lt: dateBounds.end,
+        },
+      }
+    : {};
   const manager = await requireRole([UserRole.OPERATIONS_MANAGER, UserRole.OWNER, UserRole.SYSTEM_SUPER_ADMIN]);
   const permissionSnapshotAt = new Date();
   const [branchIds, permissionRows, roleConfiguration] = await Promise.all([
@@ -232,7 +256,12 @@ export default async function OperationsDashboardPage({ searchParams }: Operatio
   const pendingProofsPromise = db.paymentProof.findMany({
     where: {
       status: 'UNDER_REVIEW',
-      booking: bookingWhereFor('payment.review'),
+      booking: {
+        AND: [
+          bookingWhereFor('payment.review'),
+          ...(dateBounds ? [bookingDateWhere] : []),
+        ],
+      },
     },
     select: {
       id: true,
@@ -265,9 +294,14 @@ export default async function OperationsDashboardPage({ searchParams }: Operatio
   });
   const reviewBookingsPromise = db.booking.findMany({
     where: {
-      ...bookingWhereFor('booking.accept'),
-      bookingStatus: 'AWAITING_OPERATIONS_REVIEW',
-      deletedAt: null,
+      AND: [
+        bookingWhereFor('booking.accept'),
+        ...(dateBounds ? [bookingDateWhere] : []),
+        {
+          bookingStatus: 'AWAITING_OPERATIONS_REVIEW',
+          deletedAt: null,
+        },
+      ],
     },
     select: {
       id: true,
@@ -290,11 +324,16 @@ export default async function OperationsDashboardPage({ searchParams }: Operatio
   });
   const unassignedBookingsPromise = db.booking.findMany({
     where: {
-      ...bookingWhereFor('booking.assign'),
-      bookingStatus: { in: ['ACCEPTED', 'AWAITING_ASSIGNMENT', 'ADMIN_REVIEW_REQUIRED'] },
-      terminalReopenSourceStatus: null,
-      assignedTeamId: null,
-      deletedAt: null,
+      AND: [
+        bookingWhereFor('booking.assign'),
+        ...(dateBounds ? [bookingDateWhere] : []),
+        {
+          bookingStatus: { in: ['ACCEPTED', 'AWAITING_ASSIGNMENT', 'ADMIN_REVIEW_REQUIRED'] },
+          terminalReopenSourceStatus: null,
+          assignedTeamId: null,
+          deletedAt: null,
+        },
+      ],
     },
     select: {
       id: true,
@@ -317,6 +356,7 @@ export default async function OperationsDashboardPage({ searchParams }: Operatio
         bookingBranchWhere,
         activeBookingPermissionWhere,
         bookingSearchWhere(activeBookingQuery),
+        ...(dateBounds ? [bookingDateWhere] : []),
         {
           deletedAt: null,
           bookingStatus: {
@@ -347,16 +387,21 @@ export default async function OperationsDashboardPage({ searchParams }: Operatio
   const terminalBookingsPromise = manager.role === UserRole.OWNER
     ? db.booking.findMany({
         where: {
-          ...bookingSearchWhere(terminalBookingQuery),
-          deletedAt: null,
-          bookingStatus: {
-            in: [
-              BookingStatus.CLOSED,
-              BookingStatus.CANCELLED,
-              BookingStatus.REJECTED,
-              BookingStatus.EXPIRED,
-            ],
-          },
+          AND: [
+            bookingSearchWhere(terminalBookingQuery),
+            ...(dateBounds ? [bookingDateWhere] : []),
+            {
+              deletedAt: null,
+              bookingStatus: {
+                in: [
+                  BookingStatus.CLOSED,
+                  BookingStatus.CANCELLED,
+                  BookingStatus.REJECTED,
+                  BookingStatus.EXPIRED,
+                ],
+              },
+            },
+          ],
         },
         select: {
           id: true,
@@ -465,9 +510,14 @@ export default async function OperationsDashboardPage({ searchParams }: Operatio
   });
   const qualityBookingsPromise = db.booking.findMany({
     where: {
-      ...bookingWhereFor('quality.review'),
-      bookingStatus: 'QUALITY_REVIEW',
-      deletedAt: null,
+      AND: [
+        bookingWhereFor('quality.review'),
+        ...(dateBounds ? [bookingDateWhere] : []),
+        {
+          bookingStatus: 'QUALITY_REVIEW',
+          deletedAt: null,
+        },
+      ],
     },
     select: {
       id: true,
@@ -475,14 +525,47 @@ export default async function OperationsDashboardPage({ searchParams }: Operatio
       assignedTeamId: true,
       bookingNumber: true,
       branch: { select: { nameAr: true } },
-      service: { select: { nameAr: true } },
+      service: {
+        select: {
+          nameAr: true,
+          checklistTemplates: {
+            select: {
+              id: true,
+              stage: true,
+              items: {
+                select: {
+                  id: true,
+                  labelAr: true,
+                  required: true,
+                  descriptionAr: true,
+                },
+                orderBy: { displayOrder: 'asc' },
+              },
+            },
+          },
+        },
+      },
       customer: { select: { user: { select: operationsCustomerUserSelect } } },
       files: {
         where: { fileType: { in: ['BEFORE_SERVICE', 'AFTER_SERVICE'] } },
         select: { id: true, fileType: true, fileUrl: true, createdAt: true },
       },
       checklistInstances: {
-        select: { id: true, stage: true, completedAt: true },
+        select: {
+          id: true,
+          stage: true,
+          completedAt: true,
+          results: {
+            select: {
+              id: true,
+              itemId: true,
+              itemLabel: true,
+              isChecked: true,
+              note: true,
+              checkedAt: true,
+            },
+          },
+        },
       },
     },
     orderBy: [{ startAt: 'asc' }, { id: 'asc' }],
@@ -552,6 +635,58 @@ export default async function OperationsDashboardPage({ searchParams }: Operatio
     take: queueWindows.refunds.take,
   });
 
+  const managedSubscriptionsPromise = db.customerSubscription.findMany({
+    where: branchIds === null ? {} : { branchId: { in: branchIds } },
+    orderBy: { createdAt: 'desc' },
+    take: 100,
+    select: {
+      id: true,
+      status: true,
+      purchasePrice: true,
+      totalVisits: true,
+      usedVisits: true,
+      remainingVisits: true,
+      endDate: true,
+      customer: {
+        select: {
+          user: { select: { fullName: true, phone: true } },
+        },
+      },
+      plan: {
+        select: {
+          nameAr: true,
+          price: true,
+          freezeAllowed: true,
+          maxFreezeDays: true,
+        },
+      },
+      branch: { select: { nameAr: true } },
+      serviceBalances: {
+        select: {
+          serviceId: true,
+          totalVisits: true,
+          remainingVisits: true,
+          service: { select: { nameAr: true } },
+        },
+        orderBy: { createdAt: 'asc' },
+      },
+      paymentProofs: {
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: 1,
+        select: {
+          id: true,
+          proofFileUrl: true,
+          amountSubmitted: true,
+          referenceNumber: true,
+          status: true,
+          reviewNotes: true,
+          createdAt: true,
+          paymentMethod: { select: { name: true } },
+        },
+      },
+    },
+  });
+
   const [
     accessibleBranches,
     pendingProofRows,
@@ -564,6 +699,7 @@ export default async function OperationsDashboardPage({ searchParams }: Operatio
     qualityBookingRows,
     complaintRows,
     refundRows,
+    managedSubscriptionsRaw,
   ] = await Promise.all([
     accessibleBranchesPromise,
     pendingProofsPromise,
@@ -576,6 +712,7 @@ export default async function OperationsDashboardPage({ searchParams }: Operatio
     qualityBookingsPromise,
     complaintsPromise,
     refundsAwaitingApprovalPromise,
+    managedSubscriptionsPromise,
   ]);
   const { records: pendingProofs, pagination: pendingProofsPagination } = pageOperationsQueue(
     pendingProofRows,
@@ -849,117 +986,74 @@ export default async function OperationsDashboardPage({ searchParams }: Operatio
     };
   });
 
+  const clientManagedSubscriptions = managedSubscriptionsRaw.map((sub) => {
+    const latestProof = sub.paymentProofs[0] ?? null;
+    return {
+      id: sub.id,
+      customerName: sub.customer.user.fullName,
+      customerPhone: sub.customer.user.phone,
+      planName: sub.plan.nameAr,
+      expectedPrice: sub.purchasePrice,
+      branchName: sub.branch.nameAr,
+      status: sub.status as 'PENDING_PAYMENT' | 'ACTIVE' | 'FROZEN' | 'EXPIRED' | 'CANCELLED' | 'COMPLETED',
+      totalVisits: sub.totalVisits,
+      usedVisits: sub.usedVisits,
+      remainingVisits: sub.remainingVisits,
+      endDate: sub.endDate.toISOString(),
+      freezeAllowed: sub.plan.freezeAllowed,
+      maxFreezeDays: sub.plan.maxFreezeDays,
+      serviceBalances: sub.serviceBalances.map((sb) => ({
+        serviceId: sb.serviceId,
+        nameAr: sb.service.nameAr,
+        totalVisits: sb.totalVisits,
+        remainingVisits: sb.remainingVisits,
+      })),
+      paymentProof: latestProof
+        ? {
+            id: latestProof.id,
+            proofFileUrl: latestProof.proofFileUrl,
+            amountSubmitted: latestProof.amountSubmitted,
+            referenceNumber: latestProof.referenceNumber,
+            status: latestProof.status as 'UNDER_REVIEW' | 'APPROVED' | 'REJECTED' | 'AMOUNT_MISMATCH' | 'REUPLOAD_REQUIRED' | 'DUPLICATE_SUSPECTED',
+            reviewNotes: latestProof.reviewNotes,
+            createdAt: latestProof.createdAt.toISOString(),
+            paymentMethod: { name: latestProof.paymentMethod.name },
+          }
+        : null,
+    };
+  });
+
+  const qualityBookingsCount = clientQualityBookings.length;
+  const openCasesCount =
+    clientCancellationRequests.length +
+    clientRescheduleRequests.length +
+    clientComplaints.length +
+    clientRefunds.length;
+
   return (
-    <div className="min-h-screen bg-[#080808] text-white flex flex-col font-sans">
-      <main className="flex-1 py-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full space-y-8">
-        
-        {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-neutral-800 pb-6">
-          <div className="space-y-2">
-            <div className="flex items-center gap-4">
-              <BareeqLogo size="sm" showText={true} />
-              <div className="text-xs font-bold text-[#e5c45a] uppercase tracking-wider">لوحة التحكم التشغيلية</div>
-            </div>
-            <h1 className="text-2xl sm:text-4xl font-black text-white">إدارة التشغيل والفرق</h1>
-            <p className="text-xs text-neutral-400">
-              {accessibleBranches.length
-                ? accessibleBranches.map((branch) => branch.nameAr).join(' • ')
-                : 'لا توجد فروع مسندة لهذا الحساب'}
-            </p>
-          </div>
-
-          <div className="flex items-center gap-3">
-            {manager.role === UserRole.OPERATIONS_MANAGER ? (
-              <Link
-                href="/operations/resources?tab=assignments"
-                className="flex items-center gap-2 rounded-xl border border-[#c9a227]/45 bg-[#c9a227]/15 px-4 py-2 text-xs font-bold text-[#f0d36d] shadow-sm transition hover:bg-[#c9a227]/25"
-              >
-                <ClipboardList className="size-4" aria-hidden="true" />
-                تخصيص سيارات الحجوزات
-              </Link>
-            ) : null}
-            {canOpenWorkforce ? (
-              <Link
-                href="/operations/resources"
-                className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-bold text-white/80 transition hover:bg-white/[0.08]"
-              >
-                <Boxes className="size-4" aria-hidden="true" />
-                المخزون والأسطول
-              </Link>
-            ) : null}
-            {canOpenWorkforce ? (
-              <Link
-                href="/operations/workforce"
-                className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-bold text-white/80 transition hover:bg-white/[0.08]"
-              >
-                <UsersRound className="size-4" aria-hidden="true" />
-                القوى العاملة
-              </Link>
-            ) : null}
-            {canOpenPricing ? (
-              <Link
-                href="/operations/pricing"
-                className="flex items-center gap-2 rounded-xl border border-[#c9a227]/35 bg-[#c9a227]/10 px-4 py-2 text-xs font-bold text-[#e5c45a] transition hover:bg-[#c9a227]/15"
-              >
-                <BadgeDollarSign className="size-4" aria-hidden="true" />
-                الأسعار
-              </Link>
-            ) : null}
-            {canOpenCustomerReviews ? (
-              <Link
-                href="/admin/reviews"
-                className="flex items-center gap-2 rounded-xl border border-[#c9a227]/35 bg-[#c9a227]/10 px-4 py-2 text-xs font-bold text-[#e5c45a] transition hover:bg-[#c9a227]/15"
-              >
-                <MessageSquareText className="size-4" aria-hidden="true" />
-                تقييمات العملاء
-              </Link>
-            ) : null}
-            <span className="px-3.5 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold">
-              {accessibleBranches.filter((branch) => branch.status === 'ACTIVE').length} فرع نشط
-            </span>
-            <form action={logoutAction}>
-              <button
-                type="submit"
-                className="px-4 py-2 rounded-xl bg-red-500/10 border border-red-500/30 hover:bg-red-500/20 text-xs font-bold text-red-400 flex items-center gap-2 transition-all"
-              >
-                <LogOut className="w-4 h-4" />
-                <span>تسجيل الخروج</span>
-              </button>
-            </form>
-          </div>
-        </div>
-
-        <nav aria-label="أدوات مدير التشغيل" className="flex gap-2 overflow-x-auto rounded-2xl border border-neutral-800 bg-[#111] p-2">
-          {[
-            ['/admin/revenue', 'الإيرادات والأرباح'],
-            ['/admin?section=customers', 'إدارة العملاء (CRM)'],
-            ['/admin/calendar', 'تقويم التشغيل'],
-            ['/admin/subscriptions', 'الاشتراكات'],
-            ['/admin/reports', 'تقرير الفرع'],
-            ['/operations/audit', 'سجل التدقيق'],
-            ['/operations/password-resets', 'استعادة كلمات المرور'],
-          ].map(([href, label]) => (
-            <Link key={href} href={href} className="inline-flex min-h-11 shrink-0 items-center rounded-xl border border-white/10 px-4 text-xs font-bold text-white/70 transition hover:border-[#d4af37]/45 hover:text-[#e5c45a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d4af37]">
-              {label}
-            </Link>
-          ))}
-        </nav>
-
-        <OperationsDashboardClient
-          manager={clientManager}
-          branches={accessibleBranches.map((b) => ({ id: b.id, nameAr: b.nameAr, status: b.status }))}
-          pendingProofs={sanitizeClientData(clientPendingProofs)}
-          reviewBookings={sanitizeClientData(clientReviewBookings)}
-          unassignedBookings={sanitizeClientData(clientUnassignedBookings)}
-          teams={sanitizeClientData(assignableTeams)}
-          activeBookings={sanitizeClientData(clientActiveBookings)}
-          terminalBookings={sanitizeClientData(terminalBookings)}
-          activeBookingQuery={activeBookingQuery}
-          terminalBookingQuery={terminalBookingQuery}
-          initialTab={dashboardTab}
-          pagination={dashboardPagination}
-        />
-
+    <OperationsDashboardClient
+      manager={clientManager}
+      branches={accessibleBranches.map((b) => ({ id: b.id, nameAr: b.nameAr, status: b.status }))}
+      pendingProofs={sanitizeClientData(clientPendingProofs)}
+      reviewBookings={sanitizeClientData(clientReviewBookings)}
+      unassignedBookings={sanitizeClientData(clientUnassignedBookings)}
+      teams={sanitizeClientData(assignableTeams)}
+      activeBookings={sanitizeClientData(clientActiveBookings)}
+      terminalBookings={sanitizeClientData(terminalBookings)}
+      managedSubscriptions={sanitizeClientData(clientManagedSubscriptions)}
+      activeBookingQuery={activeBookingQuery}
+      terminalBookingQuery={terminalBookingQuery}
+      initialTab={dashboardTab}
+      pagination={dashboardPagination}
+      openCasesCount={openCasesCount}
+      qualityBookingsCount={qualityBookingsCount}
+      selectedDate={selectedDate}
+      todayDate={todayDate}
+      tomorrowDate={tomorrowDate}
+      canOpenWorkforce={canOpenWorkforce}
+      canOpenPricing={canOpenPricing}
+      canOpenCustomerReviews={canOpenCustomerReviews}
+      qualityQueuesSlot={
         <OperationsCaseQueues
           actorRole={manager.role}
           cancellationRequests={sanitizeClientData(clientCancellationRequests)}
@@ -969,9 +1063,22 @@ export default async function OperationsDashboardPage({ searchParams }: Operatio
           refundsAwaitingApproval={sanitizeClientData(clientRefunds)}
           complaintAssignees={sanitizeClientData(complaintAssignees)}
           pagination={caseQueuePagination}
+          mode="quality_only"
         />
-
-      </main>
-    </div>
+      }
+      caseQueuesSlot={
+        <OperationsCaseQueues
+          actorRole={manager.role}
+          cancellationRequests={sanitizeClientData(clientCancellationRequests)}
+          rescheduleRequests={sanitizeClientData(clientRescheduleRequests)}
+          qualityBookings={sanitizeClientData(clientQualityBookings)}
+          complaints={sanitizeClientData(clientComplaints)}
+          refundsAwaitingApproval={sanitizeClientData(clientRefunds)}
+          complaintAssignees={sanitizeClientData(complaintAssignees)}
+          pagination={caseQueuePagination}
+          mode="cases_only"
+        />
+      }
+    />
   );
 }

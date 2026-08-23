@@ -466,9 +466,8 @@ export async function assignTeamToBooking(input: AssignmentInput) {
   return db.$transaction(
     (tx) => assignTeamToBookingInTransaction(tx, input),
     {
-      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
-      maxWait: 10_000,
-      timeout: 20_000,
+      maxWait: 15_000,
+      timeout: 60_000,
     },
   );
 }

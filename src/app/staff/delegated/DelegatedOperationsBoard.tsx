@@ -418,17 +418,12 @@ export default function DelegatedOperationsBoard({
         ) : null}
 
         {enabled['quality.review'] ? (
-          <QueueSection id="delegated-quality" title="مراجعة الجودة" description="راجع أدلة التنفيذ ثم اعتمد الخدمة أو أعدها للفريق بملاحظات." count={qualityBookings.length}>
+          <QueueSection id="delegated-quality" title="مراجعة الجودة" description="راجع إتمام مراحل الخدمة وملاحظات الفحص ثم اعتمد الجودة أو أعدها للفريق." count={qualityBookings.length}>
             <div className="grid gap-4 lg:grid-cols-2">
               {qualityBookings.map((booking) => (
                 <article key={booking.id} className="rounded-2xl border border-neutral-800 bg-[#080808] p-4">
                   <h3 className="font-bold text-[#e5c45a]">{booking.bookingNumber} — {booking.service.nameAr}</h3>
                   <p className="mt-2 text-sm text-neutral-300">{booking.customer.user.fullName} · {booking.assignedTeam?.name ?? 'فريق غير مسجل'}</p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {booking.files.length ? booking.files.map((file) => (
-                      <a key={file.id} href={file.fileUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-700 px-2.5 py-2 text-xs text-neutral-200 hover:border-[#c9a227]/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c9a227]">{file.fileType}<ExternalLink className="size-3.5" aria-hidden="true" /></a>
-                    )) : <span className="text-xs text-amber-300">لا توجد صور تنفيذ مرفوعة.</span>}
-                  </div>
                   <form onSubmit={(event) => { event.preventDefault(); const intent = submitterValue(event, 'APPROVE'); execute(event.currentTarget, reviewQualityAction, intent === 'APPROVE' ? 'تم اعتماد الجودة.' : 'أعيدت المهمة للفريق.', (data) => { data.set('approved', intent === 'APPROVE' ? 'true' : 'false'); data.set('returnedToTeam', intent === 'APPROVE' ? 'false' : 'true'); }); }} className="mt-4 space-y-3 border-t border-neutral-800 pt-4">
                     <input type="hidden" name="bookingId" value={booking.id} />
                     <div className="grid gap-3 sm:grid-cols-[120px_1fr]"><div><label className={labelClass}>التقييم</label><select name="score" defaultValue="5" className={inputClass}><option value="5">5 / 5</option><option value="4">4 / 5</option><option value="3">3 / 5</option><option value="2">2 / 5</option><option value="1">1 / 5</option></select></div><div><label className={labelClass}>ملاحظات الجودة</label><textarea name="notes" rows={3} maxLength={1000} className={inputClass} placeholder="إلزامية عند الإعادة للفريق" /></div></div>
