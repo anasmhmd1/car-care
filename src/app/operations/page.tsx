@@ -531,6 +531,7 @@ export default async function OperationsDashboardPage({ searchParams }: Operatio
           checklistTemplates: {
             select: {
               id: true,
+              name: true,
               stage: true,
               items: {
                 select: {

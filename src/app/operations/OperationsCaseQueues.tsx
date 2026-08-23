@@ -107,6 +107,7 @@ interface QualityChecklistTemplateItem {
 
 interface QualityChecklistTemplate {
   id: string;
+  name?: string;
   stage: string;
   items: QualityChecklistTemplateItem[];
 }
@@ -699,13 +700,19 @@ export default function OperationsCaseQueues({
                     }
 
                     return stagesList.map(({ stage, instance, template }) => {
-                      const stageLabel = {
-                        ARRIVAL: 'مرحلة الوصول وفحص الموقع',
-                        BEFORE_SERVICE: 'الفحص المبدئي وتوثيق الحالة',
-                        IN_SERVICE: 'بنود التنفيذ أثناء الخدمة',
-                        AFTER_SERVICE: 'فحص الجودة بعد انتهاء الخدمة',
-                        DELIVERY: 'تسليم الخدمة للعميل والتحصيل',
-                      }[stage] || stage;
+                      const stageLabel = template?.name || ({
+                        BOOKING_REVIEW: 'مراجعة الحجز والإسناد',
+                        TEAM_PREPARATION: 'تحضير الفريق وتجهيز المواد',
+                        ARRIVAL_INSPECTION: 'فحص الوصول وتوثيق الحالة',
+                        SERVICE_EXECUTION: 'قائمة مهام وتشيك ليست التنفيذ للموظفين',
+                        CLOSING: 'الإغلاق والتسليم الميداني',
+                        QUALITY_REVIEW: 'مراجعة واعتماد الجودة',
+                        ARRIVAL: 'فحص الوصول',
+                        BEFORE_SERVICE: 'الفحص المبدئي',
+                        IN_SERVICE: 'قائمة مهام وتشيك ليست التنفيذ للموظفين',
+                        AFTER_SERVICE: 'فحص ما بعد الخدمة',
+                        DELIVERY: 'الإغلاق والتسليم',
+                      }[stage] || stage);
 
                       const isStageDone = !!instance?.completedAt;
                       const templateItems = template?.items ?? [];

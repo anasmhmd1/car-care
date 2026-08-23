@@ -1,6 +1,6 @@
 param(
-  [ValidatePattern('^bareeq_codex_e2e_[a-z0-9]{8}$')]
-  [string]$SchemaName = 'bareeq_codex_e2e_019fbc1f',
+  [ValidatePattern('^bareeq_test_e2e_[a-z0-9]{8}$')]
+  [string]$SchemaName = 'bareeq_test_e2e_019fbc1f',
   [ValidateRange(1024, 65535)]
   [int]$Port = 3417,
   [switch]$ReuseExistingSchema,

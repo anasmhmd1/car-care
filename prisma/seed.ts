@@ -170,7 +170,9 @@ async function main() {
   }
 
   const sharedPassword = requireSeedSecret('SEED_PASSWORD', 12);
+  const adminPassword = requireSeedSecret('SEED_ADMIN_PASSWORD', 12);
   const sharedPasswordHash = await bcrypt.hash(sharedPassword, 12);
+  const adminPasswordHash = await bcrypt.hash(adminPassword, 12);
 
   console.log('Starting deterministic Bareeq development seed...');
 
@@ -347,6 +349,15 @@ async function main() {
   }
 
   const userDefinitions = [
+    {
+      key: 'superadmin',
+      fullName: 'مدير النظام العام',
+      phone: '201000000000',
+      email: 'admin@bareeq.car',
+      whatsapp: '201000000000',
+      role: UserRole.SYSTEM_SUPER_ADMIN,
+      passwordHash: adminPasswordHash,
+    },
     {
       key: 'owner',
       fullName: 'كريم',

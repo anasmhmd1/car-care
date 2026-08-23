@@ -237,48 +237,79 @@ export default async function StaffPage() {
   });
 
   return (
-    <div className="min-h-screen bg-[#080808] text-white">
-      <main className="mx-auto w-full max-w-xl space-y-6 px-4 py-8">
-        <header className="space-y-4 rounded-3xl border border-[#c9a227]/30 bg-[#141414] p-6 text-center gold-glow">
-          <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
+    <div className="min-h-screen bg-[#08080a] text-white selection:bg-[#cea355]/30">
+      {/* Subtle Luxury Gradient Background */}
+      <div className="pointer-events-none fixed inset-0 z-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_-20%,rgba(206,163,85,0.08),rgba(255,255,255,0))]" />
+
+      <main className="relative z-10 mx-auto w-full max-w-2xl space-y-6 px-3.5 py-6 sm:px-6 sm:py-8">
+        {/* Header Profile Card */}
+        <header className="relative overflow-hidden rounded-3xl border border-[#cea355]/30 bg-gradient-to-b from-[#18181c]/95 via-[#111114]/90 to-[#0e0e11]/95 p-5 sm:p-6 shadow-2xl backdrop-blur-md">
+          <div className="pointer-events-none absolute -right-16 -top-16 size-48 rounded-full bg-[#cea355]/10 blur-3xl" />
+          <div className="pointer-events-none absolute -left-16 -bottom-16 size-48 rounded-full bg-[#cea355]/5 blur-3xl" />
+
+          <div className="flex items-center justify-between border-b border-white/[0.08] pb-4">
             <BareeqLogo size="sm" showText />
             <form action={logoutAction}>
               <button
                 type="submit"
-                className="flex items-center gap-1.5 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs font-bold text-red-400 hover:bg-red-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300"
+                className="flex items-center gap-1.5 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-1.5 text-xs font-bold text-rose-300 transition-all hover:bg-rose-500/20 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
               >
                 <LogOut className="h-3.5 w-3.5" aria-hidden="true" />
-                تسجيل الخروج
+                <span>تسجيل الخروج</span>
               </button>
             </form>
           </div>
-          <p className="text-xs font-bold text-[#e5c45a]">واجهة فريق التنفيذ الميداني</p>
-          <h1 className="text-xl font-black">{employee.fullName}</h1>
-          <p className="text-xs text-neutral-400">
-            الفريق المسند: <strong className="text-white">{teamMember?.team.name ?? 'غير مخصص لفريق'}</strong>
-          </p>
-          {hasDelegatedOperations ? (
-            <nav aria-label="التفويضات الإضافية" className="flex flex-wrap justify-center gap-2 border-t border-neutral-800 pt-4">
-              {hasDelegatedOperations ? (
-                <Link href="/staff/delegated" className="inline-flex items-center gap-2 rounded-xl border border-[#c9a227]/50 px-3 py-2 text-xs font-bold text-[#e5c45a] hover:bg-[#c9a227]/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c9a227]">
-                  <ShieldCheck className="size-4" aria-hidden="true" /> المهام المفوّضة
+
+          <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-right">
+            <div>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-[#cea355]/40 bg-[#cea355]/10 px-3 py-0.5 text-[11px] font-bold text-[#f3e4a8]">
+                <span className="size-1.5 rounded-full bg-[#cea355] animate-pulse" />
+                تطبيق الميدان والتنفيذ
+              </span>
+              <h1 className="mt-1.5 text-xl sm:text-2xl font-black text-white tracking-tight">
+                {employee.fullName}
+              </h1>
+              <p className="mt-0.5 text-xs text-neutral-400">
+                الفريق المسند: <strong className="font-bold text-white">{teamMember?.team.name ?? 'غير مخصص لفريق'}</strong>
+              </p>
+            </div>
+
+            {hasDelegatedOperations ? (
+              <div className="flex shrink-0">
+                <Link
+                  href="/staff/delegated"
+                  className="inline-flex items-center gap-2 rounded-xl border border-[#cea355]/40 bg-[#cea355]/10 px-3.5 py-2 text-xs font-bold text-[#f3e4a8] transition-all hover:bg-[#cea355]/20 hover:border-[#cea355] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cea355]"
+                >
+                  <ShieldCheck className="size-4 text-[#cea355]" aria-hidden="true" />
+                  <span>المهام المفوّضة</span>
                 </Link>
-              ) : null}
-            </nav>
-          ) : null}
+              </div>
+            ) : null}
+          </div>
         </header>
 
+        {/* Custody Stocks Section */}
         {myCustodyStocks.length > 0 && (
-          <section aria-labelledby="custody-title" className="rounded-3xl border border-white/10 bg-[#141414] p-5">
-            <h2 id="custody-title" className="text-xs font-black text-[#e5c45a]">
-              عهدة المواد المتاحة معك
-            </h2>
-            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <section aria-labelledby="custody-title" className="rounded-3xl border border-white/[0.08] bg-[#111114]/90 p-5 shadow-xl backdrop-blur-md">
+            <div className="flex items-center justify-between">
+              <h2 id="custody-title" className="flex items-center gap-2 text-xs font-black text-[#f3e4a8]">
+                <span className="size-2 rounded-full bg-[#cea355]" />
+                عهدة المواد الشخصية المتاحة معك
+              </h2>
+              <span className="text-[11px] font-bold text-neutral-400">
+                {myCustodyStocks.length} أصناف
+              </span>
+            </div>
+            <div className="mt-3.5 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
               {myCustodyStocks.map((stock) => (
-                <div key={stock.id} className="rounded-xl border border-white/5 bg-black/40 p-2.5 text-right">
-                  <p className="truncate text-xs font-bold text-white/80">{stock.material.nameAr}</p>
-                  <p className="mt-1 text-sm font-black text-[#f0d36d]">
-                    {stock.quantityOnHand.toLocaleString('ar-EG', { maximumFractionDigits: 2 })} <span className="text-[10px] text-white/40">{stock.material.unit}</span>
+                <div
+                  key={stock.id}
+                  className="rounded-2xl border border-white/5 bg-black/40 p-3 text-right transition-all hover:border-[#cea355]/30"
+                >
+                  <p className="truncate text-xs font-bold text-neutral-200">{stock.material.nameAr}</p>
+                  <p className="mt-1.5 text-base font-black tabular-nums text-[#f3e4a8]">
+                    {stock.quantityOnHand.toLocaleString('ar-EG', { maximumFractionDigits: 2 })}{' '}
+                    <span className="text-[10px] font-medium text-neutral-400">{stock.material.unit}</span>
                   </p>
                 </div>
               ))}
