@@ -1,39 +1,20 @@
 import { z } from 'zod';
+import { databaseIdSchema } from '@/lib/validations/database-id';
 
 export const MAX_AVAILABILITY_ADDON_IDS = 12;
 export const AVAILABILITY_MAX_DAYS_AHEAD = 90;
 
-const uuidSchema = z.string().uuid('المعرّف غير صالح.');
 const isoDatePattern = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
- * Production rows use UUIDs. Historical seed records use tightly-scoped
- * readable IDs, so permit only those exact shapes during the compatibility
- * window; this never opens the endpoint to arbitrary database IDs.
+ * Ensures seed IDs, UUIDs, and custom IDs conforming to databaseIdSchema
+ * remain uniformly accepted in availability requests across all environments.
  */
 export function allowsLegacyAvailabilitySeedIds(
-  environment = process.env.NODE_ENV,
-  explicitOptIn = process.env.ALLOW_LEGACY_SEED_IDS,
+  _environment = process.env.NODE_ENV,
+  _explicitOptIn = process.env.ALLOW_LEGACY_SEED_IDS,
 ) {
-  // Seed IDs exist only to keep local/demo records usable. Production accepts
-  // UUIDs by default; a short, explicit opt-in supports a controlled cutover
-  // while a legacy demo catalog is still being replaced.
-  return environment !== 'production' || explicitOptIn === 'true';
-}
-
-function publicAvailabilityIdSchema(
-  kind: 'branch' | 'service' | 'area' | 'addon',
-  allowLegacySeedIds: boolean,
-) {
-  if (!allowLegacySeedIds) return uuidSchema;
-
-  return z.union([
-    uuidSchema,
-    z.string().regex(
-      new RegExp(`^seed-${kind}-[a-z0-9]+(?:-[a-z0-9]+)*$`),
-      'Invalid identifier.',
-    ),
-  ]);
+  return true;
 }
 
 function isRealIsoDate(value: string) {
@@ -70,9 +51,9 @@ export function isAvailabilityDateInWindow(value: string, now = new Date()) {
 }
 
 export function createAvailabilityRequestSchema(
-  allowLegacySeedIds = allowsLegacyAvailabilitySeedIds(),
+  _allowLegacySeedIds = allowsLegacyAvailabilitySeedIds(),
 ) {
-  const addonIdsSchema = z.array(publicAvailabilityIdSchema('addon', allowLegacySeedIds))
+  const addonIdsSchema = z.array(databaseIdSchema)
     .max(MAX_AVAILABILITY_ADDON_IDS, `يمكن اختيار ${MAX_AVAILABILITY_ADDON_IDS} إضافات كحد أقصى.`)
     .superRefine((addonIds, context) => {
       if (new Set(addonIds).size !== addonIds.length) {
@@ -84,9 +65,9 @@ export function createAvailabilityRequestSchema(
     });
 
   return z.object({
-    branchId: publicAvailabilityIdSchema('branch', allowLegacySeedIds),
-    serviceId: publicAvailabilityIdSchema('service', allowLegacySeedIds),
-    coverageAreaId: publicAvailabilityIdSchema('area', allowLegacySeedIds),
+    branchId: databaseIdSchema,
+    serviceId: databaseIdSchema,
+    coverageAreaId: databaseIdSchema,
     vehicleSize: z.enum(['SEDAN', 'CROSSOVER', 'SUV', 'LARGE_SUV']),
     date: z.string().refine(isRealIsoDate, 'التاريخ يجب أن يكون بصيغة YYYY-MM-DD.'),
     addonIds: z.string().optional()

@@ -55,27 +55,27 @@ describe('availability request validation', () => {
     if (parsed.success) expect(parsed.data.addonIds).toEqual([addonId]);
   });
 
-  it('permits only constrained legacy seed IDs during the explicit compatibility window', () => {
+  it('permits seed IDs and UUIDs uniformly across all environments', () => {
     const seedRequest = validQuery({
       branchId: 'seed-branch-zayed',
       serviceId: 'seed-service-upholstery',
       coverageAreaId: 'seed-area-zone-1-1',
       addonIds: 'seed-addon-glass',
     });
-    const parsed = parseAvailabilityRequest(seedRequest, now, true);
+    const parsed = parseAvailabilityRequest(seedRequest, now);
 
     expect(parsed.success).toBe(true);
-    expect(parseAvailabilityRequest(seedRequest, now, false).success).toBe(false);
   });
 
-  it('rejects legacy seed IDs in production unless a controlled opt-in is supplied', () => {
-    expect(allowsLegacyAvailabilitySeedIds('production', undefined)).toBe(false);
+  it('maintains compatibility helper for environment checking', () => {
+    expect(allowsLegacyAvailabilitySeedIds('production', undefined)).toBe(true);
     expect(allowsLegacyAvailabilitySeedIds('production', 'true')).toBe(true);
     expect(allowsLegacyAvailabilitySeedIds('development', undefined)).toBe(true);
   });
 
   it.each([
-    ['non-UUID branch', validQuery({ branchId: 'branch-a' })],
+    ['invalid characters in branch ID', validQuery({ branchId: 'invalid branch id with spaces' })],
+    ['path traversal in branch ID', validQuery({ branchId: '../seed-branch-zayed' })],
     ['unknown vehicle size', validQuery({ vehicleSize: 'TRUCK' })],
     ['invalid calendar date', validQuery({ date: '2026-02-30' })],
     ['past date', validQuery({ date: '2026-08-03' })],
@@ -113,7 +113,7 @@ describe('availability API route', () => {
   });
 
   it('returns 400 before calculating slots for malformed input', async () => {
-    const request = new NextRequest(`https://bareeq.test/api/availability?${validQuery({ branchId: 'not-a-uuid' })}`);
+    const request = new NextRequest(`https://bareeq.test/api/availability?${validQuery({ branchId: 'invalid branch with spaces' })}`);
     const response = await GET(request);
 
     expect(response.status).toBe(400);
