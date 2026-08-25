@@ -1108,7 +1108,7 @@ model BookingAddon {
 model BookingHold {
   id             String            @id @default(uuid())
   bookingId      String
-  teamId         String
+  teamId         String?
   slotStartTime  DateTime
   slotEndTime    DateTime
   expiresAt      DateTime
@@ -1117,7 +1117,7 @@ model BookingHold {
   releasedReason String?
   createdAt      DateTime          @default(now())
   booking        Booking           @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  team           Team              @relation(fields: [teamId], references: [id], onDelete: Restrict)
+  team           Team?             @relation(fields: [teamId], references: [id], onDelete: SetNull)
 
   @@index([teamId, slotStartTime, slotEndTime])
   @@index([status, expiresAt])

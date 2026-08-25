@@ -218,7 +218,7 @@ async function loadAvailabilityContext(
   );
   const dayBounds = localDateBoundsUtc(request.dateStr, branch.timezone);
 
-  const [teams, travelTimes, branchActiveBookings] = await Promise.all([
+  const [teams, travelTimes, branchActiveBookings, branchBookings, branchHolds] = await Promise.all([
     tx.team.findMany({
       where: {
         branchId: branch.id,
@@ -284,6 +284,29 @@ async function loadAvailabilityContext(
         ],
       },
     }),
+    tx.booking.findMany({
+      where: {
+        id: request.excludeBookingId ? { not: request.excludeBookingId } : undefined,
+        branchId: branch.id,
+        startAt: { lt: dayBounds.end },
+        endAt: { gt: dayBounds.start },
+        bookingStatus: { in: SCHEDULE_BLOCKING_STATUSES },
+        terminalReopenSourceStatus: null,
+        deletedAt: null,
+      },
+      select: { id: true, startAt: true, endAt: true, assignedTeamId: true },
+    }),
+    tx.bookingHold.findMany({
+      where: {
+        bookingId: request.excludeBookingId ? { not: request.excludeBookingId } : undefined,
+        status: BookingHoldStatus.ACTIVE,
+        expiresAt: { gt: now },
+        slotStartTime: { lt: dayBounds.end },
+        slotEndTime: { gt: dayBounds.start },
+        booking: { branchId: branch.id },
+      },
+      select: { id: true, teamId: true, slotStartTime: true, slotEndTime: true },
+    }),
   ]);
 
   if (branchActiveBookings >= branch.dailyBookingLimit) return null;
@@ -308,6 +331,8 @@ async function loadAvailabilityContext(
     quote,
     totalDurationMinutes,
     teams,
+    branchBookings,
+    branchHolds,
     getTravelMinutes,
     dayOfWeek,
   };
@@ -324,7 +349,6 @@ function findFeasibleTeamIds(
     area,
     branch,
     branchHours,
-    service,
     teams,
     getTravelMinutes,
   } = context;
@@ -333,11 +357,6 @@ function findFeasibleTeamIds(
   for (const team of teams) {
     if (team.teamZones.length && !team.teamZones.some((teamZone) => teamZone.zoneId === area.zoneId)) continue;
     if (team.timeOff.some((timeOff) => intervalsOverlap(slotStart, slotEnd, timeOff.startDate, timeOff.endDate))) continue;
-
-    const availableMembers = team.members.filter((member) =>
-      !member.user.employeeTimeOff.some((timeOff) => intervalsOverlap(slotStart, slotEnd, timeOff.startDate, timeOff.endDate)),
-    );
-    if (availableMembers.length < service.requiredTeamSize) continue;
 
     let teamDayStartAt = localDateTimeToUtc(
       formatDateInZone(slotStart, branch.timezone),
@@ -382,7 +401,6 @@ function findFeasibleTeamIds(
 
     const restBufferMs = (branch.restBufferMinutes ?? 0) * 60_000;
 
-    if (team.bookings.length + team.holds.length >= team.dailyCapacity) continue;
     if (team.holds.some((hold) => intervalsOverlap(slotStart, slotEnd, hold.slotStartTime, hold.slotEndTime))) continue;
     if (team.bookings.some((booking) => intervalsOverlap(slotStart, slotEnd, booking.startAt, booking.endAt))) continue;
 
@@ -394,14 +412,6 @@ function findFeasibleTeamIds(
       const effectiveTravelMinutes = Math.max(requiredTravel, branch.travelBufferMinutes || 15);
       const totalBufferMs = effectiveTravelMinutes * 60_000 + restBufferMs;
       if (previous.endAt.getTime() + totalBufferMs > slotStart.getTime()) continue;
-    } else if (!canReachFirstTaskFromBase({
-      baseZoneId: team.baseZoneId,
-      targetZoneId: area.zoneId,
-      operationalDayStartAt: teamDayStartAt,
-      slotStartAt: slotStart,
-      getTravelMinutes,
-    })) {
-      continue;
     }
 
     const next = team.bookings
@@ -473,8 +483,17 @@ export async function evaluateRequestedInterval(
     if (intervalsOverlap(request.startAt, endAt, breakStart, breakEnd)) return null;
   }
 
+  const concurrentBookings = context.branchBookings.filter((b) => intervalsOverlap(request.startAt, endAt, b.startAt, b.endAt)).length;
+  const concurrentHolds = context.branchHolds.filter((h) => intervalsOverlap(request.startAt, endAt, h.slotStartTime, h.slotEndTime)).length;
+  const totalConcurrent = concurrentBookings + concurrentHolds;
+  const maxConcurrency = Math.max(1, context.teams.length);
+
+  if (context.teams.length > 0 && totalConcurrent >= maxConcurrency) {
+    return null;
+  }
+
   const feasibleTeamIds = findFeasibleTeamIds(context, request.startAt, endAt);
-  if (!feasibleTeamIds.length) return null;
+
   return {
     branchId: context.branch.id,
     totalDurationMinutes,
@@ -495,7 +514,7 @@ export async function calculateAvailableSlots(request: SlotRequest): Promise<Ava
     const context = await loadAvailabilityContext(tx, request, now);
     if (!context) return [];
 
-    const { branch, branchHours, totalDurationMinutes } = context;
+    const { branch, branchHours, totalDurationMinutes, teams, branchBookings, branchHolds } = context;
     const openAt = localDateTimeToUtc(request.dateStr, branchHours.openTime, branch.timezone);
     const closeAt = localDateTimeToUtc(request.dateStr, branchHours.closeTime, branch.timezone);
     const hasBreak = Boolean(
@@ -532,7 +551,7 @@ export async function calculateAvailableSlots(request: SlotRequest): Promise<Ava
     }
 
     // 2. Also consider candidate slots immediately after existing team bookings + transit gap
-    for (const team of context.teams) {
+    for (const team of teams) {
       for (const booking of team.bookings) {
         const nextStartMs = booking.endAt.getTime() + gapMs;
         if (nextStartMs >= openAt.getTime() && nextStartMs + durationMs <= closeAt.getTime()) {
@@ -548,13 +567,26 @@ export async function calculateAvailableSlots(request: SlotRequest): Promise<Ava
 
     const sortedStartMs = Array.from(candidateStartMs).sort((a, b) => a - b);
     const slots: AvailableSlot[] = [];
+    const maxConcurrency = Math.max(1, teams.length);
 
     for (const startMs of sortedStartMs) {
       const startAt = new Date(startMs);
       const endAt = new Date(startMs + durationMs);
       if (startAt <= now) continue;
       if (breakStart && breakEnd && intervalsOverlap(startAt, endAt, breakStart, breakEnd)) continue;
-      if (!findFeasibleTeamIds(context, startAt, endAt).length) continue;
+
+      const concurrentBookings = branchBookings.filter((b) => intervalsOverlap(startAt, endAt, b.startAt, b.endAt)).length;
+      const concurrentHolds = branchHolds.filter((h) => intervalsOverlap(startAt, endAt, h.slotStartTime, h.slotEndTime)).length;
+      const totalConcurrent = concurrentBookings + concurrentHolds;
+
+      if (teams.length > 0) {
+        const feasibleTeams = findFeasibleTeamIds(context, startAt, endAt);
+        if (!feasibleTeams.length && totalConcurrent >= maxConcurrency) {
+          continue;
+        }
+      } else if (totalConcurrent >= branch.dailyBookingLimit) {
+        continue;
+      }
 
       slots.push({
         timeStr: formatTimeInZone(startAt, branch.timezone),

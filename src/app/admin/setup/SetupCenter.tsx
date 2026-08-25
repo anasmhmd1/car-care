@@ -2259,12 +2259,33 @@ function BranchEngineRulesInteractiveForm({
   const totalGap = Math.max(0, travelBuffer + restBuffer);
   const totalSlotStride = slotUnit + totalGap;
 
+  const firstOpenDay = branch.workingHours.find((h) => !h.isClosed);
+  const openTimeStr = firstOpenDay?.openTime || '09:00';
+  const closeTimeStr = firstOpenDay?.closeTime || '17:00';
+  const breakStartStr = firstOpenDay?.breakStartTime?.trim() || '';
+  const breakEndStr = firstOpenDay?.breakEndTime?.trim() || '';
+
+  const parseMinutes = (timeStr: string) => {
+    const [h, m] = timeStr.split(':').map(Number);
+    return (h || 0) * 60 + (m || 0);
+  };
+
   const previewSlots = useMemo(() => {
     const slots: string[] = [];
-    let currentMinutes = 9 * 60; // 09:00 AM
-    const closeMinutes = 18 * 60; // 06:00 PM
+    let currentMinutes = parseMinutes(openTimeStr);
+    const closeMinutes = parseMinutes(closeTimeStr);
+    const breakStartMin = breakStartStr ? parseMinutes(breakStartStr) : null;
+    const breakEndMin = breakEndStr ? parseMinutes(breakEndStr) : null;
 
-    while (currentMinutes + slotUnit <= closeMinutes && slots.length < 8) {
+    while (currentMinutes + slotUnit <= closeMinutes && slots.length < 16) {
+      const slotStart = currentMinutes;
+      const slotEnd = currentMinutes + slotUnit;
+
+      if (breakStartMin !== null && breakEndMin !== null && !(slotEnd <= breakStartMin || slotStart >= breakEndMin)) {
+        currentMinutes = breakEndMin;
+        continue;
+      }
+
       const h = Math.floor(currentMinutes / 60);
       const m = currentMinutes % 60;
       const period = h >= 12 ? 'م' : 'ص';
@@ -2274,7 +2295,7 @@ function BranchEngineRulesInteractiveForm({
       currentMinutes += totalSlotStride;
     }
     return slots;
-  }, [slotUnit, totalSlotStride]);
+  }, [slotUnit, totalSlotStride, openTimeStr, closeTimeStr, breakStartStr, breakEndStr]);
 
   return (
     <form

@@ -373,11 +373,9 @@ export async function rescheduleCalendarBookingAction(formData: FormData) {
       let reservedTeamId: string | null = null;
       if (!booking.assignedTeamId) {
         reservedTeamId = activeHolds.find(({ teamId }) =>
-          availability.feasibleTeamIds.includes(teamId)
+          Boolean(teamId && availability.feasibleTeamIds.includes(teamId))
         )?.teamId ?? availability.feasibleTeamIds[0] ?? null;
-        if (!reservedTeamId) {
-          throw new CalendarRescheduleError('لم يعد هناك فريق متاح للموعد الجديد.');
-        }
+
         await tx.bookingHold.create({
           data: {
             bookingId: booking.id,

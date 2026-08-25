@@ -442,7 +442,7 @@ export async function createBookingAction(formData: FormData) {
       await tx.bookingHold.create({
         data: {
           bookingId: booking.id,
-          teamId: availability.feasibleTeamIds[0],
+          teamId: availability.feasibleTeamIds[0] ?? null,
           slotStartTime: booking.startAt,
           slotEndTime: booking.endAt,
           expiresAt: new Date(now.getTime() + holdMinutes * 60_000),
