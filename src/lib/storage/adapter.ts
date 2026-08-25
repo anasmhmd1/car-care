@@ -1,4 +1,5 @@
 import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 
 export interface StorageAdapter {
@@ -29,14 +30,17 @@ function normalizedKey(key: string) {
 
 export class LocalVolumeStorageAdapter implements StorageAdapter {
   readonly root: string;
+  readonly fallbackRoot: string;
 
   constructor(root: string) {
     this.root = path.resolve(root);
+    this.fallbackRoot = path.resolve(os.tmpdir(), 'bareeq-uploads');
   }
 
-  private resolveKey(key: string) {
-    const candidate = path.resolve(this.root, normalizedKey(key));
-    const relative = path.relative(this.root, candidate);
+  private resolveKey(key: string, useFallback = false) {
+    const base = useFallback ? this.fallbackRoot : this.root;
+    const candidate = path.resolve(base, normalizedKey(key));
+    const relative = path.relative(base, candidate);
     if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) {
       throw new StorageConfigurationError('Storage key resolves outside the configured root.');
     }
@@ -44,9 +48,19 @@ export class LocalVolumeStorageAdapter implements StorageAdapter {
   }
 
   async put(key: string, data: Buffer) {
-    const destination = this.resolveKey(key);
-    await mkdir(path.dirname(destination), { recursive: true });
-    await writeFile(destination, data);
+    try {
+      const destination = this.resolveKey(key);
+      await mkdir(path.dirname(destination), { recursive: true });
+      await writeFile(destination, data);
+    } catch (err: unknown) {
+      if (err && typeof err === 'object' && 'code' in err && (err.code === 'EROFS' || err.code === 'EACCES' || err.code === 'EPERM')) {
+        const fallbackDest = this.resolveKey(key, true);
+        await mkdir(path.dirname(fallbackDest), { recursive: true });
+        await writeFile(fallbackDest, data);
+        return;
+      }
+      throw err;
+    }
   }
 
   async read(key: string) {
@@ -54,7 +68,11 @@ export class LocalVolumeStorageAdapter implements StorageAdapter {
       return await readFile(this.resolveKey(key));
     } catch (error) {
       if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
-        return null;
+        try {
+          return await readFile(this.resolveKey(key, true));
+        } catch {
+          return null;
+        }
       }
       throw error;
     }

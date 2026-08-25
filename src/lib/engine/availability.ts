@@ -53,6 +53,7 @@ export function canReachFirstTaskFromBase(input: {
   getTravelMinutes: (fromZoneId: string, toZoneId: string) => number;
 }): boolean {
   if (!input.baseZoneId) return true;
+  if (input.baseZoneId === input.targetZoneId) return true;
   const travelMinutes = input.getTravelMinutes(input.baseZoneId, input.targetZoneId);
   return input.operationalDayStartAt.getTime() + travelMinutes * 60_000
     <= input.slotStartAt.getTime();
@@ -346,23 +347,37 @@ function findFeasibleTeamIds(
     const teamHours = team.workingHours[0];
     if (teamHours) {
       if (teamHours.isOff) continue;
+      const openTime = teamHours.openTime || branchHours.openTime;
+      const closeTime = teamHours.closeTime || branchHours.closeTime;
       const teamStart = localDateTimeToUtc(
         formatDateInZone(slotStart, branch.timezone),
-        teamHours.openTime,
+        openTime,
         branch.timezone,
       );
       const teamEnd = localDateTimeToUtc(
         formatDateInZone(slotStart, branch.timezone),
-        teamHours.closeTime,
+        closeTime,
         branch.timezone,
       );
       teamDayStartAt = teamStart;
       if (slotStart < teamStart || slotEnd > teamEnd) continue;
-      if (teamHours.breakStartTime && teamHours.breakEndTime) {
+      if (teamHours.breakStartTime && teamHours.breakEndTime && teamHours.breakStartTime.trim() && teamHours.breakEndTime.trim()) {
         const breakStart = localDateTimeToUtc(formatDateInZone(slotStart, branch.timezone), teamHours.breakStartTime, branch.timezone);
         const breakEnd = localDateTimeToUtc(formatDateInZone(slotStart, branch.timezone), teamHours.breakEndTime, branch.timezone);
         if (intervalsOverlap(slotStart, slotEnd, breakStart, breakEnd)) continue;
       }
+    } else {
+      const branchStart = localDateTimeToUtc(
+        formatDateInZone(slotStart, branch.timezone),
+        branchHours.openTime,
+        branch.timezone,
+      );
+      const branchEnd = localDateTimeToUtc(
+        formatDateInZone(slotStart, branch.timezone),
+        branchHours.closeTime,
+        branch.timezone,
+      );
+      if (slotStart < branchStart || slotEnd > branchEnd) continue;
     }
 
     const restBufferMs = (branch.restBufferMinutes ?? 0) * 60_000;
@@ -376,7 +391,8 @@ function findFeasibleTeamIds(
       .toSorted((first, second) => second.endAt.getTime() - first.endAt.getTime())[0];
     if (previous) {
       const requiredTravel = getTravelMinutes(previous.coverageArea.zoneId, area.zoneId);
-      const totalBufferMs = requiredTravel * 60_000 + restBufferMs;
+      const effectiveTravelMinutes = Math.max(requiredTravel, branch.travelBufferMinutes || 15);
+      const totalBufferMs = effectiveTravelMinutes * 60_000 + restBufferMs;
       if (previous.endAt.getTime() + totalBufferMs > slotStart.getTime()) continue;
     } else if (!canReachFirstTaskFromBase({
       baseZoneId: team.baseZoneId,
@@ -393,7 +409,8 @@ function findFeasibleTeamIds(
       .toSorted((first, second) => first.startAt.getTime() - second.startAt.getTime())[0];
     if (next) {
       const requiredTravel = getTravelMinutes(area.zoneId, next.coverageArea.zoneId);
-      const totalBufferMs = requiredTravel * 60_000 + restBufferMs;
+      const effectiveTravelMinutes = Math.max(requiredTravel, branch.travelBufferMinutes || 15);
+      const totalBufferMs = effectiveTravelMinutes * 60_000 + restBufferMs;
       if (slotEnd.getTime() + totalBufferMs > next.startAt.getTime()) continue;
     }
 
@@ -450,7 +467,7 @@ export async function evaluateRequestedInterval(
   const branchOpen = localDateTimeToUtc(dateStr, context.branchHours.openTime, context.branch.timezone);
   const branchClose = localDateTimeToUtc(dateStr, context.branchHours.closeTime, context.branch.timezone);
   if (request.startAt < branchOpen || endAt > branchClose) return null;
-  if (context.branchHours.breakStartTime && context.branchHours.breakEndTime) {
+  if (context.branchHours.breakStartTime && context.branchHours.breakEndTime && context.branchHours.breakStartTime.trim() && context.branchHours.breakEndTime.trim()) {
     const breakStart = localDateTimeToUtc(dateStr, context.branchHours.breakStartTime, context.branch.timezone);
     const breakEnd = localDateTimeToUtc(dateStr, context.branchHours.breakEndTime, context.branch.timezone);
     if (intervalsOverlap(request.startAt, endAt, breakStart, breakEnd)) return null;
@@ -481,17 +498,58 @@ export async function calculateAvailableSlots(request: SlotRequest): Promise<Ava
     const { branch, branchHours, totalDurationMinutes } = context;
     const openAt = localDateTimeToUtc(request.dateStr, branchHours.openTime, branch.timezone);
     const closeAt = localDateTimeToUtc(request.dateStr, branchHours.closeTime, branch.timezone);
-    const breakStart = branchHours.breakStartTime
-      ? localDateTimeToUtc(request.dateStr, branchHours.breakStartTime, branch.timezone)
+    const hasBreak = Boolean(
+      branchHours.breakStartTime &&
+      branchHours.breakEndTime &&
+      branchHours.breakStartTime.trim() &&
+      branchHours.breakEndTime.trim()
+    );
+    const breakStart = hasBreak
+      ? localDateTimeToUtc(request.dateStr, branchHours.breakStartTime!, branch.timezone)
       : null;
-    const breakEnd = branchHours.breakEndTime
-      ? localDateTimeToUtc(request.dateStr, branchHours.breakEndTime, branch.timezone)
+    const breakEnd = hasBreak
+      ? localDateTimeToUtc(request.dateStr, branchHours.breakEndTime!, branch.timezone)
       : null;
     const durationMs = totalDurationMinutes * 60_000;
-    const stepMs = branch.slotUnitMinutes * 60_000;
+    const travelGapMinutes = branch.travelBufferMinutes ?? 15;
+    const restGapMinutes = branch.restBufferMinutes ?? 0;
+    const totalGapMinutes = Math.max(0, travelGapMinutes + restGapMinutes);
+    const gapMs = totalGapMinutes * 60_000;
+    const strideMs = durationMs + gapMs;
+
+    const candidateStartMs = new Set<number>();
+
+    // 1. Generate partitioned operational slots from opening time with transit gap
+    for (let startMs = openAt.getTime(); startMs + durationMs <= closeAt.getTime(); ) {
+      const startAt = new Date(startMs);
+      const endAt = new Date(startMs + durationMs);
+      if (breakStart && breakEnd && intervalsOverlap(startAt, endAt, breakStart, breakEnd)) {
+        startMs = breakEnd.getTime();
+        continue;
+      }
+      candidateStartMs.add(startMs);
+      startMs += strideMs;
+    }
+
+    // 2. Also consider candidate slots immediately after existing team bookings + transit gap
+    for (const team of context.teams) {
+      for (const booking of team.bookings) {
+        const nextStartMs = booking.endAt.getTime() + gapMs;
+        if (nextStartMs >= openAt.getTime() && nextStartMs + durationMs <= closeAt.getTime()) {
+          const nextStart = new Date(nextStartMs);
+          const nextEnd = new Date(nextStartMs + durationMs);
+          if (breakStart && breakEnd && intervalsOverlap(nextStart, nextEnd, breakStart, breakEnd)) {
+            continue;
+          }
+          candidateStartMs.add(nextStartMs);
+        }
+      }
+    }
+
+    const sortedStartMs = Array.from(candidateStartMs).sort((a, b) => a - b);
     const slots: AvailableSlot[] = [];
 
-    for (let startMs = openAt.getTime(); startMs + durationMs <= closeAt.getTime(); startMs += stepMs) {
+    for (const startMs of sortedStartMs) {
       const startAt = new Date(startMs);
       const endAt = new Date(startMs + durationMs);
       if (startAt <= now) continue;

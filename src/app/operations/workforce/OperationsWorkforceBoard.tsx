@@ -787,8 +787,8 @@ function HoursCard({
       <div className="mt-4 grid grid-cols-2 gap-3">
         <label className="text-[11px] font-bold text-white/45">الفتح<input name="openTime" type="time" required defaultValue={hours.openTime} className={inputClass} /></label>
         <label className="text-[11px] font-bold text-white/45">الإغلاق<input name="closeTime" type="time" required defaultValue={hours.closeTime} className={inputClass} /></label>
-        <label className="text-[11px] font-bold text-white/45">بداية الاستراحة<input name="breakStartTime" type="time" defaultValue={hours.breakStartTime ?? ''} className={inputClass} /></label>
-        <label className="text-[11px] font-bold text-white/45">نهاية الاستراحة<input name="breakEndTime" type="time" defaultValue={hours.breakEndTime ?? ''} className={inputClass} /></label>
+        <label className="text-[11px] font-bold text-white/45">بداية الاستراحة <span className="text-neutral-500 font-normal">(اختياري)</span><input name="breakStartTime" type="time" defaultValue={hours.breakStartTime ?? ''} placeholder="بدون استراحة" className={inputClass} /></label>
+        <label className="text-[11px] font-bold text-white/45">نهاية الاستراحة <span className="text-neutral-500 font-normal">(اختياري)</span><input name="breakEndTime" type="time" defaultValue={hours.breakEndTime ?? ''} placeholder="بدون استراحة" className={inputClass} /></label>
       </div>
       <button type="submit" disabled={tools.pending} className={secondaryButtonClass + ' mt-4 w-full'}><Save className="size-4" aria-hidden="true" />حفظ {day.label}</button>
     </form>

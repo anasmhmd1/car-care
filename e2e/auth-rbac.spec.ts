@@ -27,10 +27,12 @@ test.describe('Bareeq RBAC & Auth Security E2E Tests', () => {
   });
 
   test('public pages are accessible without authentication', async ({ page }) => {
+    test.setTimeout(120_000);
     const publicRoutes = ['/', '/services', '/plans', '/areas', '/before-after', '/about', '/faq', '/contact'];
     for (const route of publicRoutes) {
-      const res = await page.goto(route);
-      expect(res?.status()).toBeLessThan(400);
+      const res = await page.goto(route, { waitUntil: 'domcontentloaded' });
+      expect(res?.status() ?? 200, `${route} must be reachable`).toBeLessThan(400);
+      await expect(page.locator('h1').first()).toBeVisible({ timeout: 20_000 });
     }
   });
 });

@@ -12,9 +12,12 @@ import {
 import {
   ArrowLeft,
   ArrowRight,
+  Calendar,
   CalendarDays,
   Car,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   ClipboardCheck,
   Clock3,
   CreditCard,
@@ -291,6 +294,111 @@ export function getUpcoming7Days(): UpcomingDay[] {
     });
   }
   return days;
+}
+
+export interface CalendarMonthDay {
+  dateStr: string;
+  dayNumber: number;
+  isCurrentMonth: boolean;
+  isToday: boolean;
+  isTomorrow: boolean;
+  isPast: boolean;
+  isBeyondMax: boolean;
+  dayName: string;
+  monthName: string;
+  year: number;
+}
+
+export function getMonthCalendarDays(year: number, month: number, now: Date = new Date()): CalendarMonthDay[] {
+  const todayStr = dateInputValue(now);
+  const maxDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 90);
+  const maxDateStr = dateInputValue(maxDate);
+
+  const dayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+  const monthNames = [
+    'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
+    'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر',
+  ];
+
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
+  const daysInMonth = lastDay.getDate();
+  const startingDayOfWeek = firstDay.getDay(); // 0 = Sunday
+
+  const days: CalendarMonthDay[] = [];
+
+  // Trailing days from previous month
+  const prevMonthLastDay = new Date(year, month, 0).getDate();
+  for (let i = startingDayOfWeek - 1; i >= 0; i--) {
+    const d = new Date(year, month - 1, prevMonthLastDay - i);
+    const dateStr = dateInputValue(d);
+    days.push({
+      dateStr,
+      dayNumber: d.getDate(),
+      isCurrentMonth: false,
+      isToday: dateStr === todayStr,
+      isTomorrow: dateStr === dateInputValue(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)),
+      isPast: dateStr < todayStr,
+      isBeyondMax: dateStr > maxDateStr,
+      dayName: dayNames[d.getDay()],
+      monthName: monthNames[d.getMonth()],
+      year: d.getFullYear(),
+    });
+  }
+
+  // Current month days
+  for (let i = 1; i <= daysInMonth; i++) {
+    const d = new Date(year, month, i);
+    const dateStr = dateInputValue(d);
+    days.push({
+      dateStr,
+      dayNumber: i,
+      isCurrentMonth: true,
+      isToday: dateStr === todayStr,
+      isTomorrow: dateStr === dateInputValue(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)),
+      isPast: dateStr < todayStr,
+      isBeyondMax: dateStr > maxDateStr,
+      dayName: dayNames[d.getDay()],
+      monthName: monthNames[d.getMonth()],
+      year: d.getFullYear(),
+    });
+  }
+
+  // Leading days for next month to complete rows of 7
+  const remainder = 7 - (days.length % 7);
+  if (remainder < 7) {
+    for (let i = 1; i <= remainder; i++) {
+      const d = new Date(year, month + 1, i);
+      const dateStr = dateInputValue(d);
+      days.push({
+        dateStr,
+        dayNumber: i,
+        isCurrentMonth: false,
+        isToday: dateStr === todayStr,
+        isTomorrow: dateStr === dateInputValue(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)),
+        isPast: dateStr < todayStr,
+        isBeyondMax: dateStr > maxDateStr,
+        dayName: dayNames[d.getDay()],
+        monthName: monthNames[d.getMonth()],
+        year: d.getFullYear(),
+      });
+    }
+  }
+
+  return days;
+}
+
+export function formatSelectedDateArabic(dateStr: string): string {
+  if (!dateStr) return '';
+  const [year, month, day] = dateStr.split('-').map(Number);
+  if (!year || !month || !day) return dateStr;
+  const d = new Date(year, month - 1, day);
+  const dayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+  const monthNames = [
+    'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
+    'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر',
+  ];
+  return `${dayNames[d.getDay()]}، ${day} ${monthNames[d.getMonth()]} ${year}`;
 }
 
 function normalizePhone(value: string) {
@@ -616,6 +724,47 @@ export default function BookingWizardClient({
     /^\+?[0-9]{10,15}$/.test(normalizePhone(whatsapp));
   const useSavedContact = Boolean(user) && hasSavedContact;
   const upcomingDays = useMemo(() => getUpcoming7Days(), []);
+  const [calendarViewMode, setCalendarViewMode] = useState<'quick' | 'month'>('quick');
+  const [calendarYear, setCalendarYear] = useState(() => new Date().getFullYear());
+  const [calendarMonth, setCalendarMonth] = useState(() => new Date().getMonth());
+
+  const monthNamesArabic = [
+    'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
+    'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر',
+  ];
+
+  const currentMonthDays = useMemo(
+    () => getMonthCalendarDays(calendarYear, calendarMonth),
+    [calendarYear, calendarMonth]
+  );
+
+  function prevMonth() {
+    const now = new Date();
+    if (calendarYear === now.getFullYear() && calendarMonth <= now.getMonth()) return;
+    if (calendarMonth === 0) {
+      setCalendarYear((y) => y - 1);
+      setCalendarMonth(11);
+    } else {
+      setCalendarMonth((m) => m - 1);
+    }
+  }
+
+  function nextMonth() {
+    const now = new Date();
+    const maxDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 90);
+    if (
+      calendarYear > maxDate.getFullYear() ||
+      (calendarYear === maxDate.getFullYear() && calendarMonth >= maxDate.getMonth())
+    ) {
+      return;
+    }
+    if (calendarMonth === 11) {
+      setCalendarYear((y) => y + 1);
+      setCalendarMonth(0);
+    } else {
+      setCalendarMonth((m) => m + 1);
+    }
+  }
 
   useEffect(() => {
     if (uiError) errorRef.current?.focus();
@@ -1279,9 +1428,9 @@ export default function BookingWizardClient({
               </fieldset>
             )}
 
-            <div className="flex justify-end pt-4">
-              <button data-testid="booking-step-1-next" type="button" onClick={() => { if (validateVehicleDetails()) goToStep(2); }} className="inline-flex items-center gap-2 rounded-xl gold-gradient px-6 py-3 font-bold text-white hover:brightness-110">
-                <span>التالي</span>
+            <div className="flex flex-col sm:flex-row justify-end pt-4">
+              <button data-testid="booking-step-1-next" type="button" onClick={() => { if (validateVehicleDetails()) goToStep(2); }} className="inline-flex items-center justify-center gap-2 rounded-xl gold-gradient px-6 py-3.5 font-bold text-white hover:brightness-110 w-full sm:w-auto text-base">
+                <span>التالي: تحديد الموقع</span>
                 <ArrowLeft aria-hidden="true" className="size-4" />
               </button>
             </div>
@@ -1483,13 +1632,13 @@ export default function BookingWizardClient({
               </div>
             )}
 
-            <div className="flex items-center justify-between gap-3 pt-4">
-              <button type="button" onClick={() => goToStep(1)} className="inline-flex items-center gap-2 rounded-xl border border-neutral-700 px-5 py-3 font-semibold text-white hover:border-white">
+            <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-4">
+              <button type="button" onClick={() => goToStep(1)} className="inline-flex items-center justify-center gap-2 rounded-xl border border-neutral-700 px-5 py-3.5 font-semibold text-white hover:border-white w-full sm:w-auto">
                 <ArrowRight aria-hidden="true" className="size-4" />
                 <span>السابق</span>
               </button>
-              <button data-testid="booking-step-2-next" type="button" onClick={() => { if (validateAddress()) goToStep(3); }} className="inline-flex items-center gap-2 rounded-xl gold-gradient px-6 py-3 font-bold text-white hover:brightness-110">
-                <span>التالي</span>
+              <button data-testid="booking-step-2-next" type="button" onClick={() => { if (validateAddress()) goToStep(3); }} className="inline-flex items-center justify-center gap-2 rounded-xl gold-gradient px-6 py-3.5 font-bold text-white hover:brightness-110 w-full sm:w-auto text-base">
+                <span>التالي: اختيار الموعد</span>
                 <ArrowLeft aria-hidden="true" className="size-4" />
               </button>
             </div>
@@ -1499,62 +1648,212 @@ export default function BookingWizardClient({
         {/* Step 3: Time Slot Selection */}
         {step === 3 && (
           <div aria-busy={loadingSlots} className="space-y-8">
-            <div className="flex items-start gap-4">
-              <div className="rounded-2xl gold-gradient p-3 text-white"><CalendarDays aria-hidden="true" className="w-6 h-6" /></div>
-              <div>
-                <h2 className="text-xl font-bold text-white">اختر موعد الخدمة</h2>
-                <p className="mt-1 text-xs text-white">المواعيد المتاحة محسوبة بدقة حسب جاهزية فرق العمل.</p>
+            <div className="flex items-start justify-between gap-4 flex-wrap">
+              <div className="flex items-start gap-4">
+                <div className="rounded-2xl gold-gradient p-3 text-white">
+                  <CalendarDays aria-hidden="true" className="w-6 h-6" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-white">اختر موعد الخدمة</h2>
+                  <p className="mt-1 text-xs text-white">المواعيد المتاحة محسوبة بدقة حسب جاهزية فرق العمل والجدول التشغيلي.</p>
+                </div>
+              </div>
+
+              {/* View Mode Switcher */}
+              <div className="flex items-center gap-1.5 p-1 bg-[#141414] border border-neutral-800 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => setCalendarViewMode('quick')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    calendarViewMode === 'quick'
+                      ? 'bg-[#cea355] text-black shadow-md'
+                      : 'text-neutral-400 hover:text-white hover:bg-neutral-800/50'
+                  }`}
+                >
+                  الأيام القريبة (7 أيام)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCalendarViewMode('month')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    calendarViewMode === 'month'
+                      ? 'bg-[#cea355] text-black shadow-md'
+                      : 'text-neutral-400 hover:text-white hover:bg-neutral-800/50'
+                  }`}
+                >
+                  <Calendar className="size-3.5" />
+                  <span>التقويم الكامل</span>
+                </button>
               </div>
             </div>
 
-            {/* 7-Day Interactive Day Selector */}
-            <div className="space-y-3">
-              <label className={labelClass}>أيام الحجز المتاحة (الـ 7 أيام القادمة)</label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5">
-                {upcomingDays.map((day) => {
-                  const isSelected = selectedDate === day.dateStr;
-                  return (
-                    <button
-                      key={day.dateStr}
-                      type="button"
-                      onClick={() => {
-                        setSelectedDate(day.dateStr);
-                        setSelectedSlot(null);
-                      }}
-                      className={`flex flex-col items-center justify-center p-3 sm:p-3.5 rounded-2xl border transition-all text-center relative min-h-[96px] ${
-                        isSelected
-                          ? 'border-[#cea355] bg-[#cea355]/20 shadow-lg shadow-[#cea355]/15 ring-2 ring-[#cea355]'
-                          : 'border-neutral-800 bg-[#161616] hover:border-neutral-700 hover:bg-[#1f1f1f]'
-                      }`}
-                    >
-                      <div className="h-5 flex items-center justify-center mb-1">
-                        {day.isToday ? (
-                          <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-[#cea355] text-black whitespace-nowrap shadow-sm">
-                            اليوم
-                          </span>
-                        ) : day.isTomorrow ? (
-                          <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-white/20 text-white whitespace-nowrap shadow-sm">
-                            غداً
-                          </span>
-                        ) : (
-                          <span className="inline-block h-4" />
-                        )}
-                      </div>
-                      <span className={`text-sm font-bold block leading-tight ${isSelected ? 'text-[#edce8b]' : 'text-white'}`}>
-                        {day.dayName}
-                      </span>
-                      <span className="text-xs text-neutral-400 font-mono mt-1 block leading-none">
-                        {day.dayNumber} {day.monthName}
-                      </span>
-                    </button>
-                  );
-                })}
+            {/* Selected Date Summary Banner */}
+            <div className="flex items-center justify-between gap-3 p-4 rounded-2xl border border-[#cea355]/30 bg-[#cea355]/10 text-white">
+              <div className="flex items-center gap-3">
+                <div className="size-2 rounded-full bg-[#edce8b] animate-pulse" />
+                <span className="text-xs sm:text-sm font-bold text-white">
+                  اليوم المختار:{' '}
+                  <strong className="text-[#edce8b] text-sm sm:text-base font-black">
+                    {formatSelectedDateArabic(selectedDate)}
+                  </strong>
+                </span>
               </div>
+              <span className="text-[11px] font-semibold text-neutral-400 hidden sm:inline-block">
+                متاح حتى 90 يومًا مسبقًا
+              </span>
             </div>
+
+            {/* Mode 1: Quick 7-Day Selector */}
+            {calendarViewMode === 'quick' && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className={labelClass}>أيام الحجز السريعة</label>
+                  <button
+                    type="button"
+                    onClick={() => setCalendarViewMode('month')}
+                    className="text-xs font-bold text-[#edce8b] hover:underline"
+                  >
+                    فتح التقويم الكامل لشهور قادمة ←
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5">
+                  {upcomingDays.map((day) => {
+                    const isSelected = selectedDate === day.dateStr;
+                    return (
+                      <button
+                        key={day.dateStr}
+                        type="button"
+                        onClick={() => {
+                          setSelectedDate(day.dateStr);
+                          setSelectedSlot(null);
+                        }}
+                        className={`flex flex-col items-center justify-center p-3 sm:p-3.5 rounded-2xl border transition-all text-center relative min-h-[96px] ${
+                          isSelected
+                            ? 'border-[#cea355] bg-[#cea355]/20 shadow-lg shadow-[#cea355]/15 ring-2 ring-[#cea355]'
+                            : 'border-neutral-800 bg-[#161616] hover:border-neutral-700 hover:bg-[#1f1f1f]'
+                        }`}
+                      >
+                        <div className="h-5 flex items-center justify-center mb-1">
+                          {day.isToday ? (
+                            <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-[#cea355] text-black whitespace-nowrap shadow-sm">
+                              اليوم
+                            </span>
+                          ) : day.isTomorrow ? (
+                            <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-white/20 text-white whitespace-nowrap shadow-sm">
+                              غداً
+                            </span>
+                          ) : (
+                            <span className="inline-block h-4" />
+                          )}
+                        </div>
+                        <span className={`text-sm font-bold block leading-tight ${isSelected ? 'text-[#edce8b]' : 'text-white'}`}>
+                          {day.dayName}
+                        </span>
+                        <span className="text-xs text-neutral-400 font-mono mt-1 block leading-none">
+                          {day.dayNumber} {day.monthName}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Mode 2: Full Interactive Month Calendar */}
+            {calendarViewMode === 'month' && (
+              <div className="rounded-2xl border border-neutral-800 bg-[#0d0d0d] p-4 sm:p-6 space-y-4">
+                {/* Month Navigator Header */}
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="size-5 text-[#edce8b]" />
+                    <h3 className="text-base sm:text-lg font-black text-white">
+                      {monthNamesArabic[calendarMonth]} {calendarYear}
+                    </h3>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={prevMonth}
+                      className="size-9 flex items-center justify-center rounded-xl border border-neutral-800 bg-[#171717] hover:bg-[#222] text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                      aria-label="الشهر السابق"
+                    >
+                      <ChevronRight className="size-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={nextMonth}
+                      className="size-9 flex items-center justify-center rounded-xl border border-neutral-800 bg-[#171717] hover:bg-[#222] text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                      aria-label="الشهر التالي"
+                    >
+                      <ChevronLeft className="size-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Weekday Headers */}
+                <div className="grid grid-cols-7 gap-1 text-center font-bold text-xs text-neutral-400 pb-2 border-b border-neutral-800">
+                  <span>الأحد</span>
+                  <span>الاثنين</span>
+                  <span>الثلاثاء</span>
+                  <span>الأربعاء</span>
+                  <span>الخميس</span>
+                  <span>الجمعة</span>
+                  <span>السبت</span>
+                </div>
+
+                {/* Days Grid */}
+                <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
+                  {currentMonthDays.map((day) => {
+                    const isSelected = selectedDate === day.dateStr;
+                    const isDisabled = day.isPast || day.isBeyondMax;
+
+                    return (
+                      <button
+                        key={day.dateStr}
+                        type="button"
+                        disabled={isDisabled}
+                        onClick={() => {
+                          if (isDisabled) return;
+                          setSelectedDate(day.dateStr);
+                          setSelectedSlot(null);
+                        }}
+                        className={`relative flex flex-col items-center justify-center py-2.5 sm:py-3.5 px-1 rounded-xl sm:rounded-2xl border text-center transition-all ${
+                          isDisabled
+                            ? 'border-transparent text-neutral-600 bg-neutral-950/40 cursor-not-allowed opacity-35'
+                            : isSelected
+                            ? 'border-[#cea355] bg-[#cea355]/25 shadow-lg shadow-[#cea355]/20 ring-2 ring-[#cea355] text-[#edce8b] font-black'
+                            : day.isCurrentMonth
+                            ? 'border-neutral-800/80 bg-[#141414] text-white hover:border-neutral-600 hover:bg-[#1f1f1f]'
+                            : 'border-transparent text-neutral-500 bg-[#0f0f0f] hover:border-neutral-800 hover:text-neutral-300'
+                        }`}
+                      >
+                        {day.isToday && (
+                          <span className="absolute top-1 right-1 size-1.5 sm:size-2 rounded-full bg-[#cea355] ring-2 ring-black" />
+                        )}
+                        <span className="text-xs sm:text-base font-black leading-tight">
+                          {day.dayNumber}
+                        </span>
+                        <span className="text-[10px] mt-0.5 leading-none hidden sm:block opacity-75">
+                          {day.isToday ? 'اليوم' : day.isTomorrow ? 'غداً' : ''}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Slot Selection */}
             <div aria-live="polite" className="space-y-3">
-              <label className={labelClass}>المواعيد المتاحة</label>
+              <div className="flex items-center justify-between">
+                <label className={labelClass}>المواعيد المتاحة ليوم {formatSelectedDateArabic(selectedDate)}</label>
+                {availableSlots.length > 0 && (
+                  <span className="text-xs font-bold text-emerald-400">
+                    ({availableSlots.length} موعد متاح)
+                  </span>
+                )}
+              </div>
 
               {loadingSlots ? (
                 <div className="flex items-center justify-center gap-3 rounded-2xl border border-neutral-800 py-10 text-white font-bold bg-[#141414]">
@@ -1574,7 +1873,7 @@ export default function BookingWizardClient({
                     لا توجد مواعيد متاحة في هذا اليوم.
                   </p>
                   <p className="text-xs text-neutral-400">
-                    جميع المواعيد محجوزة في منطقتك لهذا اليوم. يُرجى اختيار يوم آخر من الأيام بالأعلى.
+                    جميع المواعيد محجوزة أو مغلقة في هذا اليوم. يُرجى اختيار يوم آخر من التقويم بالأعلى.
                   </p>
                 </div>
               ) : (
@@ -1616,13 +1915,13 @@ export default function BookingWizardClient({
               )}
             </div>
 
-            <div className="flex items-center justify-between gap-3 pt-4">
-              <button type="button" onClick={() => goToStep(2)} className="inline-flex items-center gap-2 rounded-xl border border-neutral-700 px-5 py-3 font-semibold text-white hover:border-white">
+            <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-4">
+              <button type="button" onClick={() => goToStep(2)} className="inline-flex items-center justify-center gap-2 rounded-xl border border-neutral-700 px-5 py-3 font-semibold text-white hover:border-white w-full sm:w-auto">
                 <ArrowRight aria-hidden="true" className="size-4" />
                 <span>السابق</span>
               </button>
-              <button data-testid="booking-step-3-next" type="button" disabled={!selectedSlot || loadingSlots} onClick={() => { if (!selectedSlot) { showError('اختر موعدًا متاحًا.', 'booking-slots'); return; } goToStep(4); }} className="inline-flex items-center gap-2 rounded-xl gold-gradient px-6 py-3 font-bold text-white hover:brightness-110 disabled:opacity-50">
-                <span>التالي</span>
+              <button data-testid="booking-step-3-next" type="button" disabled={!selectedSlot || loadingSlots} onClick={() => { if (!selectedSlot) { showError('اختر موعدًا متاحًا.', 'booking-slots'); return; } goToStep(4); }} className="inline-flex items-center justify-center gap-2 rounded-xl gold-gradient px-6 py-3 font-bold text-white hover:brightness-110 disabled:opacity-50 w-full sm:w-auto">
+                <span>التالي: بيانات التواصل</span>
                 <ArrowLeft aria-hidden="true" className="size-4" />
               </button>
             </div>
@@ -1668,12 +1967,12 @@ export default function BookingWizardClient({
               <textarea id="customer-notes" rows={3} value={customerNotes} onChange={(e) => setCustomerNotes(e.target.value)} maxLength={1000} className={inputClass} placeholder="أي تعليمات أو ملاحظات إضافية ترغب في إبلاغها للفريق..." />
             </div>
 
-            <div className="flex items-center justify-between gap-3 pt-4">
-              <button type="button" onClick={() => goToStep(3)} className="inline-flex items-center gap-2 rounded-xl border border-neutral-700 px-5 py-3 font-semibold text-white hover:border-white">
+            <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-4">
+              <button type="button" onClick={() => goToStep(3)} className="inline-flex items-center justify-center gap-2 rounded-xl border border-neutral-700 px-5 py-3.5 font-semibold text-white hover:border-white w-full sm:w-auto">
                 <ArrowRight aria-hidden="true" className="size-4" />
                 <span>السابق</span>
               </button>
-              <button data-testid="booking-step-4-next" type="button" onClick={() => { if (validateContact()) goToStep(5); }} className="inline-flex items-center gap-2 rounded-xl gold-gradient px-6 py-3 font-bold text-white hover:brightness-110">
+              <button data-testid="booking-step-4-next" type="button" onClick={() => { if (validateContact()) goToStep(5); }} className="inline-flex items-center justify-center gap-2 rounded-xl gold-gradient px-6 py-3.5 font-bold text-white hover:brightness-110 w-full sm:w-auto text-base">
                 <span>مراجعة وتأكيد الحجز</span>
                 <ArrowLeft aria-hidden="true" className="size-4" />
               </button>
@@ -1782,9 +2081,11 @@ export default function BookingWizardClient({
                               </span>
                             </div>
                             <span className="mt-1 block text-xs text-neutral-300">اسم صاحب الحساب: <strong className="text-white">{method.accountName}</strong></span>
-                            <div className="mt-2.5 flex items-center gap-2 bg-[#090909] p-3 rounded-xl border border-neutral-800">
-                              <span className="text-xs text-neutral-400 font-semibold">رقم التحويل / المحفظة:</span>
-                              <span dir="ltr" className="font-mono text-base font-black text-[#edce8b] flex-1 tracking-wider">{method.accountNumber}</span>
+                            <div className="mt-2.5 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 bg-[#090909] p-3 rounded-xl border border-neutral-800">
+                              <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 min-w-0">
+                                <span className="text-[11px] text-neutral-400 font-semibold shrink-0">رقم التحويل / المحفظة:</span>
+                                <span dir="ltr" className="font-mono text-sm sm:text-base font-black text-[#edce8b] tracking-wider break-all">{method.accountNumber}</span>
+                              </div>
                               <button
                                 type="button"
                                 onClick={(e) => {
@@ -1792,7 +2093,7 @@ export default function BookingWizardClient({
                                   e.stopPropagation();
                                   copyToClipboard(method.accountNumber, method.id);
                                 }}
-                                className="inline-flex items-center gap-1 text-xs font-bold bg-[#1a1a1a] hover:bg-[#282828] text-white px-3 py-1.5 rounded-lg border border-neutral-700 transition-colors"
+                                className="inline-flex items-center justify-center gap-1.5 text-xs font-bold bg-[#1a1a1a] hover:bg-[#282828] text-white px-3.5 py-2 rounded-lg border border-neutral-700 transition-colors shrink-0 active:scale-95"
                               >
                                 {copiedMethodId === method.id ? (
                                   <>
@@ -1801,7 +2102,7 @@ export default function BookingWizardClient({
                                   </>
                                 ) : (
                                   <>
-                                    <Copy className="size-3.5" />
+                                    <Copy className="size-3.5 text-[#edce8b]" />
                                     <span>نسخ الرقم</span>
                                   </>
                                 )}
@@ -1876,12 +2177,12 @@ export default function BookingWizardClient({
               </span>
             </label>
 
-            <div className="flex items-center justify-between gap-3 pt-4">
-              <button type="button" disabled={bookingSubmitting} onClick={() => goToStep(4)} className="inline-flex items-center gap-2 rounded-xl border border-neutral-700 px-5 py-3 font-semibold text-white hover:border-white disabled:opacity-50">
+            <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-4">
+              <button type="button" disabled={bookingSubmitting} onClick={() => goToStep(4)} className="inline-flex items-center justify-center gap-2 rounded-xl border border-neutral-700 px-5 py-3 font-semibold text-white hover:border-white disabled:opacity-50 w-full sm:w-auto">
                 <ArrowRight aria-hidden="true" className="size-4" />
                 <span>السابق</span>
               </button>
-              <button data-testid="booking-submit" type="button" onClick={createBooking} disabled={bookingSubmitting || (estimatedTransferAmount > 0 && !proofFile && !uploadedProofFileId)} className="inline-flex min-w-56 items-center justify-center gap-2 rounded-xl gold-gradient px-7 py-3.5 font-black text-white hover:brightness-110 disabled:opacity-50 shadow-xl shadow-[#cea355]/20">
+              <button data-testid="booking-submit" type="button" onClick={createBooking} disabled={bookingSubmitting || (estimatedTransferAmount > 0 && !proofFile && !uploadedProofFileId)} className="inline-flex items-center justify-center gap-2 rounded-xl gold-gradient px-7 py-3.5 font-black text-white hover:brightness-110 disabled:opacity-50 shadow-xl shadow-[#cea355]/20 w-full sm:w-auto min-h-12 text-base">
                 {bookingSubmitting ? (
                   <>
                     <LoaderCircle aria-hidden="true" className="size-4 animate-spin text-white" />
@@ -1890,7 +2191,7 @@ export default function BookingWizardClient({
                 ) : (
                   <>
                     <ShieldCheck aria-hidden="true" className="size-4" />
-                    <span>تأكيد الحجز</span>
+                    <span>تأكيد الحجز النهائي</span>
                   </>
                 )}
               </button>

@@ -20,10 +20,10 @@ const description = 'BAREEQ Premium Mobile Auto Care — official website.';
 
 export const metadata: Metadata = {
   metadataBase: siteUrl,
-  applicationName: 'BAREEQ',
+  applicationName: 'بريق | BAREEQ',
   title: {
-    default: 'BAREEQ',
-    template: 'BAREEQ',
+    default: 'بريق | BAREEQ',
+    template: '%s | بريق BAREEQ',
   },
   description,
   keywords: ['غسيل سيارات متنقل', 'غسيل جاف', 'تفصيل سيارات', 'بريق', 'Bareeq', 'عناية بالسيارات', 'تلميع سيارات'],

@@ -9,6 +9,7 @@ import {
   CalendarClock,
   Check,
   ClipboardCheck,
+  Clock3,
   CreditCard,
   Gauge,
   MapPinned,
@@ -2244,6 +2245,237 @@ function TravelMatrix({ branch, tools }: { branch: SetupBranchDto; tools: Sectio
   );
 }
 
+function BranchEngineRulesInteractiveForm({
+  branch,
+  tools,
+}: {
+  branch: SetupBranchDto;
+  tools: SectionTools;
+}) {
+  const [slotUnit, setSlotUnit] = useState<number>(branch.slotUnitMinutes ?? 60);
+  const [travelBuffer, setTravelBuffer] = useState<number>(branch.travelBufferMinutes ?? 15);
+  const [restBuffer, setRestBuffer] = useState<number>(branch.restBufferMinutes ?? 0);
+
+  const totalGap = Math.max(0, travelBuffer + restBuffer);
+  const totalSlotStride = slotUnit + totalGap;
+
+  const previewSlots = useMemo(() => {
+    const slots: string[] = [];
+    let currentMinutes = 9 * 60; // 09:00 AM
+    const closeMinutes = 18 * 60; // 06:00 PM
+
+    while (currentMinutes + slotUnit <= closeMinutes && slots.length < 8) {
+      const h = Math.floor(currentMinutes / 60);
+      const m = currentMinutes % 60;
+      const period = h >= 12 ? 'م' : 'ص';
+      const displayH = h === 0 ? 12 : h > 12 ? h - 12 : h;
+      const formatted = `${String(displayH).padStart(2, '0')}:${String(m).padStart(2, '0')} ${period}`;
+      slots.push(formatted);
+      currentMinutes += totalSlotStride;
+    }
+    return slots;
+  }, [slotUnit, totalSlotStride]);
+
+  return (
+    <form
+      onSubmit={(event) => tools.execute(saveBranchOperationsConfigAction, formDataFrom(event))}
+      className="space-y-6"
+    >
+      <input type="hidden" name="branchId" value={branch.id} />
+      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <div>
+          <label className="text-xs font-bold text-white/80 block mb-1">
+            مدة السلوت التشغيلي (Slot Unit بالدقائق)
+          </label>
+          <input
+            name="slotUnitMinutes"
+            type="number"
+            min={15}
+            max={240}
+            required
+            value={slotUnit}
+            onChange={(e) => setSlotUnit(Math.max(15, Number(e.target.value)))}
+            className={inputClass}
+          />
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {[15, 30, 45, 60, 90, 120].map((preset) => (
+              <button
+                key={preset}
+                type="button"
+                onClick={() => setSlotUnit(preset)}
+                className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-colors ${
+                  slotUnit === preset
+                    ? 'border-[#cea355] bg-[#cea355]/20 text-[#edce8b]'
+                    : 'border-white/10 bg-black/40 text-neutral-400 hover:text-white'
+                }`}
+              >
+                {preset} دقيقة {preset === 60 ? '(ساعة)' : ''}
+              </button>
+            ))}
+          </div>
+          <span className="mt-1 block text-[10px] text-neutral-400">
+            وحدة البناء الأساسية التي تُقاس بها أوقات الخدمات في جدول التشغيل.
+          </span>
+        </div>
+
+        <div>
+          <label className="text-xs font-bold text-white/80 block mb-1">
+            وقت الانتقال بين العملاء (Travel Buffer بالدقائق)
+          </label>
+          <input
+            name="travelBufferMinutes"
+            type="number"
+            min={0}
+            max={180}
+            required
+            value={travelBuffer}
+            onChange={(e) => setTravelBuffer(Math.max(0, Number(e.target.value)))}
+            className={inputClass}
+          />
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {[0, 10, 15, 20, 30, 45].map((preset) => (
+              <button
+                key={preset}
+                type="button"
+                onClick={() => setTravelBuffer(preset)}
+                className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-colors ${
+                  travelBuffer === preset
+                    ? 'border-[#cea355] bg-[#cea355]/20 text-[#edce8b]'
+                    : 'border-white/10 bg-black/40 text-neutral-400 hover:text-white'
+                }`}
+              >
+                {preset} دقيقة {preset === 0 ? '(بدون)' : ''}
+              </button>
+            ))}
+          </div>
+          <span className="mt-1 block text-[10px] text-neutral-400">
+            الفاصل الزمني المتروك تلقائياً بين انتهاء الخدمة وبداية الموعد التالي لانتقال الفريق.
+          </span>
+        </div>
+
+        <div>
+          <label className="text-xs font-bold text-white/80 block mb-1">
+            وقت الراحة والتجهيز الإضافي (Rest Buffer بالدقائق)
+          </label>
+          <input
+            name="restBufferMinutes"
+            type="number"
+            min={0}
+            max={180}
+            required
+            value={restBuffer}
+            onChange={(e) => setRestBuffer(Math.max(0, Number(e.target.value)))}
+            className={inputClass}
+            placeholder="0 = بدون راحة إضافية"
+          />
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {[0, 15, 30, 60].map((preset) => (
+              <button
+                key={preset}
+                type="button"
+                onClick={() => setRestBuffer(preset)}
+                className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-colors ${
+                  restBuffer === preset
+                    ? 'border-[#cea355] bg-[#cea355]/20 text-[#edce8b]'
+                    : 'border-white/10 bg-black/40 text-neutral-400 hover:text-white'
+                }`}
+              >
+                {preset} دقيقة {preset === 0 ? '(بدون)' : ''}
+              </button>
+            ))}
+          </div>
+          <span className="mt-1 block text-[10px] text-neutral-400">
+            وقت استراحة إضافي اختياري لفريق العمل بين المواعيد.
+          </span>
+        </div>
+
+        <div>
+          <label className="text-xs font-bold text-white/80 block mb-1">
+            نافذة الوصول المتوقعة (Arrival Window)
+          </label>
+          <input
+            name="arrivalWindowMinutes"
+            type="number"
+            min={0}
+            max={180}
+            required
+            defaultValue={branch.arrivalWindowMinutes}
+            className={inputClass}
+          />
+          <span className="mt-1 block text-[10px] text-neutral-400">
+            نطاق الوصول المعروض للعميل (مثال: من 09:00 إلى 09:30).
+          </span>
+        </div>
+
+        <div>
+          <label className="text-xs font-bold text-white/80 block mb-1">
+            الحد الأقصى للحجوزات اليومية للفرع
+          </label>
+          <input
+            name="dailyBookingLimit"
+            type="number"
+            min={1}
+            max={500}
+            required
+            defaultValue={branch.dailyBookingLimit}
+            className={inputClass}
+          />
+        </div>
+
+        <div>
+          <label className="text-xs font-bold text-white/80 block mb-1">
+            نمط إسناد الحجوزات للفرق
+          </label>
+          <select name="assignmentMode" defaultValue={branch.assignmentMode} className={inputClass}>
+            <option value="AUTOMATIC">تلقائي حسب المحرك والمسارات</option>
+            <option value="MANUAL">يدوي من لوحة التشغيل</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Live Preview of Slot Partitioning with Travel Gap */}
+      <div className="rounded-2xl border border-[#cea355]/30 bg-[#cea355]/[0.06] p-5 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#cea355]/20 pb-3">
+          <div className="flex items-center gap-2">
+            <Clock3 className="size-4 text-[#edce8b]" />
+            <span className="text-xs font-black text-white">
+              معاينة حية لتقسيم فترات التشغيل والمواعيد المعروضة للعميل:
+            </span>
+          </div>
+          <span className="text-[11px] font-bold text-[#edce8b]">
+            مدة الخدمة: {slotUnit} دقيقة · فاصل الانتقال: {totalGap} دقيقة · الخطوة الإجمالية: {totalSlotStride} دقيقة
+          </span>
+        </div>
+
+        <p className="text-xs text-white/80 leading-5">
+          بناءً على هذه الإعدادات (إذا بدأ اليوم 09:00 ص)، ستظهر مواعيد الحجز للعميل مقسمة بالفواصل الزمنية كالتالي:
+        </p>
+
+        <div className="flex flex-wrap gap-2 pt-1">
+          {previewSlots.map((slotTime, idx) => (
+            <div
+              key={slotTime}
+              className="flex items-center gap-1.5 rounded-xl border border-[#cea355]/40 bg-black/60 px-3 py-2 text-xs font-black text-[#edce8b]"
+            >
+              <span className="size-1.5 rounded-full bg-[#cea355]" />
+              <span>{slotTime}</span>
+              {idx < previewSlots.length - 1 && totalGap > 0 && (
+                <span className="text-[10px] text-neutral-400 font-normal mr-1">
+                  (+{totalGap}د انتقال)
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex justify-end border-t border-white/8 pt-5">
+        <SaveButton pending={tools.pending} label="حفظ قواعد المحرك وتوزيع السلوتات" />
+      </div>
+    </form>
+  );
+}
+
 function ScheduleSection({ branch, employees, tools }: {
   branch: SetupBranchDto;
   employees: SetupEmployeeDto[];
@@ -2254,70 +2486,11 @@ function ScheduleSection({ branch, employees, tools }: {
   return (
     <>
       <Panel
-        title="قواعد السعة والإسناد"
-        description="هذه القيم تدخل في توليد المواعيد، النوافذ الزمنية، وحد الفرع اليومي."
+        title="قواعد السعة وتوزيع السلوتات التشغيلية"
+        description="هذه القيم تدخل مباشرة في تقسيم فترات التشغيل، حساب مدة السلوت، ووقت الانتقال بين العملاء."
         actions={<Gauge className="size-5 text-[#d4af37]" aria-hidden="true" />}
       >
-        <form
-          onSubmit={(event) => tools.execute(saveBranchOperationsConfigAction, formDataFrom(event))}
-          className="space-y-5"
-        >
-          <input type="hidden" name="branchId" value={branch.id} />
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <label className="text-xs font-bold text-white/65">
-              وحدة الموعد بالدقائق
-              <input name="slotUnitMinutes" type="number" min={15} max={240} required defaultValue={branch.slotUnitMinutes} className={inputClass} />
-            </label>
-            <label className="text-xs font-bold text-white/65">
-              نافذة الوصول
-              <input name="arrivalWindowMinutes" type="number" min={0} max={180} required defaultValue={branch.arrivalWindowMinutes} className={inputClass} />
-            </label>
-            <label className="text-xs font-bold text-white/65">
-              احتياطي الانتقال (بين المناطق)
-              <input name="travelBufferMinutes" type="number" min={0} max={180} required defaultValue={branch.travelBufferMinutes} className={inputClass} />
-            </label>
-            <label className="text-xs font-bold text-white/65">
-              وقت البريك بين السلوتات (بالدقائق)
-              <input
-                name="restBufferMinutes"
-                type="number"
-                min={0}
-                max={180}
-                required
-                defaultValue={branch.restBufferMinutes ?? 0}
-                className={inputClass}
-                placeholder="0 = بدون بريك، 15 = ربع ساعة، 60 = سلوت كامل"
-              />
-            </label>
-            <label className="text-xs font-bold text-white/65">
-              الحد اليومي
-              <input name="dailyBookingLimit" type="number" min={1} max={500} required defaultValue={branch.dailyBookingLimit} className={inputClass} />
-            </label>
-            <label className="text-xs font-bold text-white/65">
-              نمط الإسناد
-              <select name="assignmentMode" defaultValue={branch.assignmentMode} className={inputClass}>
-                <option value="AUTOMATIC">تلقائي حسب المحرك</option>
-                <option value="MANUAL">يدوي من التشغيل</option>
-              </select>
-            </label>
-          </div>
-          <div className="rounded-xl border border-[#cea355]/20 bg-[#cea355]/[0.04] p-4 text-xs leading-5 text-white/70 space-y-1.5">
-            <p className="font-bold text-[#edce8b]">تخصيص وقت البريك والراحة بين كل سلوت وآخر (Rest Buffer):</p>
-            <p className="text-white/65">
-              يمكنك تحديد وقت فاصل (بريك) بين السلوتات والحجوزات المتتالية لنفس الفريق:
-            </p>
-            <ul className="list-disc list-inside space-y-1 text-white/55 text-[11px] pr-2">
-              <li><strong className="text-white">0 دقيقة:</strong> بدون أي بريك (حجوزات متتالية مباشرة).</li>
-              <li><strong className="text-white">15 دقيقة:</strong> بريك ربع ساعة بين كل موعد والآخر لفريق العمل.</li>
-              <li><strong className="text-white">30 دقيقة:</strong> بريك نصف ساعة راحة وتجهيز.</li>
-              <li><strong className="text-white">60 دقيقة:</strong> ترك سلوت كامل فاضي (ساعة كاملة) بين كل حجزين.</li>
-              <li>أو يمكنك كتابة أي عدد دقائق مخصص (حتى 180 دقيقة).</li>
-            </ul>
-          </div>
-          <div className="flex justify-end border-t border-white/8 pt-5">
-            <SaveButton pending={tools.pending} label="حفظ قواعد المحرك" />
-          </div>
-        </form>
+        <BranchEngineRulesInteractiveForm branch={branch} tools={tools} />
       </Panel>
 
       <Panel
@@ -2473,12 +2646,12 @@ function HoursCard({
           <input name="closeTime" type="time" required defaultValue={hours?.closeTime ?? '16:00'} className={inputClass} />
         </label>
         <label className="text-[11px] font-bold text-white/45">
-          بداية الاستراحة
-          <input name="breakStartTime" type="time" defaultValue={hours?.breakStartTime ?? ''} className={inputClass} />
+          بداية الاستراحة <span className="text-neutral-500 font-normal">(اختياري)</span>
+          <input name="breakStartTime" type="time" defaultValue={hours?.breakStartTime ?? ''} placeholder="بدون استراحة" className={inputClass} />
         </label>
         <label className="text-[11px] font-bold text-white/45">
-          نهاية الاستراحة
-          <input name="breakEndTime" type="time" defaultValue={hours?.breakEndTime ?? ''} className={inputClass} />
+          نهاية الاستراحة <span className="text-neutral-500 font-normal">(اختياري)</span>
+          <input name="breakEndTime" type="time" defaultValue={hours?.breakEndTime ?? ''} placeholder="بدون استراحة" className={inputClass} />
         </label>
       </div>
       <button type="submit" disabled={tools.pending} className={secondaryButtonClass + ' mt-4 w-full'}>

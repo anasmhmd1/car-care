@@ -103,11 +103,10 @@ export async function deductEmployeeMaterialsForCompletedBooking(
     });
 
     if (branchStock) {
-      const integerDeduct = Math.round(qtyToDeduct);
       const updatedBranchStock = await tx.branchMaterialStock.update({
         where: { id: branchStock.id },
         data: {
-          quantityOnHand: { decrement: integerDeduct },
+          quantityOnHand: { decrement: qtyToDeduct },
         },
       });
 
@@ -116,9 +115,9 @@ export async function deductEmployeeMaterialsForCompletedBooking(
           branchStockId: branchStock.id,
           bookingId: input.bookingId,
           type: MaterialMovementType.CONSUMPTION,
-          quantityChange: -integerDeduct,
+          quantityChange: -qtyToDeduct,
           balanceAfter: updatedBranchStock.quantityOnHand,
-          reason: `استهلاك آلي لحجز #${input.bookingNumber}`,
+          reason: `استهلاك آلي لحجز #${input.bookingNumber} (${formattedAmount.fullDescription} ${matName})`,
           createdByUserId: input.actorUserId,
         },
       });

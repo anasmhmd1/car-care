@@ -14,6 +14,8 @@ export function allowsLegacyAvailabilitySeedIds(
   _environment = process.env.NODE_ENV,
   _explicitOptIn = process.env.ALLOW_LEGACY_SEED_IDS,
 ) {
+  void _environment;
+  void _explicitOptIn;
   return true;
 }
 
@@ -53,6 +55,7 @@ export function isAvailabilityDateInWindow(value: string, now = new Date()) {
 export function createAvailabilityRequestSchema(
   _allowLegacySeedIds = allowsLegacyAvailabilitySeedIds(),
 ) {
+  void _allowLegacySeedIds;
   const addonIdsSchema = z.array(databaseIdSchema)
     .max(MAX_AVAILABILITY_ADDON_IDS, `يمكن اختيار ${MAX_AVAILABILITY_ADDON_IDS} إضافات كحد أقصى.`)
     .superRefine((addonIds, context) => {

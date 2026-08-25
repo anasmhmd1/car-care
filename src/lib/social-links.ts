@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { z } from 'zod';
 import { db } from '@/lib/db';
 
@@ -44,7 +45,7 @@ export function readSocialLinks(value: unknown): SocialLinks {
 /**
  * Fetches public social media links directly from the database for server-rendered components.
  */
-export async function getPublicSocialLinks(): Promise<SocialLinks> {
+export const getPublicSocialLinks = cache(async function getPublicSocialLinks(): Promise<SocialLinks> {
   try {
     const brand = await db.brandSettings.findFirst({
       select: { homepageContent: true },
@@ -54,4 +55,4 @@ export async function getPublicSocialLinks(): Promise<SocialLinks> {
     console.error('Failed to get public social links:', error);
     return DEFAULT_SOCIAL_LINKS;
   }
-}
+});

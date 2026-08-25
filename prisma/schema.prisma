@@ -767,7 +767,7 @@ model ServiceMaterialRequirement {
   id         String   @id @default(uuid())
   serviceId  String
   materialId String
-  quantity   Int      @default(1)
+  quantity   Float    @default(1)
   required   Boolean  @default(true)
   notes      String?
   createdAt  DateTime @default(now())
@@ -784,8 +784,8 @@ model BranchMaterialStock {
   id               String   @id @default(uuid())
   branchId         String
   materialId       String
-  quantityOnHand   Int      @default(0)
-  reservedQuantity Int      @default(0)
+  quantityOnHand   Float    @default(0)
+  reservedQuantity Float    @default(0)
   reorderPoint     Int?
   active           Boolean  @default(true)
   updatedAt        DateTime @updatedAt
@@ -803,8 +803,8 @@ model InventoryMovement {
   branchStockId   String
   bookingId       String?
   type            MaterialMovementType
-  quantityChange  Int
-  balanceAfter    Int
+  quantityChange  Float
+  balanceAfter    Float
   reason          String?
   createdByUserId String
   createdAt       DateTime             @default(now())

@@ -141,7 +141,17 @@ function jsonArray(value: FormDataEntryValue | null): unknown[] {
 
 function stringList(value: FormDataEntryValue | null): string[] {
   if (typeof value !== 'string') return [];
-  return [...new Set(value.split(/\r?\n/).map((entry) => entry.trim()).filter(Boolean))];
+  const trimmed = value.trim();
+  if (!trimmed || trimmed === '[]') return [];
+  try {
+    const parsed: unknown = JSON.parse(trimmed);
+    if (Array.isArray(parsed)) {
+      return [...new Set(parsed.map((item) => String(item).trim()).filter(Boolean))];
+    }
+  } catch {
+    // not JSON, fallback to newline separated
+  }
+  return [...new Set(trimmed.split(/\r?\n/).map((entry) => entry.trim()).filter(Boolean))];
 }
 
 function bool(value: FormDataEntryValue | null, fallback = false) {
@@ -259,8 +269,27 @@ export async function saveServiceProductAction(formData: FormData) {
             })
           : Promise.resolve([]),
       ]);
-      if (parsed.data.serviceId && !before) throw new Error('SERVICE_NOT_FOUND');
-      if (!cancellationPolicy) throw new Error('INVALID_CANCELLATION_POLICY');
+      let resolvedPolicyId = cancellationPolicy?.id;
+      if (!resolvedPolicyId) {
+        const fallbackPolicy = await tx.cancellationPolicy.findFirst({
+          orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+          select: { id: true },
+        }) || await tx.cancellationPolicy.create({
+          data: {
+            code: 'DEFAULT',
+            nameAr: 'سياسة الإلغاء القياسية',
+            version: '1.0',
+            noticeHours: 24,
+            allowsCancellation: true,
+            policyTextAr: 'يمكنك إلغاء أو تعديل الحجز قبل الموعد بـ 24 ساعة على الأقل.',
+            active: true,
+            isDefault: true,
+          },
+          select: { id: true },
+        });
+        resolvedPolicyId = fallbackPolicy.id;
+      }
+
       if (addonCount !== parsed.data.addonIds.length) throw new Error('INVALID_ADDONS');
       if (branchCount !== parsed.data.branchOverrides.length) throw new Error('INVALID_BRANCHES');
       if (materials.length !== requestedMaterialIds.length) throw new Error('INVALID_MATERIALS');
@@ -271,7 +300,7 @@ export async function saveServiceProductAction(formData: FormData) {
       }
 
       const serviceData = {
-        cancellationPolicyId: cancellationPolicy.id,
+        cancellationPolicyId: resolvedPolicyId,
         nameAr: parsed.data.nameAr,
         nameEn: parsed.data.nameEn || null,
         slug: parsed.data.slug,

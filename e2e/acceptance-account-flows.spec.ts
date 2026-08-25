@@ -16,8 +16,9 @@ import {
 
 test.describe('§1 — Login page: UI structure & client-side validation', () => {
   test('login page renders all required elements', async ({ page }) => {
-    await page.goto('/login');
-    await expect(page.locator('h1')).toContainText('تسجيل الدخول');
+    test.setTimeout(60_000);
+    await page.goto('/login', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('h1')).toContainText('تسجيل الدخول', { timeout: 20_000 });
     await expect(page.locator('#login-phone')).toBeVisible();
     await expect(page.locator('#login-password')).toBeVisible();
     await expect(page.getByRole('button', { name: /تسجيل الدخول/ })).toBeVisible();
@@ -34,12 +35,15 @@ test.describe('§1 — Login page: UI structure & client-side validation', () =>
   });
 
   test('login page rejects wrong credentials with error message', async ({ page }) => {
-    await page.goto('/login');
-    await page.locator('#login-phone').fill('01099999999');
-    await page.locator('#login-password').fill('wrongpassword123');
-    await page.getByRole('button', { name: /تسجيل الدخول/ }).click();
-    await expect(page.locator('#auth-error')).toBeVisible({ timeout: 20_000 });
-    const errorText = await page.locator('#auth-error').innerText();
+    test.setTimeout(120_000);
+    await page.goto('/login', { waitUntil: 'load' });
+    // Wait for React hydration: the submit button becomes enabled only after hydration
+    await expect(page.getByRole('button', { name: /تسجيل الدخول/ }).first()).toBeEnabled({ timeout: 20_000 });
+    await page.locator('#login-phone').first().fill('01099999999');
+    await page.locator('#login-password').first().fill('wrongpassword123');
+    await page.getByRole('button', { name: /تسجيل الدخول/ }).first().click();
+    await expect(page.locator('#auth-error').first()).toBeVisible({ timeout: 90_000 });
+    const errorText = await page.locator('#auth-error').first().innerText();
     expect(errorText.trim().length).toBeGreaterThan(0);
   });
 

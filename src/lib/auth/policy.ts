@@ -52,12 +52,18 @@ export function isAppRole(value: unknown): value is AppRole {
 }
 
 export function isProtectedRoute(pathname: string): boolean {
+  // /services/[slug]/book requires authentication
+  if (/^\/services\/[^/]+\/book(\/|$)/.test(pathname)) return true;
   return PROTECTED_ROUTE_ROLES.some(({ prefix, exact }) =>
     exact ? pathname === prefix : pathMatchesPrefix(pathname, prefix)
   );
 }
 
 export function canAccessRoute(role: AppRole, pathname: string): boolean {
+  // booking wizard: only customers (and privileged roles) may access
+  if (/^\/services\/[^/]+\/book(\/|$)/.test(pathname)) {
+    return role === 'CUSTOMER' || role === 'OWNER' || role === 'SYSTEM_SUPER_ADMIN';
+  }
   const policy = PROTECTED_ROUTE_ROLES.find(({ prefix, exact }) =>
     exact ? pathname === prefix : pathMatchesPrefix(pathname, prefix)
   );
