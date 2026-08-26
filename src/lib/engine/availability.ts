@@ -358,11 +358,6 @@ function findFeasibleTeamIds(
     if (team.teamZones.length && !team.teamZones.some((teamZone) => teamZone.zoneId === area.zoneId)) continue;
     if (team.timeOff.some((timeOff) => intervalsOverlap(slotStart, slotEnd, timeOff.startDate, timeOff.endDate))) continue;
 
-    let teamDayStartAt = localDateTimeToUtc(
-      formatDateInZone(slotStart, branch.timezone),
-      branchHours.openTime,
-      branch.timezone,
-    );
     const teamHours = team.workingHours[0];
     if (teamHours) {
       if (teamHours.isOff) continue;
@@ -378,7 +373,6 @@ function findFeasibleTeamIds(
         closeTime,
         branch.timezone,
       );
-      teamDayStartAt = teamStart;
       if (slotStart < teamStart || slotEnd > teamEnd) continue;
       if (teamHours.breakStartTime && teamHours.breakEndTime && teamHours.breakStartTime.trim() && teamHours.breakEndTime.trim()) {
         const breakStart = localDateTimeToUtc(formatDateInZone(slotStart, branch.timezone), teamHours.breakStartTime, branch.timezone);

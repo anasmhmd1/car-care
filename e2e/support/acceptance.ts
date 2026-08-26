@@ -9,7 +9,7 @@ import {
   type User,
 } from '@prisma/client';
 import { createHash, randomUUID } from 'node:crypto';
-import { SignJWT } from 'jose';
+import { signSessionJwt } from '../../src/lib/auth/session-token';
 import { BOOKING_TERMS_VERSION } from '../../src/lib/policies/versions';
 
 export const acceptanceDatabaseUrl = process.env.E2E_DATABASE_URL?.trim() || null;
@@ -79,21 +79,16 @@ export async function authenticateContext(
 
   const sessionId = randomUUID();
   const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
-  const token = await new SignJWT({
-    sessionId,
-    userId: user.id,
-    role: user.role,
-    sessionVersion: user.sessionVersion,
-    mustChangePwd: user.mustChangePwd,
-  })
-    .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
-    .setIssuer('bareeq')
-    .setAudience('bareeq-web')
-    .setSubject(user.id)
-    .setJti(sessionId)
-    .setIssuedAt()
-    .setExpirationTime(Math.floor(expiresAt.getTime() / 1000))
-    .sign(new TextEncoder().encode(secret));
+  const token = await signSessionJwt(
+    {
+      sessionId,
+      userId: user.id,
+      role: user.role,
+      sessionVersion: user.sessionVersion,
+      mustChangePwd: user.mustChangePwd,
+    },
+    { expiresAt, secret: new TextEncoder().encode(secret) }
+  );
 
   await prisma.session.create({
     data: {

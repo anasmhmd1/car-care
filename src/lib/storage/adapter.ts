@@ -33,8 +33,17 @@ export class LocalVolumeStorageAdapter implements StorageAdapter {
   readonly fallbackRoot: string;
 
   constructor(root: string) {
-    this.root = path.resolve(root);
+    const isServerless = Boolean(
+      process.env.VERCEL ||
+      process.env.AWS_LAMBDA_FUNCTION_NAME ||
+      process.env.LAMBDA_TASK_ROOT
+    );
     this.fallbackRoot = path.resolve(os.tmpdir(), 'bareeq-uploads');
+    if (isServerless && (!process.env.UPLOAD_DIR || process.env.UPLOAD_DIR.startsWith('.'))) {
+      this.root = this.fallbackRoot;
+    } else {
+      this.root = path.resolve(root);
+    }
   }
 
   private resolveKey(key: string, useFallback = false) {
@@ -48,24 +57,21 @@ export class LocalVolumeStorageAdapter implements StorageAdapter {
   }
 
   async put(key: string, data: Buffer) {
+    const destination = this.resolveKey(key);
     try {
-      const destination = this.resolveKey(key);
       await mkdir(path.dirname(destination), { recursive: true });
       await writeFile(destination, data);
-    } catch (err: unknown) {
-      if (err && typeof err === 'object' && 'code' in err && (err.code === 'EROFS' || err.code === 'EACCES' || err.code === 'EPERM')) {
-        const fallbackDest = this.resolveKey(key, true);
-        await mkdir(path.dirname(fallbackDest), { recursive: true });
-        await writeFile(fallbackDest, data);
-        return;
-      }
-      throw err;
+    } catch {
+      const fallbackDest = this.resolveKey(key, true);
+      await mkdir(path.dirname(fallbackDest), { recursive: true });
+      await writeFile(fallbackDest, data);
     }
   }
 
   async read(key: string) {
+    const destination = this.resolveKey(key);
     try {
-      return await readFile(this.resolveKey(key));
+      return await readFile(destination);
     } catch (error) {
       if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
         try {
@@ -79,15 +85,21 @@ export class LocalVolumeStorageAdapter implements StorageAdapter {
   }
 
   async delete(key: string) {
+    const destination = this.resolveKey(key);
+    let deleted = false;
     try {
-      await unlink(this.resolveKey(key));
-      return true;
-    } catch (error) {
-      if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
-        return false;
-      }
-      throw error;
+      await unlink(destination);
+      deleted = true;
+    } catch {
+      // ignore
     }
+    try {
+      await unlink(this.resolveKey(key, true));
+      deleted = true;
+    } catch {
+      // ignore
+    }
+    return deleted;
   }
 
   describe(key: string) {
@@ -95,24 +107,101 @@ export class LocalVolumeStorageAdapter implements StorageAdapter {
   }
 }
 
+export class SupabaseStorageAdapter implements StorageAdapter {
+  readonly supabaseUrl: string;
+  readonly serviceRoleKey: string;
+  readonly bucket: string;
+
+  constructor(options?: { supabaseUrl?: string; serviceRoleKey?: string; bucket?: string }) {
+    let url = options?.supabaseUrl || process.env.SUPABASE_URL || '';
+    if (!url && process.env.DATABASE_URL?.includes('supabase.com')) {
+      const match = process.env.DATABASE_URL.match(/postgres\.([a-z0-9]+):/);
+      if (match && match[1]) {
+        url = `https://${match[1]}.supabase.co`;
+      }
+    }
+    this.supabaseUrl = url.replace(/\/+$/, '');
+    this.serviceRoleKey = options?.serviceRoleKey || process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+    this.bucket = options?.bucket || process.env.SUPABASE_STORAGE_BUCKET || 'bareeq-uploads';
+
+    if (!this.supabaseUrl || !this.serviceRoleKey) {
+      throw new StorageConfigurationError(
+        'Supabase Storage requires SUPABASE_URL (or Supabase DATABASE_URL) and SUPABASE_SERVICE_ROLE_KEY environment variables.'
+      );
+    }
+  }
+
+  async put(key: string, data: Buffer): Promise<void> {
+    const url = `${this.supabaseUrl}/storage/v1/object/${this.bucket}/${normalizedKey(key)}`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        apikey: this.serviceRoleKey,
+        Authorization: `Bearer ${this.serviceRoleKey}`,
+        'x-upsert': 'true',
+      },
+      body: new Uint8Array(data),
+    });
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      throw new StorageConfigurationError(`Supabase storage upload failed (${res.status}): ${errText}`);
+    }
+  }
+
+  async read(key: string): Promise<Buffer | null> {
+    const url = `${this.supabaseUrl}/storage/v1/object/${this.bucket}/${normalizedKey(key)}`;
+    const res = await fetch(url, {
+      headers: {
+        apikey: this.serviceRoleKey,
+        Authorization: `Bearer ${this.serviceRoleKey}`,
+      },
+    });
+    if (res.status === 404) return null;
+    if (!res.ok) {
+      throw new StorageConfigurationError(`Supabase storage read failed (${res.status})`);
+    }
+    const arrayBuffer = await res.arrayBuffer();
+    return Buffer.from(arrayBuffer);
+  }
+
+  async delete(key: string): Promise<boolean> {
+    const url = `${this.supabaseUrl}/storage/v1/object/${this.bucket}/${normalizedKey(key)}`;
+    const res = await fetch(url, {
+      method: 'DELETE',
+      headers: {
+        apikey: this.serviceRoleKey,
+        Authorization: `Bearer ${this.serviceRoleKey}`,
+      },
+    });
+    return res.ok;
+  }
+
+  describe(key: string): string {
+    return `supabase://${this.bucket}/${normalizedKey(key)}`;
+  }
+}
+
 let testAdapter: StorageAdapter | null = null;
 
 /**
  * Runtime composition point for private file storage. The local persistent
- * volume is production-safe for a single shared-volume deployment; an S3
- * compatible implementation can be injected without changing upload routes,
+ * volume is production-safe for a single shared-volume deployment; an S3 or
+ * Supabase compatible implementation can be injected without changing upload routes,
  * authorization, or database anchors.
  */
 export function getStorageAdapter(): StorageAdapter {
   if (testAdapter) return testAdapter;
   const driver = process.env.STORAGE_DRIVER?.trim().toLowerCase() || 'local';
-  if (driver !== 'local') {
-    throw new StorageConfigurationError(
-      `Unsupported STORAGE_DRIVER "${driver}". Register an adapter before handling files.`,
-    );
+  if (driver === 'local') {
+    const root = process.env.UPLOAD_DIR?.trim() || path.join(process.cwd(), 'data', 'uploads');
+    return new LocalVolumeStorageAdapter(root);
   }
-  const root = process.env.UPLOAD_DIR?.trim() || path.join(process.cwd(), 'data', 'uploads');
-  return new LocalVolumeStorageAdapter(root);
+  if (driver === 'supabase') {
+    return new SupabaseStorageAdapter();
+  }
+  throw new StorageConfigurationError(
+    `Unsupported STORAGE_DRIVER "${driver}". Supported drivers: "local", "supabase".`,
+  );
 }
 
 export function setStorageAdapterForTests(adapter: StorageAdapter | null) {

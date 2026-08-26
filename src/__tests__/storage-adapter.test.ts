@@ -80,4 +80,20 @@ describe('replaceable private storage adapter', () => {
     });
     expect(objects.size).toBe(0);
   });
+
+  it('validates SupabaseStorageAdapter configuration and operations', async () => {
+    const { SupabaseStorageAdapter } = await import('@/lib/storage/adapter');
+    expect(() => new SupabaseStorageAdapter({ supabaseUrl: '', serviceRoleKey: '' })).toThrow(
+      StorageConfigurationError
+    );
+
+    const adapter = new SupabaseStorageAdapter({
+      supabaseUrl: 'https://test-project.supabase.co',
+      serviceRoleKey: 'test-service-key',
+      bucket: 'test-bucket',
+    });
+    expect(adapter.describe('payment-proofs/test.png')).toBe(
+      'supabase://test-bucket/payment-proofs/test.png'
+    );
+  });
 });

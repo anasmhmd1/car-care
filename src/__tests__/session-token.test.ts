@@ -7,6 +7,8 @@ import {
   getSessionValidationFailure,
   hashSessionToken,
   isSignedSessionClaims,
+  signSessionJwt,
+  verifySessionJwt,
   type SignedSessionClaims,
 } from '@/lib/auth/session-token';
 import { revokeAllUserSessionsAndBumpVersion } from '@/lib/auth/session-store';
@@ -78,6 +80,39 @@ describe('session token primitives', () => {
     expect(isSignedSessionClaims({ ...validFixture().claims, role: 'OWNER_FORGED' })).toBe(false);
     expect(isSignedSessionClaims({ ...validFixture().claims, sessionVersion: 0 })).toBe(false);
     expect(isSignedSessionClaims({ ...validFixture().claims, mustChangePwd: 'false' })).toBe(false);
+  });
+
+  it('signs and verifies session JWTs with native Web Crypto API correctly', async () => {
+    const secret = new TextEncoder().encode('y'.repeat(32));
+    const claims = validFixture().claims;
+    const expiresAt = new Date(Date.now() + 3600 * 1000);
+
+    const token = await signSessionJwt(claims, { expiresAt, secret });
+    expect(typeof token).toBe('string');
+    expect(token.split('.')).toHaveLength(3);
+
+    const verified = await verifySessionJwt(token, { secret });
+    expect(verified).not.toBeNull();
+    expect(isSignedSessionClaims(verified)).toBe(true);
+    expect(verified?.sessionId).toBe(claims.sessionId);
+    expect(verified?.userId).toBe(claims.userId);
+    expect(verified?.role).toBe(claims.role);
+
+    // Rejection on wrong secret
+    const wrongSecret = new TextEncoder().encode('z'.repeat(32));
+    expect(await verifySessionJwt(token, { secret: wrongSecret })).toBeNull();
+
+    // Rejection on expiration
+    const expiredToken = await signSessionJwt(claims, {
+      expiresAt: new Date(Date.now() - 1000),
+      secret,
+    });
+    expect(await verifySessionJwt(expiredToken, { secret })).toBeNull();
+
+    // Rejection on tampered payload
+    const parts = token.split('.');
+    const tampered = `${parts[0]}.${parts[1]}xyz.${parts[2]}`;
+    expect(await verifySessionJwt(tampered, { secret })).toBeNull();
   });
 });
 

@@ -88,6 +88,162 @@ export function isSignedSessionClaims(value: unknown): value is SignedSessionCla
   );
 }
 
+export interface SignSessionJwtOptions {
+  expiresAt: Date;
+  secret?: Uint8Array;
+  issuer?: string;
+  audience?: string;
+}
+
+export interface VerifySessionJwtOptions {
+  secret?: Uint8Array;
+  issuer?: string;
+  audience?: string;
+  now?: Date;
+}
+
+function base64UrlEncodeBytes(bytes: Uint8Array): string {
+  let binary = '';
+  const len = bytes.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary)
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+}
+
+function base64UrlDecodeToBytes(str: string): Uint8Array | null {
+  try {
+    let base64 = str.replace(/-/g, '+').replace(/_/g, '/');
+    while (base64.length % 4) {
+      base64 += '=';
+    }
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes;
+  } catch {
+    return null;
+  }
+}
+
+export async function signSessionJwt(
+  claims: SignedSessionClaims,
+  options: SignSessionJwtOptions
+): Promise<string> {
+  const secret = options.secret ?? getEncodedSessionSecret();
+  const issuer = options.issuer ?? SESSION_ISSUER;
+  const audience = options.audience ?? SESSION_AUDIENCE;
+
+  const header = { alg: 'HS256', typ: 'JWT' };
+  const expSec = Math.floor(options.expiresAt.getTime() / 1000);
+  const nowSec = Math.floor(Date.now() / 1000);
+
+  const payload = {
+    ...claims,
+    iss: issuer,
+    aud: audience,
+    sub: claims.userId,
+    jti: claims.sessionId,
+    iat: nowSec,
+    exp: expSec,
+  };
+
+  const headerB64 = base64UrlEncodeBytes(new TextEncoder().encode(JSON.stringify(header)));
+  const payloadB64 = base64UrlEncodeBytes(new TextEncoder().encode(JSON.stringify(payload)));
+  const dataToSign = new TextEncoder().encode(`${headerB64}.${payloadB64}`);
+
+  const cryptoKey = await globalThis.crypto.subtle.importKey(
+    'raw',
+    secret as BufferSource,
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+
+  const signature = await globalThis.crypto.subtle.sign(
+    'HMAC',
+    cryptoKey,
+    dataToSign as BufferSource
+  );
+
+  const sigB64 = base64UrlEncodeBytes(new Uint8Array(signature));
+  return `${headerB64}.${payloadB64}.${sigB64}`;
+}
+
+export async function verifySessionJwt(
+  token: string,
+  options?: VerifySessionJwtOptions
+): Promise<Record<string, unknown> | null> {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const [headerB64, payloadB64, sigB64] = parts;
+    if (!headerB64 || !payloadB64 || !sigB64) return null;
+
+    const headerBytes = base64UrlDecodeToBytes(headerB64);
+    if (!headerBytes) return null;
+    const header = JSON.parse(new TextDecoder().decode(headerBytes));
+    if (!header || typeof header !== 'object' || header.alg !== 'HS256') {
+      return null;
+    }
+    if ('typ' in header && header.typ !== 'JWT') {
+      return null;
+    }
+
+    const secret = options?.secret ?? getEncodedSessionSecret();
+    const issuer = options?.issuer ?? SESSION_ISSUER;
+    const audience = options?.audience ?? SESSION_AUDIENCE;
+
+    const dataToVerify = new TextEncoder().encode(`${headerB64}.${payloadB64}`);
+    const sigBytes = base64UrlDecodeToBytes(sigB64);
+    if (!sigBytes) return null;
+
+    const cryptoKey = await globalThis.crypto.subtle.importKey(
+      'raw',
+      secret as BufferSource,
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['verify']
+    );
+
+    const isValid = await globalThis.crypto.subtle.verify(
+      'HMAC',
+      cryptoKey,
+      sigBytes as BufferSource,
+      dataToVerify as BufferSource
+    );
+
+    if (!isValid) return null;
+
+    const payloadBytes = base64UrlDecodeToBytes(payloadB64);
+    if (!payloadBytes) return null;
+    const payload = JSON.parse(new TextDecoder().decode(payloadBytes));
+    if (!payload || typeof payload !== 'object') return null;
+
+    const checkNow = options?.now ?? new Date();
+    const nowSec = Math.floor(checkNow.getTime() / 1000);
+
+    if (typeof payload.exp === 'number' && payload.exp <= nowSec) {
+      return null;
+    }
+    if (issuer && payload.iss !== issuer) {
+      return null;
+    }
+    if (audience && payload.aud !== audience) {
+      return null;
+    }
+
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
 export function getSessionValidationFailure(input: {
   claims: SignedSessionClaims;
   persistedSession: PersistedSessionLike;

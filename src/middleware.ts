@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { jwtVerify } from 'jose';
 import {
   canAccessRoute,
   getHomeRouteForRole,
@@ -8,11 +7,9 @@ import {
   type AppRole,
 } from '@/lib/auth/policy';
 import {
-  SESSION_AUDIENCE,
   SESSION_COOKIE_NAME,
-  SESSION_ISSUER,
-  getEncodedSessionSecret,
   isSignedSessionClaims,
+  verifySessionJwt,
 } from '@/lib/auth/session-token';
 
 const STATIC_ASSET_PATTERN = /\.(?:avif|css|gif|ico|jpe?g|js|map|png|svg|webp|woff2?|ttf)$/i;
@@ -50,11 +47,7 @@ export async function middleware(request: NextRequest) {
   let mustChangePwd = false;
   if (token) {
     try {
-      const { payload } = await jwtVerify(token, getEncodedSessionSecret(), {
-        algorithms: ['HS256'],
-        issuer: SESSION_ISSUER,
-        audience: SESSION_AUDIENCE,
-      });
+      const payload = await verifySessionJwt(token);
       if (!isSignedSessionClaims(payload)) {
         throw new Error('Invalid session payload');
       }

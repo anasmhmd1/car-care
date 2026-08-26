@@ -1,19 +1,16 @@
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import type { User } from '@prisma/client';
-import { UserRole } from '@prisma/client';
-import { SignJWT, jwtVerify } from 'jose';
+import type { User, UserRole } from '@prisma/client';
 import { db } from '@/lib/db';
 import type { AppRole } from '@/lib/auth/policy';
 import {
-  SESSION_AUDIENCE,
   SESSION_COOKIE_NAME,
-  SESSION_ISSUER,
-  getEncodedSessionSecret,
   getSessionTtlSeconds,
   getSessionValidationFailure,
   hashSessionToken,
   isSignedSessionClaims,
+  signSessionJwt,
+  verifySessionJwt,
   type SignedSessionClaims,
 } from '@/lib/auth/session-token';
 
@@ -77,11 +74,7 @@ async function revokeSessionToken(token: string, reason: string): Promise<void> 
 
 async function verifySignedClaims(token: string): Promise<SignedSessionClaims | null> {
   try {
-    const { payload } = await jwtVerify(token, getEncodedSessionSecret(), {
-      algorithms: ['HS256'],
-      issuer: SESSION_ISSUER,
-      audience: SESSION_AUDIENCE,
-    });
+    const payload = await verifySessionJwt(token);
     return isSignedSessionClaims(payload) ? payload : null;
   } catch {
     return null;
@@ -189,15 +182,7 @@ export async function createSession(
     mustChangePwd: currentUser.mustChangePwd,
   };
 
-  const token = await new SignJWT({ ...claims })
-    .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
-    .setIssuer(SESSION_ISSUER)
-    .setAudience(SESSION_AUDIENCE)
-    .setSubject(currentUser.id)
-    .setJti(sessionId)
-    .setIssuedAt()
-    .setExpirationTime(Math.floor(expiresAt.getTime() / 1000))
-    .sign(getEncodedSessionSecret());
+  const token = await signSessionJwt(claims, { expiresAt });
 
   const [tokenHash, metadata] = await Promise.all([
     hashSessionToken(token),
