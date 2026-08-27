@@ -380,10 +380,10 @@ export default function SystemAdminClient({
                 <input
                   type="password"
                   required
-                  minLength={12}
+                  minLength={8}
                   value={ownerPassword}
                   onChange={(e) => setOwnerPassword(e.target.value)}
-                  placeholder="12 حرفاً على الأقل"
+                  placeholder="8 خانات على الأقل"
                   className="w-full bg-[#080808] border border-neutral-800 rounded-xl p-3 text-xs text-white font-mono"
                 />
               </div>

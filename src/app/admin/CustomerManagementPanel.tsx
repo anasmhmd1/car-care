@@ -556,7 +556,7 @@ function CustomerAccountDialog({
                   id="customer-temporary-password"
                   name="temporaryPassword"
                   type="password"
-                  minLength={12}
+                  minLength={8}
                   maxLength={128}
                   autoComplete="new-password"
                   className={`mt-3 ${inputClass}`}

@@ -86,10 +86,10 @@ export default function ProfileForms({ user }: ProfileFormsProps) {
           <NoticeBox notice={passwordNotice} />
           <label className="block text-xs font-bold text-neutral-300">كلمة المرور الحالية<input name="currentPassword" type="password" required className={`mt-2 ${inputClass}`} autoComplete="current-password" /></label>
           <div className="grid gap-4 sm:grid-cols-2">
-            <label className="block text-xs font-bold text-neutral-300">كلمة المرور الجديدة<input name="newPassword" type="password" required minLength={12} className={`mt-2 ${inputClass}`} autoComplete="new-password" /></label>
-            <label className="block text-xs font-bold text-neutral-300">تأكيد كلمة المرور<input name="confirmPassword" type="password" required minLength={12} className={`mt-2 ${inputClass}`} autoComplete="new-password" /></label>
+            <label className="block text-xs font-bold text-neutral-300">كلمة المرور الجديدة<input name="newPassword" type="password" required minLength={8} className={`mt-2 ${inputClass}`} autoComplete="new-password" /></label>
+            <label className="block text-xs font-bold text-neutral-300">تأكيد كلمة المرور<input name="confirmPassword" type="password" required minLength={8} className={`mt-2 ${inputClass}`} autoComplete="new-password" /></label>
           </div>
-          <p className="text-[11px] leading-5 text-neutral-500">استخدم 12 حرفًا على الأقل. تغيير كلمة المرور يلغي كل الجلسات السابقة تلقائيًا.</p>
+          <p className="text-[11px] leading-5 text-neutral-500">استخدم 8 خانات على الأقل (أرقام أو حروف). تغيير كلمة المرور يلغي كل الجلسات السابقة تلقائيًا.</p>
           <div className="flex justify-end"><button type="submit" disabled={isPending} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[#c9a227]/35 bg-[#c9a227]/10 px-6 text-xs font-black text-[#e5c45a] disabled:opacity-50"><Shield className="size-4" aria-hidden="true" />{isPending ? 'جارٍ التحديث…' : 'تحديث كلمة المرور'}</button></div>
         </form>
       </section>
