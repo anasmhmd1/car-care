@@ -1130,69 +1130,7 @@ export default function StaffCommandCenter({
             </div>
           ) : null}
 
-          {/* Quick Action Buttons Toolbar */}
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <button
-              type="button"
-              onClick={() => {
-                if (activeMissionBooking) {
-                  setActiveNoteModal({
-                    bookingId: activeMissionBooking.id,
-                    bookingNumber: activeMissionBooking.bookingNumber,
-                    type: 'PROBLEM',
-                  });
-                }
-              }}
-              className="flex items-center gap-3.5 rounded-2xl border border-rose-500/30 bg-[#111114]/90 p-4 text-right transition hover:border-rose-500/60 hover:bg-rose-500/[0.05]"
-            >
-              <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300">
-                <ShieldAlert className="size-5" />
-              </div>
-              <div>
-                <p className="text-sm font-bold text-white">إبلاغ طوارئ ميداني</p>
-                <p className="text-xs text-neutral-400">إرسال بلاغ فوري لغرفة العمليات</p>
-              </div>
-            </button>
 
-            <Link
-              href="/staff?section=materials"
-              className="flex items-center gap-3.5 rounded-2xl border border-neutral-800/80 bg-[#111114]/90 p-4 text-right transition hover:border-[#d4af37]/50 hover:bg-[#d4af37]/[0.05]"
-            >
-              <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 border border-amber-500/30 text-[#d4af37]">
-                <Boxes className="size-5" />
-              </div>
-              <div>
-                <p className="text-sm font-bold text-white">فحص المواد والعهدة</p>
-                <p className="text-xs text-neutral-400">مراجعة كفاية مستلزمات اليوم</p>
-              </div>
-            </Link>
-
-            <Link
-              href="/staff?section=tasks"
-              className="flex items-center gap-3.5 rounded-2xl border border-neutral-800/80 bg-[#111114]/90 p-4 text-right transition hover:border-sky-500/50 hover:bg-sky-500/[0.05]"
-            >
-              <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-sky-500/10 border border-sky-500/30 text-sky-300">
-                <ListChecks className="size-5" />
-              </div>
-              <div>
-                <p className="text-sm font-bold text-white">قوائم فحص المهام</p>
-                <p className="text-xs text-neutral-400">متابعة التشيك ليست والتوثيق</p>
-              </div>
-            </Link>
-
-            <Link
-              href="/staff?section=history"
-              className="flex items-center gap-3.5 rounded-2xl border border-neutral-800/80 bg-[#111114]/90 p-4 text-right transition hover:border-emerald-500/50 hover:bg-emerald-500/[0.05]"
-            >
-              <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300">
-                <CheckCircle2 className="size-5" />
-              </div>
-              <div>
-                <p className="text-sm font-bold text-white">سجل الإنجاز والتسليم</p>
-                <p className="text-xs text-neutral-400">استعراض مهام اليوم المكتملة</p>
-              </div>
-            </Link>
-          </div>
 
           {/* Today's Tasks Timeline */}
           <div className="space-y-4 rounded-3xl border border-neutral-800/80 bg-[#111114]/90 p-5 sm:p-6 shadow-xl backdrop-blur-md">
