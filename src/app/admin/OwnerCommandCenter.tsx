@@ -609,12 +609,8 @@ function MetricCard({
 
 function BookingCard({
   booking,
-  onReview,
-  onAssign,
 }: {
   booking: BookingSummaryDto;
-  onReview?: (booking: BookingSummaryDto) => void;
-  onAssign?: (booking: BookingSummaryDto) => void;
 }) {
   return (
     <article className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 transition-all duration-200 hover:border-neutral-700 shadow-md">
@@ -649,17 +645,6 @@ function BookingCard({
         <span className="text-xs text-neutral-500 bg-neutral-900 px-2.5 py-1 rounded-lg border border-neutral-800">
           الفريق: <span className="text-neutral-300 font-medium">{booking.assignedTeamName ?? 'لم يُسند بعد'}</span>
         </span>
-        <span className="flex-1" />
-        {onReview ? (
-          <button type="button" onClick={() => onReview(booking)} className={secondaryButtonClass}>
-            مراجعة الطلب
-          </button>
-        ) : null}
-        {onAssign ? (
-          <button type="button" onClick={() => onAssign(booking)} className={primaryButtonClass}>
-            إسناد فريق
-          </button>
-        ) : null}
       </div>
     </article>
   );
@@ -685,8 +670,6 @@ function OverviewSection({
   unassignedBookings?: BookingSummaryDto[];
   reports: ReportsDto;
   monthlyRevenue?: MonthlyRevenueDataDto;
-  onReview?: (booking: BookingSummaryDto) => void;
-  onAssign?: (booking: BookingSummaryDto) => void;
 }) {
   const cancellationRate = reports.totalBookings > 0
     ? Math.round((reports.cancelledBookings / reports.totalBookings) * 100)
@@ -1165,17 +1148,13 @@ function OverviewSection({
 function BookingsSection({
   bookings,
   filters,
-  onReview,
-  onAssign,
 }: {
   bookings: BookingSummaryDto[];
   filters: OwnerFiltersDto;
-  onReview: (booking: BookingSummaryDto) => void;
-  onAssign: (booking: BookingSummaryDto) => void;
 }) {
   return (
     <div className="space-y-6">
-      <SectionHeader eyebrow="الحجوزات" title="متابعة دورة الحجز" description="آخر 100 حجز مطابق للفلاتر، مع الإجراءات المسموح بها فقط في الحالة الحالية." />
+      <SectionHeader eyebrow="الحجوزات" title="متابعة دورة الحجز" description="استعراض ومتابعة كافة الحجوزات، مواعيدها، فروعها وحالات الدفع بنظرة إشرافية شاملة." />
       <form action="/admin" method="get" className="grid gap-3 rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-4 sm:grid-cols-[1fr_220px_auto_auto] shadow-md">
         <input type="hidden" name="section" value="bookings" />
         <div><label htmlFor="booking-query" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">بحث الحجز أو العميل</label><div className="relative"><Search aria-hidden="true" className="pointer-events-none absolute right-3 top-3 size-4 text-neutral-500" /><input id="booking-query" name="q" defaultValue={filters.bookingQuery} autoComplete="off" placeholder="رقم الحجز أو اسم/هاتف العميل…" className={`${inputClass} pr-10`} /></div></div>
@@ -1187,13 +1166,9 @@ function BookingsSection({
         <EmptyState title="لا توجد حجوزات مطابقة" description="غيّر حالة الحجز أو عبارة البحث ثم أعد المحاولة." />
       ) : (
         <div className="space-y-3">
-          {bookings.map((booking) => {
-            const canReview = booking.bookingStatus === 'AWAITING_OPERATIONS_REVIEW';
-            const canAssign =
-              !booking.assignedTeamName &&
-              ['ACCEPTED', 'AWAITING_ASSIGNMENT', 'ADMIN_REVIEW_REQUIRED'].includes(booking.bookingStatus);
-            return <BookingCard key={booking.id} booking={booking} onReview={canReview ? onReview : undefined} onAssign={canAssign ? onAssign : undefined} />;
-          })}
+          {bookings.map((booking) => (
+            <BookingCard key={booking.id} booking={booking} />
+          ))}
         </div>
       )}
     </div>
@@ -1538,7 +1513,7 @@ export default function OwnerCommandCenter(props: OwnerCommandCenterProps) {
   let sectionContent: ReactNode;
   switch (currentSection) {
     case 'bookings':
-      sectionContent = <BookingsSection bookings={bookings} filters={filters} onReview={(booking) => openModal({ type: 'booking-review', booking })} onAssign={(booking) => openModal({ type: 'assignment', booking })} />;
+      sectionContent = <BookingsSection bookings={bookings} filters={filters} />;
       break;
     case 'subscriptions':
       sectionContent = (
@@ -1546,7 +1521,7 @@ export default function OwnerCommandCenter(props: OwnerCommandCenterProps) {
           <SectionHeader
             eyebrow="الاشتراكات الفعلية"
             title="اشتراكات العملاء والتفعيل"
-            description="متابعة وتفعيل اشتراكات العملاء، تجميد أو تمديد الاشتراك وتعديل رصيد الزيارات."
+            description="متابعة وإشراف على اشتراكات العملاء النشطة وأرصدة الباقات وتواريخ الانتهاء."
             action={
               <Link
                 href="/admin/site?tab=subscriptions"
@@ -1557,7 +1532,7 @@ export default function OwnerCommandCenter(props: OwnerCommandCenterProps) {
               </Link>
             }
           />
-          <SubscriptionManagementPanel subscriptions={managedSubscriptions} />
+          <SubscriptionManagementPanel subscriptions={managedSubscriptions} readOnly={true} />
         </div>
       );
       break;
@@ -1577,8 +1552,6 @@ export default function OwnerCommandCenter(props: OwnerCommandCenterProps) {
           unassignedBookings={unassignedBookings}
           reports={reports}
           monthlyRevenue={monthlyRevenue}
-          onReview={(booking) => openModal({ type: 'booking-review', booking })}
-          onAssign={(booking) => openModal({ type: 'assignment', booking })}
         />
       );
       break;
@@ -1595,8 +1568,6 @@ export default function OwnerCommandCenter(props: OwnerCommandCenterProps) {
           unassignedBookings={unassignedBookings}
           reports={reports}
           monthlyRevenue={monthlyRevenue}
-          onReview={(booking) => openModal({ type: 'booking-review', booking })}
-          onAssign={(booking) => openModal({ type: 'assignment', booking })}
         />
       );
   }

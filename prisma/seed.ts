@@ -1386,8 +1386,8 @@ async function main() {
       validityDays: 30,
       visitCount: 4,
       allowedVehicleCount: 1,
-      freezeAllowed: false,
-      maxFreezeDays: 0,
+      freezeAllowed: true,
+      maxFreezeDays: 7,
       serviceKeys: ['essential', 'complete'],
     },
     {

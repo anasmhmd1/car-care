@@ -572,13 +572,13 @@ export async function freezeCustomerSubscription(
   if (subscription.endDate.getTime() <= now.getTime()) {
     throw new SubscriptionEngineError('انتهت صلاحية الاشتراك.', 'SUBSCRIPTION_EXPIRED');
   }
-  if (!subscription.plan.freezeAllowed || subscription.plan.maxFreezeDays < 1) {
-    throw new SubscriptionEngineError('هذه الخطة لا تسمح بالتجميد.', 'FREEZE_NOT_ALLOWED');
-  }
+  const maxAllowedDays = (subscription.plan.freezeAllowed && subscription.plan.maxFreezeDays > 0)
+    ? subscription.plan.maxFreezeDays
+    : 365;
   const freezeDays = requirePositiveInteger(
     input.freezeDays,
     'مدة التجميد',
-    subscription.plan.maxFreezeDays,
+    maxAllowedDays,
   );
   const frozenUntil = addDays(now, freezeDays);
   const updated = await tx.customerSubscription.update({

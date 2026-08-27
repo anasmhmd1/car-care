@@ -75,8 +75,10 @@ const PROOF_STATUS_LABELS: Record<NonNullable<ManagedSubscription['paymentProof'
 
 export default function SubscriptionManagementPanel({
   subscriptions,
+  readOnly = false,
 }: {
   subscriptions: ManagedSubscription[];
+  readOnly?: boolean;
 }) {
   const router = useRouter();
   const commandKeys = useRef(new Map<string, string>());
@@ -148,6 +150,80 @@ export default function SubscriptionManagementPanel({
       <div className="rounded-3xl border border-dashed border-white/15 bg-white/[0.025] p-10 text-center">
         <h2 className="text-xl font-bold text-white">لا توجد اشتراكات لإدارتها</h2>
         <p className="mt-2 text-sm text-white/45">ستظهر طلبات العملاء الجديدة هنا فور إرسالها.</p>
+      </div>
+    );
+  }
+
+  if (readOnly) {
+    return (
+      <div className="grid gap-4">
+        {subscriptions.map((subscription) => (
+          <article key={subscription.id} className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 sm:p-6 shadow-md transition-all hover:border-neutral-700">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between border-b border-neutral-800/60 pb-4">
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full border border-[#d4af37]/30 bg-[#d4af37]/10 px-3 py-1 text-[10px] font-bold text-[#e4c762]">
+                    {STATUS_LABELS[subscription.status]}
+                  </span>
+                  <span className="font-mono text-[11px] text-neutral-400">#{subscription.id.slice(0, 8).toUpperCase()}</span>
+                </div>
+                <h3 className="mt-2 text-lg sm:text-xl font-black text-white">{subscription.customerName}</h3>
+                <a href={`tel:${subscription.customerPhone}`} className="mt-1 inline-flex items-center gap-1.5 text-xs font-bold text-[#d4af37] hover:text-[#f3e4a8] transition-colors">
+                  <span>اتصال بالعميل</span>
+                  <span dir="ltr" className="text-neutral-400 font-mono">({subscription.customerPhone})</span>
+                </a>
+              </div>
+
+              {subscription.paymentProof ? (
+                <div className="flex flex-wrap sm:flex-col items-start sm:items-end gap-2 bg-neutral-900/60 border border-neutral-800 p-3 rounded-xl">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-neutral-400">إثبات الدفع ({subscription.paymentProof.paymentMethod.name})</span>
+                    <span className={`rounded-full border px-2.5 py-0.5 text-[10px] font-bold ${
+                      subscription.paymentProof.status === 'APPROVED'
+                        ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
+                        : subscription.paymentProof.status === 'UNDER_REVIEW'
+                          ? 'border-amber-500/30 bg-amber-500/10 text-amber-200'
+                          : 'border-red-500/30 bg-red-500/10 text-red-200'
+                    }`}>
+                      {PROOF_STATUS_LABELS[subscription.paymentProof.status]}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="text-neutral-300 font-bold tabular-nums">
+                      {subscription.paymentProof.amountSubmitted.toLocaleString('ar-EG')} ج.م
+                    </span>
+                    <a
+                      href={subscription.paymentProof.proofFileUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[11px] font-bold text-[#d4af37] hover:underline"
+                    >
+                      عرض الإيصال
+                    </a>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
+            <dl className="mt-4 grid grid-cols-2 gap-3 text-xs sm:text-sm sm:grid-cols-4 rounded-xl bg-neutral-950/40 border border-neutral-800/60 p-3.5">
+              <div><dt className="text-neutral-500 text-[11px] font-medium">الباقة</dt><dd className="mt-1 font-bold text-neutral-200">{subscription.planName} ({subscription.expectedPrice.toLocaleString('ar-EG')} ج.م)</dd></div>
+              <div><dt className="text-neutral-500 text-[11px] font-medium">الفرع</dt><dd className="mt-1 font-bold text-neutral-200">{subscription.branchName}</dd></div>
+              <div><dt className="text-neutral-500 text-[11px] font-medium">الرصيد</dt><dd className="mt-1 font-black tabular-nums text-[#e4c762]">{subscription.remainingVisits} / {subscription.totalVisits} زيارة</dd></div>
+              <div><dt className="text-neutral-500 text-[11px] font-medium">تاريخ الانتهاء</dt><dd className="mt-1 font-bold text-neutral-200">{new Date(subscription.endDate).toLocaleDateString('ar-EG')}</dd></div>
+            </dl>
+
+            {subscription.serviceBalances.length > 0 ? (
+              <div className="mt-3 flex flex-wrap items-center gap-2 pt-2">
+                <span className="text-[11px] font-medium text-neutral-400">تفاصيل الخدمات:</span>
+                {subscription.serviceBalances.map((sb) => (
+                  <span key={sb.serviceId} className="rounded-lg border border-neutral-800 bg-neutral-900/80 px-2.5 py-1 text-xs text-neutral-300">
+                    {sb.nameAr}: <strong className="text-[#f3e4a8]">{sb.remainingVisits}</strong>/{sb.totalVisits}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+          </article>
+        ))}
       </div>
     );
   }
@@ -237,14 +313,14 @@ export default function SubscriptionManagementPanel({
                     </button>
                   ) : null}
 
-                  {subscription.status === 'ACTIVE' && subscription.freezeAllowed ? (
+                  {subscription.status === 'ACTIVE' ? (
                     <div className="flex gap-2">
                       <input
                         type="number"
                         name="freezeDays"
                         min="1"
-                        max={subscription.maxFreezeDays}
-                        defaultValue={Math.min(7, subscription.maxFreezeDays)}
+                        max={subscription.maxFreezeDays > 0 ? subscription.maxFreezeDays : 365}
+                        defaultValue={subscription.maxFreezeDays > 0 ? Math.min(7, subscription.maxFreezeDays) : 7}
                         aria-label="أيام التجميد"
                         className="min-w-0 flex-1 rounded-xl border border-white/10 bg-[#080808] px-3 text-xs text-white"
                       />
