@@ -487,6 +487,9 @@ export async function evaluateRequestedInterval(
   }
 
   const feasibleTeamIds = findFeasibleTeamIds(context, request.startAt, endAt);
+  if (context.teams.length > 0 && !feasibleTeamIds.length) {
+    return null;
+  }
 
   return {
     branchId: context.branch.id,
@@ -575,7 +578,7 @@ export async function calculateAvailableSlots(request: SlotRequest): Promise<Ava
 
       if (teams.length > 0) {
         const feasibleTeams = findFeasibleTeamIds(context, startAt, endAt);
-        if (!feasibleTeams.length && totalConcurrent >= maxConcurrency) {
+        if (!feasibleTeams.length) {
           continue;
         }
       } else if (totalConcurrent >= branch.dailyBookingLimit) {

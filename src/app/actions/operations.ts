@@ -64,7 +64,7 @@ const MANAGEMENT_OPERATIONS_ROLES = [
   UserRole.OWNER,
   UserRole.SYSTEM_SUPER_ADMIN,
 ] as const;
-const DEFAULT_HOLD_MINUTES = 30;
+const DEFAULT_HOLD_MINUTES = 120;
 const OPERATIONS_REVIEW_HOLD_MINUTES = 24 * 60;
 
 class OperationsInputError extends Error {}

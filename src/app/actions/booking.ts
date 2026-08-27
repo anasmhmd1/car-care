@@ -34,7 +34,7 @@ import {
   uploadPaymentProofSchema,
 } from '@/lib/validations/booking';
 
-const DEFAULT_HOLD_MINUTES = 30;
+const DEFAULT_HOLD_MINUTES = 120;
 const PAYMENT_REVIEW_HOLD_MINUTES = 24 * 60;
 const TERMINAL_STATUSES: BookingStatus[] = [
   BookingStatus.CANCELLED,
