@@ -1203,9 +1203,6 @@ export default function BookingWizardClient({
         </div>
 
         <div className="space-y-3">
-          <span className="text-xs font-bold px-3 py-1 rounded-full bg-[#cea355]/15 text-[#edce8b] border border-[#cea355]/30">
-            تم استلام وتأكيد طلبك بنجاح
-          </span>
           <h1 className="text-2xl sm:text-4xl font-black text-white">
             شكراً لك! تم حجز خدمتك بنجاح
           </h1>

@@ -631,7 +631,7 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
   const isSubscriptions = currentSection === 'subscriptions';
   const isCustomers = currentSection === 'customers';
   const isAudit = currentSection === 'audit';
-  const isReports = currentSection === 'reports';
+  const isReports = currentSection === 'reports' || isOverview;
   const isRevenue = isOverview;
 
   // Overview quick cards & Bookings list
@@ -872,21 +872,25 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
   let reportTeamAssignedBookings = 0;
 
   if (isReports) {
+    const reportBookingWhere: Prisma.BookingWhereInput = {
+      deletedAt: null,
+      OR: [{ createdAt: reportRange }, { startAt: reportRange }],
+    };
+
     // Batch 1: Core Financial & Booking aggregates (5 queries)
     const [statusGroups, bookingAgg, dueAgg, paymentAgg, refundAgg] = await Promise.all([
       db.booking.groupBy({
         by: ['bookingStatus'],
-        where: { deletedAt: null, createdAt: reportRange },
+        where: reportBookingWhere,
         _count: { _all: true },
       }),
       db.booking.aggregate({
-        where: { deletedAt: null, createdAt: reportRange },
+        where: reportBookingWhere,
         _avg: { totalPrice: true },
       }),
       db.booking.aggregate({
         where: {
-          deletedAt: null,
-          createdAt: reportRange,
+          ...reportBookingWhere,
           bookingStatus: { notIn: TERMINAL_BOOKING_STATUSES },
           terminalReopenSourceStatus: null,
         },
@@ -915,19 +919,19 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
     const [byService, byBranch, byTeam, cancelReasons] = await Promise.all([
       db.booking.groupBy({
         by: ['serviceId'],
-        where: { deletedAt: null, createdAt: reportRange },
+        where: reportBookingWhere,
         _count: { _all: true },
         _sum: { totalPrice: true, amountPaid: true },
       }),
       db.booking.groupBy({
         by: ['branchId'],
-        where: { deletedAt: null, createdAt: reportRange },
+        where: reportBookingWhere,
         _count: { _all: true },
         _sum: { totalPrice: true, amountPaid: true },
       }),
       db.booking.groupBy({
         by: ['assignedTeamId'],
-        where: { deletedAt: null, createdAt: reportRange, assignedTeamId: { not: null } },
+        where: { ...reportBookingWhere, assignedTeamId: { not: null } },
         _count: { _all: true },
         _sum: { totalPrice: true, amountPaid: true },
       }),
@@ -963,21 +967,21 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
       db.customerProfile.count({ where: { createdAt: reportRange } }),
       db.booking.groupBy({
         by: ['customerId'],
-        where: { deletedAt: null, createdAt: reportRange },
+        where: reportBookingWhere,
         _count: { _all: true },
       }),
       db.booking.count({
-        where: { deletedAt: null, createdAt: reportRange, bookingStatus: BookingStatus.QUALITY_REVIEW },
+        where: { ...reportBookingWhere, bookingStatus: BookingStatus.QUALITY_REVIEW },
       }),
       db.customerSubscription.count({
-        where: { status: SubscriptionStatus.ACTIVE, createdAt: reportRange },
+        where: { status: SubscriptionStatus.ACTIVE },
       }),
       db.customerSubscription.aggregate({
-        where: { status: SubscriptionStatus.ACTIVE, createdAt: reportRange },
+        where: { status: SubscriptionStatus.ACTIVE },
         _sum: { remainingVisits: true },
       }),
       db.booking.count({
-        where: { deletedAt: null, createdAt: reportRange, assignedTeamId: { not: null } },
+        where: { ...reportBookingWhere, assignedTeamId: { not: null } },
       }),
     ]);
     reportNewSubscriptions = newSubs;
