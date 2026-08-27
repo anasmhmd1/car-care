@@ -16,6 +16,7 @@ import {
   Plus,
   Save,
   Search,
+  Settings2,
   Sparkles,
   Trash2,
 } from 'lucide-react';
@@ -302,19 +303,6 @@ function ServiceEditor({
     service?.materialRequirements ?? [],
   );
 
-  const [checklistItems, setChecklistItems] = useState<ChecklistTemplateItemDto[]>(() => {
-    if (service?.checklistItems && service.checklistItems.length > 0) {
-      return service.checklistItems;
-    }
-    return [
-      { labelAr: 'فحص وتصوير حالة السيارة وتأكيد بيانات الحجز', required: true, requiresPhoto: false, requiresNote: false, active: true },
-      { labelAr: 'تنظيف وتلميع الهيكل الخارجي والجنوط والإطارات', required: true, requiresPhoto: false, requiresNote: false, active: true },
-      { labelAr: 'تجفيف الزجاج وفتحات الأبواب واللمسات الدقيقة', required: true, requiresPhoto: false, requiresNote: false, active: true },
-      { labelAr: 'فحص الجودة النهائي وتأكيد إتمام الخدمة', required: true, requiresPhoto: false, requiresNote: false, active: true },
-    ];
-  });
-  const [newChecklistLabel, setNewChecklistLabel] = useState('');
-
   const [slotCount, setSlotCount] = useState<number>(() => {
     if (service?.slotCount && service.slotCount >= 1) return service.slotCount;
     if (service?.durationMinutes) return Math.max(1, Math.round(service.durationMinutes / 60));
@@ -322,31 +310,6 @@ function ServiceEditor({
   });
   const calculatedDurationMinutes = slotCount * 60;
   const [isUploading, setIsUploading] = useState(false);
-
-  function addChecklistItem() {
-    if (!newChecklistLabel.trim()) return;
-    setChecklistItems((current) => [
-      ...current,
-      {
-        labelAr: newChecklistLabel.trim(),
-        required: true,
-        requiresPhoto: false,
-        requiresNote: false,
-        active: true,
-      },
-    ]);
-    setNewChecklistLabel('');
-  }
-
-  function removeChecklistItem(index: number) {
-    setChecklistItems((current) => current.filter((_, i) => i !== index));
-  }
-
-  function updateChecklistItem(index: number, patch: Partial<ChecklistTemplateItemDto>) {
-    setChecklistItems((current) =>
-      current.map((item, i) => (i === index ? { ...item, ...patch } : item)),
-    );
-  }
 
   function toggleBranch(branchId: string, enabled: boolean) {
     setBranchOverrides((current) =>
@@ -420,7 +383,7 @@ function ServiceEditor({
     data.set('addonIds', JSON.stringify([]));
     data.set('branchOverrides', JSON.stringify(branchOverrides));
     data.set('materialRequirements', JSON.stringify(materialRequirements));
-    data.set('checklistItems', JSON.stringify(checklistItems));
+    data.set('checklistItems', JSON.stringify([]));
     data.set('includedItems', JSON.stringify([]));
     data.set('excludedItems', JSON.stringify([]));
     data.set('slotCount', String(slotCount));
@@ -732,103 +695,28 @@ function ServiceEditor({
         </div>
       </section>
 
-      {/* 4. Employee Execution Checklist */}
+      {/* 4. Employee Execution Checklist — Link to Setup Center */}
       <section className="rounded-2xl border border-neutral-800 bg-[#111114]/90 p-5 shadow-xl">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2.5">
             <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[#cea355]/20 border border-[#cea355]/40 text-[#edce8b]">
               <ListChecks className="size-4" />
             </div>
             <div>
-              <h3 className="text-sm font-black text-white">قائمة مهام وتشيك ليست التنفيذ للموظفين</h3>
+              <h3 className="text-sm font-black text-white">قوائم تنفيذ الخدمة للموظفين</h3>
               <p className="mt-0.5 text-xs text-neutral-400">
-                تظهر للفنيين وموظفي التنفيذ في تطبيق الميدان أثناء تنفيذ الحجز، ولا تظهر للعميل. إتمام جميع البنود مطلوب لاكتمال الحجز وخصم المخزون.
+                أنشئ وعدّل قوائم التنفيذ لكل مرحلة (تحضير الفريق، فحص الوصول، تنفيذ الخدمة، الإغلاق والتسليم) من مركز إعداد التشغيل.
               </p>
             </div>
           </div>
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-[11px] font-bold text-amber-200 shrink-0">
-            خاص بالموظفين فقط
-          </span>
-        </div>
-
-        {/* Add new checklist item form */}
-        <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-          <input
-            type="text"
-            value={newChecklistLabel}
-            onChange={(e) => setNewChecklistLabel(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                addChecklistItem();
-              }
-            }}
-            placeholder="اكتب خطوة أو مهمة جديدة للموظف (مثال: تنظيف وتلميع الهيكل الخارجي)..."
-            className="flex-1 min-h-11 rounded-xl border border-white/10 bg-black/40 px-3.5 text-xs text-white outline-none transition focus:border-[#cea355] focus:ring-2 focus:ring-[#cea355]/20"
-          />
-          <button
-            type="button"
-            onClick={addChecklistItem}
-            className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-[#cea355] px-4 text-xs font-bold text-neutral-950 hover:bg-[#edce8b] transition-all shrink-0"
+          <Link
+            href="/admin/setup"
+            className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl border border-[#cea355]/40 bg-[#cea355]/10 px-5 text-xs font-bold text-[#edce8b] hover:bg-[#cea355]/20 transition-all"
           >
-            <Plus className="size-4" />
-            <span>إضافة بند للمهمة</span>
-          </button>
+            <Settings2 className="size-4" />
+            فتح مركز إعداد التشغيل
+          </Link>
         </div>
-
-        {/* Checklist items list */}
-        {checklistItems.length ? (
-          <div className="mt-4 space-y-2.5">
-            {checklistItems.map((item, index) => (
-              <div
-                key={item.id ?? `checklist-${index}`}
-                className="flex flex-col gap-3 rounded-xl border border-neutral-800 bg-black/30 p-3.5 transition-all hover:border-neutral-700 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div className="flex flex-1 items-center gap-3">
-                  <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-[#cea355]/20 text-[11px] font-black text-[#edce8b]">
-                    {index + 1}
-                  </span>
-                  <input
-                    type="text"
-                    value={item.labelAr}
-                    onChange={(e) => updateChecklistItem(index, { labelAr: e.target.value })}
-                    className="flex-1 rounded-lg border border-white/5 bg-transparent px-2.5 py-1.5 text-xs font-medium text-white transition focus:border-[#cea355] focus:bg-black/60 focus:outline-none"
-                  />
-                </div>
-                <div className="flex items-center justify-between gap-3 sm:justify-end">
-                  <label className="flex items-center gap-1.5 text-[11px] font-semibold text-neutral-300 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={item.required}
-                      onChange={(e) => updateChecklistItem(index, { required: e.target.checked })}
-                    />
-                    <span>إلزامية</span>
-                  </label>
-                  <label className="flex items-center gap-1.5 text-[11px] font-semibold text-neutral-300 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={item.requiresNote}
-                      onChange={(e) => updateChecklistItem(index, { requiresNote: e.target.checked })}
-                    />
-                    <span>تتطلب ملاحظة</span>
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => removeChecklistItem(index)}
-                    title="حذف هذا البند"
-                    className="flex size-8 items-center justify-center rounded-lg border border-red-500/20 bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300 transition-all"
-                  >
-                    <Trash2 className="size-3.5" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="mt-4 rounded-xl border border-dashed border-neutral-800 p-5 text-center text-xs text-neutral-400">
-            لم تتم إضافة أي بنود في قائمة مهام الموظفين بعد. أضف خطوات العمل أعلاه.
-          </div>
-        )}
       </section>
 
       {/* 5. Materials and Inventory Link */}
