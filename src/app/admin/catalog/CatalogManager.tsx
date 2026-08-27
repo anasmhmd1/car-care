@@ -583,7 +583,7 @@ function ProductEditor({
               <h2 id="service-materials-title" className="text-lg font-black">مواد ومستلزمات التنفيذ</h2>
               <p className="mt-1 text-xs leading-5 text-white/50">تُحفظ الكميات والملاحظات مع الخدمة نفسها، وتظهر تلقائيًا للفريق في قائمة تنفيذ الحجز.</p>
             </div>
-            <Link href="/operations/resources" className="text-xs font-bold text-[#f0d36d] underline-offset-4 hover:underline">
+            <Link href="/admin/setup" className="text-xs font-bold text-[#f0d36d] underline-offset-4 hover:underline">
               إدارة الأصناف والمخزون
             </Link>
           </div>

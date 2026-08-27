@@ -101,13 +101,6 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
   });
 
   const accessibleBranchIds = await getAccessibleBranchIds(employee);
-  const branchIds =
-    accessibleBranchIds ??
-    (
-      await db.branch.findMany({
-        select: { id: true },
-      })
-    ).map(({ id }) => id);
 
   // Delegated permissions evaluation
   const bookingPermissionCache = new Map<string, Promise<boolean>>();

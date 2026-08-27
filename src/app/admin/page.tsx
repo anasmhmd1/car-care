@@ -370,13 +370,13 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
     redirect('/admin/setup');
   }
   if (rawSection === 'payments') {
-    redirect('/operations?tab=proofs');
+    redirect('/admin?section=overview&tab=revenue');
   }
   if (rawSection === 'cancellations') {
-    redirect('/operations?tab=cancellations');
+    redirect('/admin?section=bookings&status=CANCELLED');
   }
   if (rawSection === 'quality') {
-    redirect('/operations');
+    redirect('/admin/reviews');
   }
   if (rawSection === 'revenue') {
     redirect('/admin?section=overview&tab=revenue');

@@ -29,11 +29,12 @@ interface Props {
     nameAr: string;
     services: BranchPriceService[];
   }>;
+  homeHref?: string;
 }
 
 const inputClass = 'w-full rounded-xl border border-neutral-700 bg-[#080808] px-3 py-2.5 text-sm text-white outline-none focus:border-[#c9a227] focus:ring-2 focus:ring-[#c9a227]/20';
 
-export default function DelegatedPricingBoard({ globalServices, branches }: Props) {
+export default function DelegatedPricingBoard({ globalServices, branches, homeHref = '/operations' }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [feedback, setFeedback] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
@@ -50,10 +51,10 @@ export default function DelegatedPricingBoard({ globalServices, branches }: Prop
           setFeedback({ tone: 'error', message: result.error });
           return;
         }
-        setFeedback({ tone: 'success', message: 'تم حفظ السعر وتسجيل التعديل.' });
+        setFeedback({ tone: 'success', message: 'تم تحديث التسعير بنجاح.' });
         router.refresh();
       } catch {
-        setFeedback({ tone: 'error', message: 'تعذر حفظ السعر.' });
+        setFeedback({ tone: 'error', message: 'تعذر حفظ السعر الآن. حاول مجددًا.' });
       }
     });
   }
@@ -64,11 +65,11 @@ export default function DelegatedPricingBoard({ globalServices, branches }: Prop
         <header className="rounded-3xl border border-[#c9a227]/35 bg-[#141414] p-6 sm:p-8">
           <div className="flex flex-wrap items-center justify-end gap-3">
             <Link
-              href="/operations"
+              href={homeHref}
               className="inline-flex items-center gap-2 rounded-xl border border-neutral-700 px-3.5 py-2 text-xs font-bold text-neutral-300 hover:border-[#c9a227]/60 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c9a227] transition-all"
             >
               <ArrowRight className="size-4" aria-hidden="true" />
-              العودة للتشغيل
+              {homeHref === '/admin' ? 'العودة للوحة المالك' : 'العودة للتشغيل'}
             </Link>
             <Link
               href="/"

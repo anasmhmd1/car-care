@@ -1123,11 +1123,11 @@ export default function OperationsResourcesBoard({
             </p>
             <div className="flex items-center gap-2.5">
               <Link
-                href="/operations"
+                href={actorRole === 'OWNER' || actorRole === 'SYSTEM_SUPER_ADMIN' ? '/admin/setup' : '/operations'}
                 className="inline-flex items-center gap-2 rounded-xl border border-[#d4af37]/35 bg-[#d4af37]/10 px-3.5 py-2 text-xs font-bold text-[#f0d36d] hover:bg-[#d4af37]/20 transition-all shadow-sm"
               >
                 <ArrowRight className="size-4" aria-hidden="true" />
-                العودة لمركز التشغيل
+                {actorRole === 'OWNER' || actorRole === 'SYSTEM_SUPER_ADMIN' ? 'العودة لمركز الإعداد' : 'العودة لمركز التشغيل'}
               </Link>
               <Link
                 href="/"

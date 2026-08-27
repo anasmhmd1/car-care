@@ -1023,9 +1023,12 @@ export default function OperationsWorkforceBoard({
               </span>
             </div>
             <div className="flex flex-wrap items-center gap-2.5">
-              <Link href="/operations" className={secondaryButtonClass}>
+              <Link
+                href={actor.role === 'OWNER' || actor.role === 'SYSTEM_SUPER_ADMIN' ? '/admin/setup' : '/operations'}
+                className={secondaryButtonClass}
+              >
                 <ArrowRight className="size-4" aria-hidden="true" />
-                لوحة التشغيل
+                {actor.role === 'OWNER' || actor.role === 'SYSTEM_SUPER_ADMIN' ? 'العودة لمركز الإعداد' : 'لوحة التشغيل'}
               </Link>
               <Link href="/" className={secondaryButtonClass}>
                 <Home className="size-4 text-neutral-400" aria-hidden="true" />

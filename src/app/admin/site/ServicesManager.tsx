@@ -846,7 +846,7 @@ function ServiceEditor({
                 </p>
               </div>
             </div>
-            <Link href="/operations/resources" className="text-xs font-bold text-[#edce8b] hover:underline shrink-0">
+            <Link href="/admin/setup" className="text-xs font-bold text-[#edce8b] hover:underline shrink-0">
               إدارة الأصناف والمخزون
             </Link>
           </div>

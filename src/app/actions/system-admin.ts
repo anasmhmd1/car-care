@@ -9,10 +9,8 @@ import { UserRole, BranchRequestStatus, BranchStatus, Prisma } from '@prisma/cli
 import bcrypt from 'bcryptjs';
 import { clearLockout } from '@/lib/security/rate-limit';
 
-const FORBIDDEN_OWNER_PASSWORDS = new Set(['OwnerPass2026!', 'EmpPass2026!']);
-
 function isAcceptableTemporaryPassword(password: string): boolean {
-  return password.length >= 12 && !FORBIDDEN_OWNER_PASSWORDS.has(password);
+  return password.length >= 8;
 }
 
 export async function reviewBranchRequestAction(formData: FormData) {

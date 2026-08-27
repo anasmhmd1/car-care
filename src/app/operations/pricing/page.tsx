@@ -100,6 +100,7 @@ export default async function DelegatedPricingPage() {
           active: branchService.active && branchService.service.active,
         })),
       }))}
+      homeHref={actor.role === UserRole.OPERATIONS_MANAGER ? '/operations' : '/admin'}
     />
   );
 }

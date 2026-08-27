@@ -51,21 +51,18 @@ const employeeSchema = z.object({
   temporaryPassword: z.string().max(128).optional(),
 }).superRefine((value, context) => {
   const password = value.temporaryPassword?.trim() ?? '';
-  if (!value.employeeId && password.length < 12) {
+  if (!value.employeeId && password.length < 8) {
     context.addIssue({
       code: z.ZodIssueCode.custom,
       path: ['temporaryPassword'],
-      message: 'كلمة المرور المؤقتة مطلوبة للحساب الجديد وبحد أدنى 12 حرفًا.',
+      message: 'كلمة المرور المؤقتة مطلوبة للحساب الجديد وبحد أدنى 8 خانات.',
     });
   }
-  if (password && (
-    password.length < 12 ||
-    /^(password|admin|change-?me|replace-?me|emppass)/i.test(password)
-  )) {
+  if (password && password.length < 8) {
     context.addIssue({
       code: z.ZodIssueCode.custom,
       path: ['temporaryPassword'],
-      message: 'استخدم كلمة مرور مؤقتة قوية وغير متوقعة من 12 حرفًا على الأقل.',
+      message: 'كلمة المرور يجب أن تكون 8 خانات على الأقل.',
     });
   }
 });

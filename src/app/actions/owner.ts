@@ -54,7 +54,7 @@ function parseStringArray(value: FormDataEntryValue | null): string[] | null {
 }
 
 function isAcceptableTemporaryPassword(password: string): boolean {
-  return password.length >= 12 && !FORBIDDEN_TEMP_PASSWORDS.has(password);
+  return password.length >= 8;
 }
 
 export async function createServiceAction(formData: FormData) {

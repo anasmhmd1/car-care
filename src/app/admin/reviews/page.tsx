@@ -25,7 +25,7 @@ export default async function CustomerReviewsPage() {
   const reviewableBranchIds = accessibleBranchIds ?? (
     await db.branch.findMany({ select: { id: true } })
   ).map(({ id }) => id);
-  const backHref = actor.role === UserRole.OPERATIONS_MANAGER ? '/operations' : '/admin?section=quality';
+  const backHref = actor.role === UserRole.OPERATIONS_MANAGER ? '/operations' : '/admin';
 
   if (reviewableBranchIds.length === 0) {
     redirect(actor.role === UserRole.OPERATIONS_MANAGER ? '/operations' : '/admin');

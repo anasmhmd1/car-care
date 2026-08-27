@@ -21,15 +21,8 @@ export interface PasswordResetAdminResult {
 const requestIdSchema = databaseIdSchema;
 const reasonSchema = z.string().trim().min(5, 'دوّن طريقة التحقق أو سبب الرفض بوضوح.').max(1000);
 const temporaryPasswordSchema = z.string()
-  .min(14, 'كلمة المرور المؤقتة يجب أن تكون 14 حرفًا على الأقل.')
-  .max(128)
-  .regex(/[a-z]/, 'أضف حرفًا إنجليزيًا صغيرًا.')
-  .regex(/[A-Z]/, 'أضف حرفًا إنجليزيًا كبيرًا.')
-  .regex(/\d/, 'أضف رقمًا.')
-  .regex(/[^A-Za-z0-9]/, 'أضف رمزًا خاصًا.')
-  .refine((value) => !/password|change-?me|replace-?me|bareeq123|admin/i.test(value), {
-    message: 'اختر كلمة مؤقتة غير متوقعة ولا تستخدم قيمة افتراضية.',
-  });
+  .min(8, 'كلمة المرور المؤقتة يجب أن تكون 8 خانات على الأقل.')
+  .max(128);
 
 const RESET_MANAGER_ROLES = [
   UserRole.OPERATIONS_MANAGER,
