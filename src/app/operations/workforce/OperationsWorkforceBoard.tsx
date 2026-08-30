@@ -772,25 +772,276 @@ function HoursCard({
   };
   tools: SectionTools;
 }) {
+  const [disabled, setDisabled] = useState(hours.isOff);
+  const [openTime, setOpenTime] = useState(hours.openTime);
+  const [closeTime, setCloseTime] = useState(hours.closeTime);
+  const [breakStart, setBreakStart] = useState(hours.breakStartTime ?? '');
+  const [breakEnd, setBreakEnd] = useState(hours.breakEndTime ?? '');
+
+  const slotUnitMinutes = 60;
+  const travelBufferMinutes = 30;
+  const strideMinutes = slotUnitMinutes + travelBufferMinutes;
+
+  const parseMinutes = (timeStr: string) => {
+    if (!timeStr || !timeStr.includes(':')) return 0;
+    const [h, m] = timeStr.split(':').map(Number);
+    return (h || 0) * 60 + (m || 0);
+  };
+
+  const formatMinutesToTime = (totalMin: number) => {
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  };
+
+  const formatMinutesToDisplay = (totalMin: number) => {
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    const period = h >= 12 ? 'م' : 'ص';
+    const displayH = h === 0 ? 12 : h > 12 ? h - 12 : h;
+    return `${String(displayH).padStart(2, '0')}:${String(m).padStart(2, '0')} ${period}`;
+  };
+
+  const operationalSlots = useMemo(() => {
+    const slots: Array<{
+      startFormatted: string;
+      endFormatted: string;
+      label: string;
+    }> = [];
+    const openMin = parseMinutes(openTime);
+    const closeMin = parseMinutes(closeTime);
+    if (closeMin <= openMin) return slots;
+
+    let cur = openMin;
+    while (cur <= closeMin && slots.length < 16) {
+      const slotStart = cur;
+      const slotEnd = cur + slotUnitMinutes;
+      slots.push({
+        startFormatted: formatMinutesToTime(slotStart),
+        endFormatted: formatMinutesToTime(slotEnd),
+        label: `${formatMinutesToDisplay(slotStart)} إلى ${formatMinutesToDisplay(slotEnd)}`,
+      });
+      cur += strideMinutes;
+    }
+    return slots;
+  }, [openTime, closeTime]);
+
+  const livePreview = useMemo(() => {
+    if (disabled) return [];
+    const preview: Array<{ timeDisplay: string; isBreak: boolean }> = [];
+    const openMin = parseMinutes(openTime);
+    const closeMin = parseMinutes(closeTime);
+    const bStart = breakStart ? parseMinutes(breakStart) : null;
+    const bEnd = breakEnd ? parseMinutes(breakEnd) : null;
+    const hasBreak = bStart !== null && bEnd !== null && bStart < bEnd;
+
+    let cur = openMin;
+    while (cur <= closeMin && preview.length < 16) {
+      const slotStart = cur;
+      const slotEnd = cur + slotUnitMinutes;
+
+      if (hasBreak && !(slotEnd <= bStart! || slotStart >= bEnd!)) {
+        preview.push({
+          timeDisplay: `${formatMinutesToDisplay(bStart!)} (استراحة ☕)`,
+          isBreak: true,
+        });
+        const slotUnit = 60;
+        const offset = bEnd! - openMin;
+        const alignedOffset = Math.ceil(offset / slotUnit) * slotUnit;
+        cur = openMin + Math.max(offset, alignedOffset);
+        continue;
+      }
+
+      preview.push({
+        timeDisplay: formatMinutesToDisplay(slotStart),
+        isBreak: false,
+      });
+      cur += strideMinutes;
+    }
+    return preview;
+  }, [disabled, openTime, closeTime, breakStart, breakEnd]);
+
   return (
-    <form onSubmit={(event) => tools.execute(saveOperationsTeamHoursAction, formDataFrom(event))} className="rounded-2xl border border-white/8 bg-black/25 p-4">
-      <input type="hidden" name="teamId" value={teamId} />
-      <input type="hidden" name="dayOfWeek" value={day.value} />
-      <div className="flex items-center justify-between gap-3">
-        <h3 className="font-black text-white/82">{day.label}</h3>
-        <label className="flex cursor-pointer items-center gap-2 text-xs font-bold text-white/50">
-          <input type="checkbox" name="isOff" value="true" defaultChecked={hours.isOff} className="size-4 accent-red-400" />
-          <input type="hidden" name="isOff" value="false" />
-          إجازة للفريق
-        </label>
+    <form
+      onSubmit={(event) => tools.execute(saveOperationsTeamHoursAction, formDataFrom(event))}
+      className={`rounded-2xl border transition-all ${
+        disabled
+          ? 'border-white/5 bg-black/15 opacity-70'
+          : 'border-white/10 bg-black/30 hover:border-white/20'
+      } p-4 flex flex-col justify-between`}
+    >
+      <div>
+        <input type="hidden" name="teamId" value={teamId} />
+        <input type="hidden" name="dayOfWeek" value={day.value} />
+        <div className="flex items-center justify-between gap-3 border-b border-white/8 pb-3">
+          <h3 className="font-black text-white text-sm sm:text-base">{day.label}</h3>
+          <label className="flex cursor-pointer items-center gap-2 text-xs font-bold text-white/60">
+            <input
+              type="checkbox"
+              name="isOff"
+              value="true"
+              checked={disabled}
+              onChange={(e) => setDisabled(e.target.checked)}
+              className="size-4 accent-red-500 rounded"
+            />
+            <input type="hidden" name="isOff" value="false" />
+            <span className={disabled ? 'text-red-400 font-bold' : ''}>إجازة للفريق</span>
+          </label>
+        </div>
+
+        {!disabled && (
+          <div className="mt-3.5 space-y-3.5">
+            <div className="grid grid-cols-2 gap-2.5">
+              <label className="text-[11px] font-bold text-white/55">
+                الفتح
+                <input
+                  name="openTime"
+                  type="time"
+                  step="900"
+                  required
+                  value={openTime}
+                  onChange={(e) => setOpenTime(e.target.value)}
+                  className={inputClass + ' mt-1'}
+                />
+              </label>
+              <label className="text-[11px] font-bold text-white/55">
+                الإغلاق
+                <input
+                  name="closeTime"
+                  type="time"
+                  step="900"
+                  required
+                  value={closeTime}
+                  onChange={(e) => setCloseTime(e.target.value)}
+                  className={inputClass + ' mt-1'}
+                />
+              </label>
+            </div>
+
+            {/* Quick Slot Break Selector */}
+            <div className="rounded-xl bg-white/[0.03] border border-white/5 p-2.5 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-[#edce8b] flex items-center gap-1">
+                  <span>☕ استراحة الفريق (اختيار سلوت مباشر)</span>
+                </span>
+                {breakStart && breakEnd && (
+                  <button
+                    type="button"
+                    onClick={() => { setBreakStart(''); setBreakEnd(''); }}
+                    className="text-[10px] text-red-400 hover:text-red-300 font-bold underline"
+                  >
+                    إلغاء الاستراحة
+                  </button>
+                )}
+              </div>
+
+              {operationalSlots.length > 0 ? (
+                <div className="flex flex-wrap gap-1">
+                  <button
+                    type="button"
+                    onClick={() => { setBreakStart(''); setBreakEnd(''); }}
+                    className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition-colors ${
+                      !breakStart && !breakEnd
+                        ? 'border-[#cea355] bg-[#cea355]/20 text-[#edce8b]'
+                        : 'border-white/10 bg-black/40 text-neutral-400 hover:text-white'
+                    }`}
+                  >
+                    بدون استراحة
+                  </button>
+                  {operationalSlots.map((slot) => {
+                    const isSelected = breakStart === slot.startFormatted && breakEnd === slot.endFormatted;
+                    return (
+                      <button
+                        key={slot.startFormatted}
+                        type="button"
+                        onClick={() => {
+                          setBreakStart(slot.startFormatted);
+                          setBreakEnd(slot.endFormatted);
+                        }}
+                        className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition-colors ${
+                          isSelected
+                            ? 'border-amber-400 bg-amber-400/25 text-amber-200 shadow-sm'
+                            : 'border-white/10 bg-black/40 text-neutral-300 hover:border-amber-400/50 hover:text-amber-200'
+                        }`}
+                      >
+                        سلوت {slot.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+
+              <div className="grid grid-cols-2 gap-2 pt-1 border-t border-white/5">
+                <label className="text-[10px] text-white/40">
+                  بداية الاستراحة
+                  <input
+                    name="breakStartTime"
+                    type="time"
+                    step="900"
+                    value={breakStart}
+                    onChange={(e) => setBreakStart(e.target.value)}
+                    placeholder="بدون"
+                    className={inputClass + ' mt-0.5 text-xs py-1'}
+                  />
+                </label>
+                <label className="text-[10px] text-white/40">
+                  نهاية الاستراحة
+                  <input
+                    name="breakEndTime"
+                    type="time"
+                    step="900"
+                    value={breakEnd}
+                    onChange={(e) => setBreakEnd(e.target.value)}
+                    placeholder="بدون"
+                    className={inputClass + ' mt-0.5 text-xs py-1'}
+                  />
+                </label>
+              </div>
+            </div>
+
+            {/* Live Customer Preview Window */}
+            <div className="rounded-xl bg-[#09090b] border border-[#d4af37]/20 p-2.5">
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <span className="size-1.5 rounded-full bg-[#cea355] animate-pulse" />
+                <span className="text-[10px] font-black text-[#cea355]">معاينة حية للمواعيد المعروضة للعميل:</span>
+              </div>
+              {livePreview.length > 0 ? (
+                <div className="flex flex-wrap gap-1">
+                  {livePreview.map((slot, idx) => (
+                    <span
+                      key={idx}
+                      className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                        slot.isBreak
+                          ? 'border border-amber-500/40 bg-amber-500/15 text-amber-300'
+                          : 'border border-white/10 bg-white/5 text-neutral-200'
+                      }`}
+                    >
+                      {slot.timeDisplay}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-[10px] text-neutral-500">لا توجد مواعيد متاحة في نطاق هذا الوقت.</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {disabled && (
+          <div className="py-6 text-center text-xs font-bold text-red-400/80">
+            هذا اليوم محدد كإجازة للفريق
+          </div>
+        )}
       </div>
-      <div className="mt-4 grid grid-cols-2 gap-3">
-        <label className="text-[11px] font-bold text-white/45">الفتح<input name="openTime" type="time" required defaultValue={hours.openTime} className={inputClass} /></label>
-        <label className="text-[11px] font-bold text-white/45">الإغلاق<input name="closeTime" type="time" required defaultValue={hours.closeTime} className={inputClass} /></label>
-        <label className="text-[11px] font-bold text-white/45">بداية الاستراحة <span className="text-neutral-500 font-normal">(اختياري)</span><input name="breakStartTime" type="time" defaultValue={hours.breakStartTime ?? ''} placeholder="بدون استراحة" className={inputClass} /></label>
-        <label className="text-[11px] font-bold text-white/45">نهاية الاستراحة <span className="text-neutral-500 font-normal">(اختياري)</span><input name="breakEndTime" type="time" defaultValue={hours.breakEndTime ?? ''} placeholder="بدون استراحة" className={inputClass} /></label>
-      </div>
-      <button type="submit" disabled={tools.pending} className={secondaryButtonClass + ' mt-4 w-full'}><Save className="size-4" aria-hidden="true" />حفظ {day.label}</button>
+
+      <button
+        type="submit"
+        disabled={tools.pending}
+        className={secondaryButtonClass + ' mt-4 w-full justify-center'}
+      >
+        <Save className="size-3.5" aria-hidden="true" />
+        <span>حفظ {day.label}</span>
+      </button>
     </form>
   );
 }

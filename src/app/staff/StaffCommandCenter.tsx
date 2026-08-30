@@ -15,6 +15,8 @@ import {
   Check,
   CheckCircle2,
   CheckSquare,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   ExternalLink,
   Eye,
@@ -467,6 +469,109 @@ function formatDateTime(value: string | Date) {
   return dateTimeFormatter.format(new Date(value));
 }
 
+function toLocalDateString(dateVal: string | Date): string {
+  try {
+    const d = typeof dateVal === 'string' ? new Date(dateVal) : dateVal;
+    if (Number.isNaN(d.getTime())) return '';
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Africa/Cairo',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(d);
+    const values = Object.fromEntries(parts.map((p) => [p.type, p.value]));
+    return `${values.year}-${values.month}-${values.day}`;
+  } catch {
+    return '';
+  }
+}
+
+const ARABIC_DAYS = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+const ARABIC_MONTHS = [
+  'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
+  'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
+];
+
+interface WeekDayItem {
+  dateStr: string;
+  date: Date;
+  dayName: string;
+  dayNumber: number;
+  monthName: string;
+  fullFormatted: string;
+  isToday: boolean;
+  tasksCount: number;
+  activeCount: number;
+  completedCount: number;
+  pendingCount: number;
+}
+
+function getWeekDays(
+  weekOffset = 0,
+  bookings: StaffBookingDto[] = [],
+  taskStatuses: Record<string, string> = {},
+): {
+  days: WeekDayItem[];
+  weekRangeLabel: string;
+  todayStr: string;
+} {
+  const now = new Date();
+  const todayStr = toLocalDateString(now);
+
+  // In Egypt & Arab regions, Saturday (day 6 in JS Date) is the start of the week.
+  const currentDayIndex = now.getDay();
+  const diffToSaturday = (currentDayIndex + 1) % 7;
+
+  const saturday = new Date(now);
+  saturday.setDate(now.getDate() - diffToSaturday + weekOffset * 7);
+  saturday.setHours(0, 0, 0, 0);
+
+  const days: WeekDayItem[] = [];
+
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(saturday);
+    d.setDate(saturday.getDate() + i);
+    const dateStr = toLocalDateString(d);
+    const dayName = ARABIC_DAYS[d.getDay()];
+    const dayNumber = d.getDate();
+    const monthName = ARABIC_MONTHS[d.getMonth()];
+
+    const dayBookings = bookings.filter((b) => toLocalDateString(b.startAt) === dateStr);
+    const activeCount = dayBookings.filter((b) => {
+      const st = taskStatuses[b.id] ?? b.bookingStatus;
+      return ['ON_THE_WAY', 'ARRIVED', 'IN_SERVICE'].includes(st);
+    }).length;
+    const completedCount = dayBookings.filter((b) => {
+      const st = taskStatuses[b.id] ?? b.bookingStatus;
+      return ['DELIVERED', 'SERVICE_COMPLETED', 'CLOSED'].includes(st);
+    }).length;
+    const pendingCount = dayBookings.filter((b) => {
+      const st = taskStatuses[b.id] ?? b.bookingStatus;
+      return ['ASSIGNED', 'TEAM_ACKNOWLEDGED', 'CONFIRMED', 'ACCEPTED'].includes(st);
+    }).length;
+
+    days.push({
+      dateStr,
+      date: d,
+      dayName,
+      dayNumber,
+      monthName,
+      fullFormatted: `${dayName} ${dayNumber} ${monthName}`,
+      isToday: dateStr === todayStr,
+      tasksCount: dayBookings.length,
+      activeCount,
+      completedCount,
+      pendingCount,
+    });
+  }
+
+  const startDay = days[0];
+  const endDay = days[6];
+  const weekRangeLabel = `من ${startDay.dayName} ${startDay.dayNumber} ${startDay.monthName} إلى ${endDay.dayName} ${endDay.dayNumber} ${endDay.monthName}`;
+
+  return { days, weekRangeLabel, todayStr };
+}
+
 function formatTimeOnly(dateValue: string | Date): string {
   return new Intl.DateTimeFormat('ar-EG', {
     hour: 'numeric',
@@ -632,6 +737,12 @@ export default function StaffCommandCenter({
   );
   const [searchQuery, setSearchQuery] = useState(filters?.search ?? '');
   const [statusFilter, setStatusFilter] = useState(filters?.status ?? 'all');
+  const [weekOffset, setWeekOffset] = useState<number>(0);
+  const [selectedScheduleDateStr, setSelectedScheduleDateStr] = useState<string>(() =>
+    toLocalDateString(new Date()),
+  );
+  const [viewAllWeekSchedule, setViewAllWeekSchedule] = useState<boolean>(false);
+  const [dayTaskFilter, setDayTaskFilter] = useState<string>('all');
   const [feedback, setFeedback] = useState<{ kind: 'success' | 'error'; message: string } | null>(
     null,
   );
@@ -670,6 +781,27 @@ export default function StaffCommandCenter({
   const [taskStatuses, setTaskStatuses] = useState<Record<string, string>>(() => {
     return Object.fromEntries(bookings.map((b) => [b.id, b.bookingStatus]));
   });
+
+  // Weekly Schedule Memo
+  const weekInfo = useMemo(() => {
+    return getWeekDays(weekOffset, bookings, taskStatuses);
+  }, [weekOffset, bookings, taskStatuses]);
+
+  const selectedDayInfo = useMemo(() => {
+    return (
+      weekInfo.days.find((d) => d.dateStr === selectedScheduleDateStr) ??
+      weekInfo.days.find((d) => d.isToday) ??
+      weekInfo.days[0]
+    );
+  }, [weekInfo, selectedScheduleDateStr]);
+
+  const displayedScheduleBookings = useMemo(() => {
+    if (viewAllWeekSchedule) {
+      const weekDateSet = new Set(weekInfo.days.map((d) => d.dateStr));
+      return bookings.filter((b) => weekDateSet.has(toLocalDateString(b.startAt)));
+    }
+    return bookings.filter((b) => toLocalDateString(b.startAt) === selectedScheduleDateStr);
+  }, [bookings, viewAllWeekSchedule, weekInfo.days, selectedScheduleDateStr]);
 
   // Delegated active state
   const hasDelegated = Boolean(
@@ -721,6 +853,23 @@ export default function StaffCommandCenter({
           return false;
         }
       }
+
+      if (dayTaskFilter !== 'all') {
+        const bDateStr = toLocalDateString(b.startAt);
+        if (dayTaskFilter === 'today') {
+          if (bDateStr !== weekInfo.todayStr) return false;
+        } else if (dayTaskFilter === 'tomorrow') {
+          const tomorrow = new Date();
+          tomorrow.setDate(tomorrow.getDate() + 1);
+          if (bDateStr !== toLocalDateString(tomorrow)) return false;
+        } else if (dayTaskFilter === 'week') {
+          const weekDateSet = new Set(weekInfo.days.map((d) => d.dateStr));
+          if (!weekDateSet.has(bDateStr)) return false;
+        } else if (bDateStr !== dayTaskFilter) {
+          return false;
+        }
+      }
+
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
         const bNum = b.bookingNumber.toLowerCase();
@@ -740,7 +889,7 @@ export default function StaffCommandCenter({
       }
       return true;
     });
-  }, [bookings, taskStatuses, statusFilter, searchQuery]);
+  }, [bookings, taskStatuses, statusFilter, dayTaskFilter, searchQuery, weekInfo]);
 
   const nextAvailableStep = useMemo(() => {
     return WORKFLOW_STEPS.find((step) => step.from === currentTaskStatus) ?? null;
@@ -1132,69 +1281,259 @@ export default function StaffCommandCenter({
 
 
 
-          {/* Today's Tasks Timeline */}
-          <div className="space-y-4 rounded-3xl border border-neutral-800/80 bg-[#111114]/90 p-5 sm:p-6 shadow-xl backdrop-blur-md">
-            <div className="flex items-center justify-between border-b border-neutral-800/60 pb-4">
-              <div className="flex items-center gap-2">
-                <CalendarDays className="size-4 text-[#d4af37]" />
-                <h3 className="text-base font-bold text-white">جدول ومسار مهام اليوم</h3>
+          {/* Weekly & Daily Tasks Timeline */}
+          <div className="space-y-5 rounded-3xl border border-neutral-800/80 bg-[#111114]/90 p-5 sm:p-6 shadow-xl backdrop-blur-md">
+            {/* Header & Week Navigation Controls */}
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-neutral-800/80 pb-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <CalendarDays className="size-5 text-[#d4af37]" />
+                  <h3 className="text-base sm:text-lg font-black text-white">
+                    الجدول والمسار الأسبوعي للمهام
+                  </h3>
+                </div>
+                <p className="mt-1 text-xs text-neutral-400">
+                  اختر اليوم من شريط الأسبوع لعرض المهام المسندة لك ولفريقك بالتفصيل
+                </p>
               </div>
-              <span className="text-xs font-bold text-neutral-400">
-                {bookings.length} مهام مسندة
-              </span>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Week Navigator */}
+                <div className="inline-flex items-center rounded-xl border border-neutral-800 bg-neutral-950 p-1">
+                  <button
+                    type="button"
+                    onClick={() => setWeekOffset((prev) => prev - 1)}
+                    className="rounded-lg p-1.5 text-neutral-400 hover:bg-neutral-800 hover:text-white transition-colors"
+                    title="الأسبوع السابق"
+                  >
+                    <ChevronRight className="size-4" />
+                  </button>
+                  <span className="px-2 text-xs font-bold text-neutral-200">
+                    {weekOffset === 0 ? 'الأسبوع الحالي' : weekOffset > 0 ? `بعد ${weekOffset} أسبوع` : `قبل ${Math.abs(weekOffset)} أسبوع`}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setWeekOffset((prev) => prev + 1)}
+                    className="rounded-lg p-1.5 text-neutral-400 hover:bg-neutral-800 hover:text-white transition-colors"
+                    title="الأسبوع القادم"
+                  >
+                    <ChevronLeft className="size-4" />
+                  </button>
+                </div>
+
+                {/* Jump to Today Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setWeekOffset(0);
+                    setSelectedScheduleDateStr(weekInfo.todayStr);
+                    setViewAllWeekSchedule(false);
+                  }}
+                  className={`rounded-xl px-3 py-1.5 text-xs font-bold transition-all ${
+                    selectedScheduleDateStr === weekInfo.todayStr && !viewAllWeekSchedule && weekOffset === 0
+                      ? 'bg-[#d4af37] text-neutral-950 shadow-md shadow-[#d4af37]/20 font-black'
+                      : 'border border-neutral-800 bg-neutral-900/80 text-neutral-300 hover:bg-neutral-800 hover:text-white'
+                  }`}
+                >
+                  اليوم
+                </button>
+
+                {/* View All Week Toggle */}
+                <button
+                  type="button"
+                  onClick={() => setViewAllWeekSchedule((prev) => !prev)}
+                  className={`rounded-xl px-3 py-1.5 text-xs font-bold transition-all ${
+                    viewAllWeekSchedule
+                      ? 'bg-[#d4af37] text-neutral-950 shadow-md shadow-[#d4af37]/20 font-black'
+                      : 'border border-neutral-800 bg-neutral-900/80 text-neutral-300 hover:bg-neutral-800 hover:text-white'
+                  }`}
+                >
+                  عرض كامل الأسبوع
+                </button>
+              </div>
             </div>
 
-            {bookings.length ? (
+            {/* 7-Day Interactive Week Selector Bar */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2">
+              {weekInfo.days.map((day) => {
+                const isSelected = !viewAllWeekSchedule && selectedScheduleDateStr === day.dateStr;
+                const hasTasks = day.tasksCount > 0;
+
+                return (
+                  <button
+                    key={day.dateStr}
+                    type="button"
+                    onClick={() => {
+                      setSelectedScheduleDateStr(day.dateStr);
+                      setViewAllWeekSchedule(false);
+                    }}
+                    className={`group relative flex flex-col items-center justify-between rounded-2xl p-3 text-center transition-all duration-200 ${
+                      isSelected
+                        ? 'border-2 border-[#d4af37] bg-gradient-to-b from-[#d4af37]/20 via-[#d4af37]/10 to-transparent shadow-lg shadow-[#d4af37]/10'
+                        : 'border border-neutral-800/80 bg-neutral-950/60 hover:border-neutral-700 hover:bg-neutral-900/60'
+                    }`}
+                  >
+                    {/* Today Indicator */}
+                    {day.isToday && (
+                      <span className="absolute -top-2 rounded-full border border-emerald-500/40 bg-emerald-500 px-2 py-0.5 text-[9px] font-black text-neutral-950 shadow-sm">
+                        اليوم
+                      </span>
+                    )}
+
+                    <span className={`text-xs font-bold ${isSelected ? 'text-[#edce8b]' : 'text-neutral-400 group-hover:text-neutral-200'}`}>
+                      {day.dayName}
+                    </span>
+
+                    <div className="my-1.5 flex items-baseline gap-1">
+                      <span className={`text-lg font-black tracking-tight ${isSelected ? 'text-white' : 'text-neutral-300'}`}>
+                        {day.dayNumber}
+                      </span>
+                      <span className="text-[10px] text-neutral-500 font-medium">{day.monthName.slice(0, 4)}</span>
+                    </div>
+
+                    {/* Task count badge */}
+                    <div className="mt-1">
+                      {hasTasks ? (
+                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                          isSelected
+                            ? 'bg-[#d4af37] text-neutral-950 font-black'
+                            : 'bg-[#d4af37]/15 text-[#edce8b] border border-[#d4af37]/30'
+                        }`}>
+                          <span className="size-1.5 rounded-full bg-current" />
+                          <span>{day.tasksCount} {day.tasksCount === 1 ? 'مهمة' : day.tasksCount === 2 ? 'مهمتان' : 'مهام'}</span>
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-neutral-600 font-medium">
+                          لا مهام
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Active Selection Summary Banner */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-2xl border border-neutral-800/60 bg-neutral-950/40 p-3.5 text-xs">
+              <div className="flex items-center gap-2">
+                <span className="size-2 rounded-full bg-[#d4af37]" />
+                <span className="font-bold text-white">
+                  {viewAllWeekSchedule
+                    ? `مهام الأسبوع بالكامل (${weekInfo.weekRangeLabel})`
+                    : `مهام يوم ${selectedDayInfo?.fullFormatted ?? selectedScheduleDateStr}`}
+                </span>
+                <span className="rounded-md bg-neutral-900 px-2 py-0.5 font-mono font-bold text-[#edce8b] border border-neutral-800">
+                  {displayedScheduleBookings.length} مسندة
+                </span>
+              </div>
+
+              {displayedScheduleBookings.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                  {displayedScheduleBookings.filter(b => ['ON_THE_WAY', 'ARRIVED', 'IN_SERVICE'].includes(taskStatuses[b.id] ?? b.bookingStatus)).length > 0 && (
+                    <span className="rounded-lg bg-amber-500/10 border border-amber-500/25 px-2 py-0.5 font-bold text-amber-300">
+                      ⚡ {displayedScheduleBookings.filter(b => ['ON_THE_WAY', 'ARRIVED', 'IN_SERVICE'].includes(taskStatuses[b.id] ?? b.bookingStatus)).length} قيد التنفيذ
+                    </span>
+                  )}
+                  {displayedScheduleBookings.filter(b => ['ASSIGNED', 'TEAM_ACKNOWLEDGED', 'CONFIRMED', 'ACCEPTED'].includes(taskStatuses[b.id] ?? b.bookingStatus)).length > 0 && (
+                    <span className="rounded-lg bg-sky-500/10 border border-sky-500/25 px-2 py-0.5 font-bold text-sky-300">
+                      ⏳ {displayedScheduleBookings.filter(b => ['ASSIGNED', 'TEAM_ACKNOWLEDGED', 'CONFIRMED', 'ACCEPTED'].includes(taskStatuses[b.id] ?? b.bookingStatus)).length} بانتظار البدء
+                    </span>
+                  )}
+                  {displayedScheduleBookings.filter(b => ['DELIVERED', 'SERVICE_COMPLETED', 'CLOSED'].includes(taskStatuses[b.id] ?? b.bookingStatus)).length > 0 && (
+                    <span className="rounded-lg bg-emerald-500/10 border border-emerald-500/25 px-2 py-0.5 font-bold text-emerald-300">
+                      ✅ {displayedScheduleBookings.filter(b => ['DELIVERED', 'SERVICE_COMPLETED', 'CLOSED'].includes(taskStatuses[b.id] ?? b.bookingStatus)).length} مكتملة
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Tasks List for the Selected Day / All Week */}
+            {displayedScheduleBookings.length ? (
               <div className="space-y-3">
-                {bookings.map((booking) => {
+                {displayedScheduleBookings.map((booking) => {
                   const bStatus = taskStatuses[booking.id] ?? booking.bookingStatus;
-                  const isDone = bStatus === 'DELIVERED' || bStatus === 'SERVICE_COMPLETED';
-                  const isActive =
-                    bStatus === 'IN_SERVICE' || bStatus === 'ARRIVED' || bStatus === 'ON_THE_WAY';
+                  const isDone = bStatus === 'DELIVERED' || bStatus === 'SERVICE_COMPLETED' || bStatus === 'CLOSED';
+                  const isActive = bStatus === 'IN_SERVICE' || bStatus === 'ARRIVED' || bStatus === 'ON_THE_WAY';
+                  const addressText = formatAddressSnapshot(booking.addressSnapshot);
 
                   return (
                     <div
                       key={booking.id}
-                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-2xl border border-neutral-800/60 bg-black/40 p-4 transition hover:border-neutral-700"
+                      className="flex flex-col gap-3 rounded-2xl border border-neutral-800/80 bg-neutral-950/80 p-4 transition-all hover:border-neutral-700 sm:flex-row sm:items-center sm:justify-between shadow-md"
                     >
-                      <div className="flex items-start sm:items-center gap-3">
+                      <div className="flex items-start gap-3.5 min-w-0">
                         <span
-                          className={`size-2.5 rounded-full mt-1 sm:mt-0 shrink-0 ${
+                          className={`size-3 rounded-full mt-1.5 shrink-0 ${
                             isDone
-                              ? 'bg-emerald-400'
+                              ? 'bg-emerald-400 ring-4 ring-emerald-500/20'
                               : isActive
-                              ? 'bg-[#d4af37] animate-pulse'
-                              : 'bg-neutral-500'
+                              ? 'bg-[#d4af37] animate-pulse ring-4 ring-[#d4af37]/25'
+                              : 'bg-neutral-600'
                           }`}
                         />
-                        <div>
-                          <div className="flex items-center gap-2">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
                             <span dir="ltr" className="font-mono text-sm font-black text-white">
                               {booking.bookingNumber}
                             </span>
                             <StatusBadge status={bStatus} />
+                            <span className="text-xs font-mono font-bold text-[#edce8b] bg-black/40 px-2 py-0.5 rounded border border-neutral-800">
+                              {formatTimeOnly(booking.startAt)}
+                            </span>
+                            {viewAllWeekSchedule && (
+                              <span className="text-[11px] font-bold text-neutral-400">
+                                ({toLocalDateString(booking.startAt)})
+                              </span>
+                            )}
                           </div>
-                          <p className="mt-1 text-xs text-neutral-300">
-                            <strong className="text-white">{booking.customer.user.fullName}</strong> ·{' '}
-                            {booking.service.nameAr} ·{' '}
-                            <span className="text-neutral-400">{booking.vehicle.make} {booking.vehicle.model}</span>
+
+                          <p className="mt-1.5 text-xs text-neutral-300">
+                            <strong className="text-white font-bold">{booking.customer.user.fullName}</strong>
+                            {booking.customer.user.phone && (
+                              <a
+                                href={`tel:${booking.customer.user.phone}`}
+                                dir="ltr"
+                                className="mr-2 font-mono text-[11px] text-neutral-400 hover:text-[#d4af37] transition-colors"
+                              >
+                                ({booking.customer.user.phone})
+                              </a>
+                            )}
+                            {' · '}
+                            <span className="text-[#edce8b] font-semibold">{booking.service.nameAr}</span>
+                            {' · '}
+                            <span className="text-neutral-400">
+                              {booking.vehicle.make} {booking.vehicle.model}
+                              {booking.vehicle.plateNumber ? ` (${booking.vehicle.plateNumber})` : ''}
+                            </span>
                           </p>
+
+                          {addressText && (
+                            <p className="mt-1 text-[11px] text-neutral-400 flex items-center gap-1 truncate">
+                              <MapPin className="size-3 text-neutral-500 shrink-0" />
+                              <span className="truncate">{addressText}</span>
+                            </p>
+                          )}
+
+                          {booking.gateInstructions && (
+                            <p className="mt-1 text-[11px] text-amber-300/90 flex items-center gap-1">
+                              <AlertTriangle className="size-3 text-amber-400 shrink-0" />
+                              <span>بوابة: {booking.gateInstructions}</span>
+                            </p>
+                          )}
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between sm:justify-end gap-3 border-t border-neutral-800/40 sm:border-0 pt-2 sm:pt-0">
-                        <span className="text-xs font-mono text-neutral-400">
-                          {formatTimeOnly(booking.startAt)}
-                        </span>
+                      <div className="flex items-center justify-between sm:justify-end gap-2.5 border-t border-neutral-800/60 pt-3 sm:border-0 sm:pt-0 shrink-0">
                         <button
                           type="button"
                           onClick={() => {
                             setSelectedTaskId(booking.id);
                             router.push(`/staff?section=tasks&taskId=${booking.id}`);
                           }}
-                          className="inline-flex items-center gap-1.5 rounded-xl border border-neutral-700 bg-neutral-800/80 px-3 py-1.5 text-xs font-bold text-neutral-200 hover:bg-neutral-700 hover:text-white transition-all"
+                          className="inline-flex items-center gap-2 rounded-xl border border-[#d4af37]/40 bg-[#d4af37]/10 px-3.5 py-2 text-xs font-bold text-[#e5c45a] hover:bg-[#d4af37]/20 hover:text-white transition-all shadow-sm"
                         >
-                          <span>إدارة المهمة</span>
+                          <span>شاشة التنفيذ</span>
                           <Wrench className="size-3.5 text-[#d4af37]" />
                         </button>
                       </div>
@@ -1203,10 +1542,30 @@ export default function StaffCommandCenter({
                 })}
               </div>
             ) : (
-              <EmptyState
-                title="لا توجد مهام مسندة لفريقك اليوم"
-                description="ستظهر المهام الميدانية هنا فور إسنادها وتوزيعها من إدارة العمليات."
-              />
+              <div className="rounded-2xl border border-neutral-800/80 bg-black/40 p-8 text-center">
+                <div className="mx-auto size-12 rounded-2xl bg-neutral-900 border border-neutral-800 flex items-center justify-center text-neutral-500 mb-3">
+                  <CalendarDays className="size-6 text-[#d4af37]/60" />
+                </div>
+                <h4 className="text-sm font-bold text-white">
+                  لا توجد مهام مسندة لفريقك في يوم {selectedDayInfo?.fullFormatted ?? selectedScheduleDateStr}
+                </h4>
+                <p className="mt-1 text-xs text-neutral-400 max-w-sm mx-auto">
+                  لم يتم إسناد أي حجوزات تشغيلية لهذا اليوم. يمكنك اختيار يوم آخر من شريط الأسبوع أعلاه لمتابعة المهام القادمة.
+                </p>
+                {!selectedDayInfo?.isToday && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setWeekOffset(0);
+                      setSelectedScheduleDateStr(weekInfo.todayStr);
+                      setViewAllWeekSchedule(false);
+                    }}
+                    className="mt-4 inline-flex items-center gap-1.5 rounded-xl border border-[#d4af37]/40 bg-[#d4af37]/10 px-3 py-1.5 text-xs font-bold text-[#e5c45a] hover:bg-[#d4af37]/20 transition-all"
+                  >
+                    <span>الانتقال لمهام اليوم</span>
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -1263,6 +1622,30 @@ export default function StaffCommandCenter({
                 ))}
               </div>
             </div>
+
+            {/* Day Filter Bar */}
+            <div className="flex flex-wrap items-center gap-1.5 border-t border-neutral-800/60 pt-3">
+              <span className="text-xs font-bold text-neutral-400 ml-1">تصفية الموعد:</span>
+              {[
+                { key: 'all', label: 'كافة الأيام' },
+                { key: 'today', label: `اليوم (${weekInfo.days.find((d) => d.isToday)?.tasksCount ?? 0})` },
+                { key: 'tomorrow', label: 'غداً' },
+                { key: 'week', label: 'الأسبوع الحالي' },
+              ].map((dTab) => (
+                <button
+                  key={dTab.key}
+                  type="button"
+                  onClick={() => setDayTaskFilter(dTab.key)}
+                  className={`rounded-xl px-2.5 py-1 text-xs font-bold transition-all ${
+                    dayTaskFilter === dTab.key
+                      ? 'bg-[#d4af37] text-neutral-950 font-black shadow-sm'
+                      : 'border border-neutral-800 bg-neutral-900/60 text-neutral-400 hover:text-white'
+                  }`}
+                >
+                  {dTab.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Main Grid: Task Selector List (Right/Top) & Workstation (Left/Main) */}
@@ -1271,7 +1654,7 @@ export default function StaffCommandCenter({
             <aside className="space-y-3">
               <div className="flex items-center justify-between px-1">
                 <h3 className="text-xs font-bold text-neutral-400 uppercase tracking-wider">
-                  قائمة مهام اليوم ({filteredBookings.length})
+                  قائمة المهام الميدانية ({filteredBookings.length})
                 </h3>
               </div>
 

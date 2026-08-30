@@ -8,6 +8,7 @@ import {
   ArrowRight,
   BadgeDollarSign,
   CheckCircle2,
+  Download,
   ExternalLink,
   Eye,
   FileCheck2,
@@ -365,10 +366,53 @@ export default function DelegatedOperationsBoard({
                       <div><dt className="text-xs text-neutral-500">الوسيلة</dt><dd>{proof.paymentMethod.name}</dd></div>
                       <div><dt className="text-xs text-neutral-500">وقت التحويل</dt><dd>{formatDate(proof.transferTimestamp)}</dd></div>
                     </dl>
-                    {proof.proofFileUrl && proof.proofFileUrl.startsWith('/api/files/') ? (
-                      <a href={proof.proofFileUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-[#c9a227]/50 px-3 py-2 text-xs font-bold text-[#e5c45a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c9a227]">فتح الإثبات الخاص <ExternalLink className="size-4" aria-hidden="true" /></a>
+                    {proof.proofFileUrl ? (
+                      <div className="space-y-2 rounded-xl border border-[#c9a227]/30 bg-black/40 p-2.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <a
+                            href={proof.proofFileUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-[#c9a227]/50 px-2.5 py-1.5 text-xs font-bold text-[#e5c45a] hover:bg-[#c9a227]/10"
+                          >
+                            <span>فتح الإثبات</span>
+                            <ExternalLink className="size-3.5" aria-hidden="true" />
+                          </a>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                const res = await fetch(proof.proofFileUrl);
+                                const blob = await res.blob();
+                                const blobUrl = URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = blobUrl;
+                                a.download = `receipt-${proof.booking.bookingNumber}.jpg`;
+                                document.body.appendChild(a);
+                                a.click();
+                                document.body.removeChild(a);
+                                URL.revokeObjectURL(blobUrl);
+                              } catch {
+                                window.open(proof.proofFileUrl, '_blank');
+                              }
+                            }}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5 text-xs font-bold text-emerald-300 hover:bg-emerald-500/20"
+                          >
+                            <Download className="size-3.5" />
+                            <span>تحميل الوصل</span>
+                          </button>
+                        </div>
+                        <div className="max-h-40 overflow-hidden rounded-lg border border-white/10 bg-black flex items-center justify-center p-1">
+                          <img
+                            src={proof.proofFileUrl}
+                            alt="إيصال الدفع"
+                            className="max-h-36 w-auto object-contain rounded"
+                            onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+                          />
+                        </div>
+                      </div>
                     ) : (
-                      <span className="text-xs text-neutral-400">تم حذف صورة الإيصال تلقائيًا بعد القبول لتوفير المساحة.</span>
+                      <span className="text-xs text-neutral-400">لا يوجد إيصال مرفوع.</span>
                     )}
                     <form onSubmit={(event) => { event.preventDefault(); execute(event.currentTarget, reviewPaymentProofAction, 'تم حفظ قرار مراجعة الإثبات.'); }} className="space-y-3">
                       <input type="hidden" name="proofId" value={proof.id} />

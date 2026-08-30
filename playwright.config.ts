@@ -24,10 +24,16 @@ export default defineConfig({
   // Acceptance scenarios mutate a disposable database and clean up afterward;
   // one worker prevents their fixtures and branch-limit snapshots overlapping.
   workers: 1,
+  // The first request to a large App Router segment can spend over 30 seconds
+  // compiling on a clean CI runner. Keep the default test/navigation budgets
+  // above that cold-start cost without weakening the assertions themselves.
+  timeout: 60_000,
   reporter: 'html',
   use: {
     baseURL,
     trace: 'on-first-retry',
+    navigationTimeout: 60_000,
+    actionTimeout: 120_000,
   },
   projects: [
     {

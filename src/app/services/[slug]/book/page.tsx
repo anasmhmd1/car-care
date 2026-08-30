@@ -36,11 +36,15 @@ export default async function BookServicePage({ params, searchParams }: BookingP
     redirect('/services');
   }
 
+  const normalizedSlug = slug.replace(/_/g, '-');
   const now = new Date();
   const [service, coverageAreas, paymentMethods, customer, supportContact] = await Promise.all([
     db.service.findFirst({
       where: {
-        slug,
+        OR: [
+          { slug },
+          { slug: normalizedSlug },
+        ],
         active: true,
         bookableOnline: true,
         cancellationPolicy: { active: true },

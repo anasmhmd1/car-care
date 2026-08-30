@@ -292,7 +292,7 @@ export function validateStatusTransition(
   }
 
   const completedStages = new Set(evidence.completedChecklistStages ?? []);
-  if (toStatus === BookingStatus.IN_SERVICE) {
+  if (toStatus === BookingStatus.IN_SERVICE && !evidence.managerOverride) {
     if (!completedStages.has(ChecklistStage.TEAM_PREPARATION) || !completedStages.has(ChecklistStage.ARRIVAL_INSPECTION)) {
       return { allowed: false, code: 'CHECKLIST_INCOMPLETE', message: 'أكمل قوائم التحضير وفحص الوصول قبل بدء الخدمة.' };
     }

@@ -7,7 +7,7 @@ x-app-environment: &app-environment
   PAYMENT_REVIEW_HOLD_MINUTES: ${PAYMENT_REVIEW_HOLD_MINUTES:-1440}
   OPERATIONS_REVIEW_HOLD_MINUTES: ${OPERATIONS_REVIEW_HOLD_MINUTES:-1440}
   RESCHEDULE_HOLD_MINUTES: ${RESCHEDULE_HOLD_MINUTES:-1440}
-  NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+  NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:?Set NEXT_PUBLIC_APP_URL in .env}
   STORAGE_DRIVER: local
   UPLOAD_DIR: /app/data/uploads
   NODE_ENV: production
@@ -35,7 +35,7 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:?Set NEXT_PUBLIC_APP_URL in .env}
     restart: unless-stopped
     ports:
       - "127.0.0.1:${APP_PORT:-3000}:3000"

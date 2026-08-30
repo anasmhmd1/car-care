@@ -127,11 +127,17 @@ npm run audit
 
 `npm run test:e2e:list` only lists Playwright cases. Unless `E2E_BASE_URL` points to an already running external instance, Playwright starts and manages `npm run dev` on `E2E_PORT` (default 3000; 3417 is a useful isolated local value). Database-backed acceptance covers the master scenarios for the full lifecycle, last-slot concurrency, payment re-upload, subscriptions, branch limit, authorization boundaries, and outside-coverage handling (1, 3, 6, 8, 9, 10, and 12). It requires `E2E_DATABASE_URL` to point to a **disposable, migrated, seeded** PostgreSQL database and intentionally skips when that prerequisite is absent. Never point the suite at development or production data—discard/reset the E2E database after a run. `npm run audit` enforces the committed high-severity dependency policy.
 
-`.github/workflows/ci.yml` provisions PostgreSQL 16 for two jobs. The verification job applies migrations, checks schema drift and dependency policy, then runs type checking, lint, unit tests, and the production build. The E2E job migrates and seeds a separate database, installs Chromium, and runs the full Playwright suite.
+`.github/workflows/ci.yml` provisions PostgreSQL 16 for separate verification and E2E jobs, plus a container-build job. The verification job applies migrations, checks schema drift and dependency policy, then runs type checking, lint, unit tests, the production build, and a standalone health smoke test. The E2E job migrates and seeds a disposable database, installs Chromium, and runs the full Playwright suite. The container job validates Compose interpolation and builds the production web and migration images.
 
 ## Docker Compose
 
 After creating a production-safe `.env`:
+
+```bash
+NODE_ENV=production npm run check:production-env
+```
+
+Run it with the production environment injected; it fails closed on non-HTTPS origins, weak/placeholder secrets, and ephemeral storage.
 
 ```bash
 docker compose build web migrate

@@ -151,6 +151,7 @@ test.describe('Full booking lifecycle browser acceptance', () => {
         dailyCapacity: 2,
         members: { create: { userId: technician.id, isLeader: true } },
         capabilities: { create: { serviceId: service.id } },
+        teamZones: { create: { zoneId: area!.zoneId } },
       },
     });
 
@@ -241,22 +242,22 @@ test.describe('Full booking lifecycle browser acceptance', () => {
       })).toEqual({ bookingStatus: BookingStatus.AWAITING_OPERATIONS_REVIEW, amountPaid: 300 });
 
       await managerPage.reload();
-      await managerPage.getByRole('button', { name: /حجوزات بانتظار القرار/ }).click();
+      await managerPage.getByRole('button', { name: /مراجعة الحجوزات/ }).click();
       const reviewCard = managerPage.locator('article').filter({ hasText: bookingNumber });
       await reviewCard.getByRole('button', { name: 'اتخاذ القرار' }).click();
       await managerPage.locator('#booking-review-reason').fill('قبول رحلة الاختبار الكاملة');
-      await managerPage.getByRole('dialog').getByRole('button', { name: 'اعتماد' }).click();
+      await managerPage.getByRole('dialog').getByRole('button', { name: 'اعتماد وقبول' }).click();
       await expect.poll(async () => prisma!.booking.findUnique({
         where: { id: booking.id }, select: { bookingStatus: true },
       })).toEqual({ bookingStatus: BookingStatus.AWAITING_ASSIGNMENT });
 
       await managerPage.reload();
-      await managerPage.getByRole('button', { name: /حجوزات تحتاج فريقًا/ }).click();
+      await managerPage.getByRole('button', { name: /قائمة الإسناد/ }).click();
       const assignmentCard = managerPage.locator('article').filter({ hasText: bookingNumber });
-      await assignmentCard.getByRole('button', { name: 'اختيار فريق' }).click();
+      await assignmentCard.getByRole('button', { name: 'إسناد فريق' }).click();
       await managerPage.locator('#team-id').selectOption(team.id);
       await managerPage.locator('#assignment-reason').fill('إسناد فريق اختبار رحلة القبول');
-      await managerPage.getByRole('button', { name: 'إعادة الفحص ثم الإسناد' }).click();
+      await managerPage.getByRole('button', { name: 'تأكيد الإسناد' }).click();
       await expect.poll(async () => prisma!.booking.findUnique({
         where: { id: booking.id }, select: { bookingStatus: true, assignedTeamId: true },
       })).toEqual({ bookingStatus: BookingStatus.ASSIGNED, assignedTeamId: team.id });
@@ -267,8 +268,10 @@ test.describe('Full booking lifecycle browser acceptance', () => {
       const technicianPage = await technicianContext.newPage();
       await technicianPage.goto('/staff');
       await expect(technicianPage.getByRole('heading', { name: bookingNumber })).toBeVisible();
+      await technicianPage.getByRole('button', { name: 'الانتقال لشاشة التنفيذ' }).click();
+      await expect(technicianPage).toHaveURL(/\/staff\?section=tasks&taskId=/);
 
-      await technicianPage.getByTestId('workflow-TEAM_ACKNOWLEDGED').click();
+      await technicianPage.getByRole('button', { name: 'تأكيد استلام المهمة' }).click();
       await expect.poll(async () => prisma!.booking.findUnique({
         where: { id: booking.id }, select: { bookingStatus: true },
       })).toEqual({ bookingStatus: BookingStatus.TEAM_ACKNOWLEDGED });
@@ -276,13 +279,15 @@ test.describe('Full booking lifecycle browser acceptance', () => {
       for (const item of service.checklistTemplates
         .filter((template) => template.stage === ChecklistStage.TEAM_PREPARATION)
         .flatMap((template) => template.items)) {
-        const control = technicianPage.getByTestId(`checklist-item-${item.id}`);
+        const control = technicianPage.getByRole('button', { name: item.labelAr }).last();
         await control.click();
-        await expect(control).toHaveAttribute('aria-pressed', 'true');
       }
 
-      for (const status of ['ON_THE_WAY', 'ARRIVED'] as const) {
-        await technicianPage.getByTestId(`workflow-${status}`).click();
+      for (const [status, label] of [
+        ['ON_THE_WAY', 'بدء التحرك نحو العميل'],
+        ['ARRIVED', 'تأكيد الوصول للموقع'],
+      ] as const) {
+        await technicianPage.getByRole('button', { name: label }).click();
         await expect.poll(async () => prisma!.booking.findUnique({
           where: { id: booking.id }, select: { bookingStatus: true },
         })).toEqual({ bookingStatus: status });
@@ -291,19 +296,20 @@ test.describe('Full booking lifecycle browser acceptance', () => {
       for (const item of service.checklistTemplates
         .filter((template) => template.stage === ChecklistStage.ARRIVAL_INSPECTION)
         .flatMap((template) => template.items)) {
-        const control = technicianPage.getByTestId(`checklist-item-${item.id}`);
+        const control = technicianPage.getByRole('button', { name: item.labelAr }).last();
         await control.click();
-        await expect(control).toHaveAttribute('aria-pressed', 'true');
       }
 
-      await technicianPage.locator('#photo-type').selectOption('BEFORE_SERVICE');
-      await technicianPage.getByTestId('technician-photo-file').setInputFiles(tinyPng);
-      await technicianPage.getByTestId('technician-photo-submit').click();
+      const beforePhotoInput = technicianPage
+        .locator('label')
+        .filter({ hasText: 'صور قبل الخدمة' })
+        .locator('input[type="file"]');
+      await beforePhotoInput.setInputFiles(tinyPng);
       await expect.poll(async () => prisma!.bookingFile.count({
         where: { bookingId: booking.id, fileType: 'BEFORE_SERVICE' },
       })).toBe(1);
 
-      await technicianPage.getByTestId('workflow-IN_SERVICE').click();
+      await technicianPage.getByRole('button', { name: 'بدء تنفيذ الخدمة والتشيك ليست' }).click();
       await expect.poll(async () => prisma!.booking.findUnique({
         where: { id: booking.id }, select: { bookingStatus: true },
       })).toEqual({ bookingStatus: BookingStatus.IN_SERVICE });
@@ -314,24 +320,26 @@ test.describe('Full booking lifecycle browser acceptance', () => {
           template.stage === ChecklistStage.CLOSING
         ))
         .flatMap((template) => template.items)) {
-        const control = technicianPage.getByTestId(`checklist-item-${item.id}`);
+        const control = technicianPage.getByRole('button', { name: item.labelAr }).last();
         await control.click();
-        await expect(control).toHaveAttribute('aria-pressed', 'true');
       }
 
-      await technicianPage.locator('#photo-type').selectOption('AFTER_SERVICE');
-      await technicianPage.getByTestId('technician-photo-file').setInputFiles(tinyPng);
-      await technicianPage.getByTestId('technician-photo-submit').click();
+      const afterPhotoInput = technicianPage
+        .locator('label')
+        .filter({ hasText: 'صور بعد الخدمة' })
+        .locator('input[type="file"]');
+      await afterPhotoInput.setInputFiles(tinyPng);
       await expect.poll(async () => prisma!.bookingFile.count({
         where: { bookingId: booking.id, fileType: 'AFTER_SERVICE' },
       })).toBe(1);
 
-      await technicianPage.getByTestId('workflow-QUALITY_REVIEW').click();
+      await technicianPage.getByRole('button', { name: 'إرسال لمراجعة واعتماد الجودة' }).click();
       await expect.poll(async () => prisma!.booking.findUnique({
         where: { id: booking.id }, select: { bookingStatus: true },
       })).toEqual({ bookingStatus: BookingStatus.QUALITY_REVIEW });
 
       await managerPage.goto('/operations');
+      await managerPage.getByRole('button', { name: /مراجعة واعتماد الجودة/ }).click();
       const qualityCase = managerPage.locator('details').filter({ hasText: bookingNumber });
       await qualityCase.locator('summary').click();
       await qualityCase.locator('textarea[name="notes"]').fill('جودة التنفيذ مكتملة');
@@ -342,23 +350,23 @@ test.describe('Full booking lifecycle browser acceptance', () => {
 
       await managerPage.reload();
       await managerPage.getByRole('button', { name: /الحجوزات النشطة/ }).click();
-      const activeRow = managerPage.locator('tr').filter({ hasText: bookingNumber });
-      await activeRow.getByRole('button', { name: /تحصيل 700/ }).click();
+      const activeRow = managerPage.locator('article').filter({ hasText: bookingNumber });
+      await activeRow.getByRole('button', { name: /تحصيل/ }).click();
       await managerPage.locator('#settlement-notes').fill('تحصيل الرصيد عند اكتمال الخدمة');
-      await managerPage.getByRole('button', { name: /تأكيد تسجيل 700/ }).click();
+      await managerPage.getByRole('button', { name: /تأكيد تحصيل/ }).click();
       await expect.poll(async () => prisma!.booking.findUnique({
         where: { id: booking.id }, select: { amountDue: true, paymentStatus: true },
       })).toEqual({ amountDue: 0, paymentStatus: PaymentStatus.FULLY_PAID });
 
       await technicianPage.reload();
-      await technicianPage.getByTestId('workflow-DELIVERED').click();
+      await technicianPage.getByRole('button', { name: 'تأكيد تسليم الخدمة النهائي' }).click();
       await expect.poll(async () => prisma!.booking.findUnique({
         where: { id: booking.id }, select: { bookingStatus: true },
       })).toEqual({ bookingStatus: BookingStatus.DELIVERED });
 
       await managerPage.reload();
       await managerPage.getByRole('button', { name: /الحجوزات النشطة/ }).click();
-      const deliveredRow = managerPage.locator('tr').filter({ hasText: bookingNumber });
+      const deliveredRow = managerPage.locator('article').filter({ hasText: bookingNumber });
       await deliveredRow.getByRole('button', { name: 'إغلاق الحجز' }).click();
       await managerPage.locator('#close-reason').fill('إغلاق رحلة القبول بعد التسليم والسداد');
       await managerPage.getByRole('button', { name: 'تأكيد الإغلاق النهائي' }).click();
@@ -399,6 +407,9 @@ test.describe('Full booking lifecycle browser acceptance', () => {
       });
       await prisma!.qualityReview.deleteMany({ where: { bookingId: booking.id } });
       await cleanupAcceptancePaymentRecords(prisma!, booking.id);
+      // Invoices intentionally retain a restrictive booking FK in production;
+      // remove the acceptance artifact before deleting its booking.
+      await prisma!.invoice.deleteMany({ where: { bookingId: booking.id } });
       await prisma!.bookingAssignmentHistory.deleteMany({ where: { bookingId: booking.id } });
       await prisma!.booking.deleteMany({ where: { id: booking.id } });
       await prisma!.team.delete({ where: { id: team.id } });

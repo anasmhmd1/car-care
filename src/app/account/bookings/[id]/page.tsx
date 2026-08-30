@@ -36,7 +36,7 @@ export default async function BookingDetailPage({ params }: BookingDetailProps) 
       files: true,
       cancellationRequest: true,
       complaints: { orderBy: { createdAt: 'desc' } },
-      timeChanges: { orderBy: { createdAt: 'desc' } },
+      timeChanges: { orderBy: { requestedAt: 'desc' } },
       refunds: { orderBy: { createdAt: 'desc' } },
       customerRating: { select: { score: true, comment: true, approvedForPublic: true } },
     },

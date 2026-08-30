@@ -960,6 +960,7 @@ async function main() {
           retainedAmount: cfg.cancellationType === 'LATE' ? Math.round(depositAmount * 0.5) : 0,
           creditAmount: 0,
           createdAt: new Date(startAt.getTime() - 9 * 60 * 60 * 1000),
+          requestedAt: new Date(startAt.getTime() - 9 * 60 * 60 * 1000),
         },
       });
     }

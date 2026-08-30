@@ -34,10 +34,11 @@ const EMPLOYEE_TEAM_VISIBLE_FILE_TYPES = new Set<FileType>([
 ]);
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ path: string[] }> },
 ) {
   const user = await getCurrentUser();
+  const isDownload = request.nextUrl.searchParams.get('download') === '1';
 
   const { path: pathSegments } = await params;
   if (pathSegments.length !== 2 || pathSegments.some((segment) => !/^[a-zA-Z0-9_.-]+$/.test(segment))) {
@@ -130,7 +131,7 @@ export async function GET(
       headers: {
         'Content-Type': subscriptionProof.mimeType || fileData.mimeType,
         'Content-Length': String(fileData.buffer.length),
-        'Content-Disposition': `inline; filename="${fileName}"`,
+        'Content-Disposition': isDownload ? `attachment; filename="${fileName}"` : `inline; filename="${fileName}"`,
         'Cache-Control': 'private, no-store',
         Vary: 'Cookie',
         'X-Content-Type-Options': 'nosniff',
@@ -227,7 +228,7 @@ export async function GET(
     headers: {
       'Content-Type': bookingFile.mimeType || fileData.mimeType,
       'Content-Length': String(fileData.buffer.length),
-      'Content-Disposition': `inline; filename="${fileName}"`,
+      'Content-Disposition': isDownload ? `attachment; filename="${fileName}"` : `inline; filename="${fileName}"`,
       'Cache-Control': 'private, no-store',
       Vary: 'Cookie',
       'X-Content-Type-Options': 'nosniff',

@@ -39,7 +39,7 @@ export class LocalVolumeStorageAdapter implements StorageAdapter {
       process.env.LAMBDA_TASK_ROOT
     );
     this.fallbackRoot = path.resolve(os.tmpdir(), 'bareeq-uploads');
-    if (isServerless && (!process.env.UPLOAD_DIR || process.env.UPLOAD_DIR.startsWith('.'))) {
+    if (isServerless && !path.isAbsolute(process.env.UPLOAD_DIR?.trim() || '')) {
       this.root = this.fallbackRoot;
     } else {
       this.root = path.resolve(root);
@@ -61,7 +61,12 @@ export class LocalVolumeStorageAdapter implements StorageAdapter {
     try {
       await mkdir(path.dirname(destination), { recursive: true });
       await writeFile(destination, data);
-    } catch {
+    } catch (error) {
+      // A configured production volume must fail closed. Falling back to the
+      // process temp directory would make an upload appear successful while
+      // losing it on restart. The fallback remains useful for local tests and
+      // development environments that intentionally exercise ephemeral storage.
+      if (process.env.NODE_ENV === 'production') throw error;
       const fallbackDest = this.resolveKey(key, true);
       await mkdir(path.dirname(fallbackDest), { recursive: true });
       await writeFile(fallbackDest, data);
@@ -113,21 +118,22 @@ export class SupabaseStorageAdapter implements StorageAdapter {
   readonly bucket: string;
 
   constructor(options?: { supabaseUrl?: string; serviceRoleKey?: string; bucket?: string }) {
-    let url = options?.supabaseUrl || process.env.SUPABASE_URL || '';
-    if (!url && process.env.DATABASE_URL?.includes('supabase.com')) {
-      const match = process.env.DATABASE_URL.match(/postgres\.([a-z0-9]+):/);
-      if (match && match[1]) {
-        url = `https://${match[1]}.supabase.co`;
-      }
-    }
+    const url = options?.supabaseUrl || process.env.SUPABASE_URL || '';
     this.supabaseUrl = url.replace(/\/+$/, '');
     this.serviceRoleKey = options?.serviceRoleKey || process.env.SUPABASE_SERVICE_ROLE_KEY || '';
     this.bucket = options?.bucket || process.env.SUPABASE_STORAGE_BUCKET || 'bareeq-uploads';
 
     if (!this.supabaseUrl || !this.serviceRoleKey) {
       throw new StorageConfigurationError(
-        'Supabase Storage requires SUPABASE_URL (or Supabase DATABASE_URL) and SUPABASE_SERVICE_ROLE_KEY environment variables.'
+        'Supabase Storage requires SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables.'
       );
+    }
+    try {
+      if (new URL(this.supabaseUrl).protocol !== 'https:') {
+        throw new Error('non-HTTPS URL');
+      }
+    } catch {
+      throw new StorageConfigurationError('Supabase Storage requires a valid HTTPS SUPABASE_URL.');
     }
   }
 

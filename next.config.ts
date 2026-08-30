@@ -7,6 +7,10 @@ const e2eDistDir = e2ePort && /^\d{2,5}$/.test(e2ePort)
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  // Keep the explicitly requested hero-image quality supported by Next 16+.
+  images: {
+    qualities: [100],
+  },
   // Parallel diagnostic runs must not mutate the same development cache. The
   // normal development and production build continue to use `.next`.
   ...(e2eDistDir ? { distDir: e2eDistDir } : {}),

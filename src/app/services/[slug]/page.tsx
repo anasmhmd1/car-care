@@ -25,7 +25,14 @@ interface ServiceDetailProps {
 
 const getService = cache((slug: string) =>
   db.service.findFirst({
-    where: { slug, active: true, bookableOnline: true },
+    where: {
+      OR: [
+        { slug },
+        { slug: slug.replace(/_/g, '-') },
+      ],
+      active: true,
+      bookableOnline: true,
+    },
     include: {
       variants: true,
       addonLinks: { include: { addon: true } },

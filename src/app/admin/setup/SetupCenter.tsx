@@ -971,15 +971,13 @@ function OverviewSection({
         </div>
       </Panel>
 
-      <Panel title="قواعد المحرك الحالية" description="قيم الفرع التي تدخل مباشرة في حساب المواعيد والإسناد.">
-        <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      <Panel title="قواعد التشغيل والمواعيد الحالية" description="إعدادات الفرع الأساسية المعتمدة لحساب وتوزيع فترات الحجز.">
+        <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {[
-            ['وحدة الموعد', branch.slotUnitMinutes + ' دقيقة'],
-            ['نافذة الوصول', branch.arrivalWindowMinutes + ' دقيقة'],
-            ['احتياطي الانتقال', branch.travelBufferMinutes + ' دقيقة'],
-            ['راحة بين السلوتات', (branch.restBufferMinutes ?? 0) + ' دقيقة'],
-            ['حد الحجوزات', branch.dailyBookingLimit + ' يوميًا'],
-            ['نمط الإسناد', branch.assignmentMode === 'AUTOMATIC' ? 'تلقائي' : 'يدوي'],
+            ['مدة السلوت التشغيلي', branch.slotUnitMinutes + ' دقيقة'],
+            ['فاصل الانتقال بين العملاء', branch.travelBufferMinutes + ' دقيقة'],
+            ['الحد الأقصى اليومي', branch.dailyBookingLimit + ' موعد / يوم'],
+            ['نمط إسناد الفرق', branch.assignmentMode === 'AUTOMATIC' ? 'تلقائي ذكي' : 'يدوي من اللوحة'],
           ].map(([label, value]) => (
             <div key={label} className="rounded-xl border border-white/8 bg-black/30 p-4">
               <dt className="text-xs text-white/35">{label}</dt>
@@ -1850,35 +1848,6 @@ function TeamForm({
         <div>
           <div className="flex items-end justify-between gap-3">
             <div>
-              <h3 className="text-sm font-black">مناطق وزونات التغطية المخصصة للفريق (Coverage Zones)</h3>
-              <p className="mt-1 text-xs text-white/45">
-                علم على المناطق التي يخدمها هذا الفريق (يمكنك اختيار أكثر من منطقة). عند حجز العميل في أي من هذه المناطق، سيتلقى الفريق الطلب تلقائياً.
-              </p>
-            </div>
-            <span className="text-xs tabular-nums text-[#d4af37]">{zoneIds.length} محدد</span>
-          </div>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            {branch.zones.map((zone) => {
-              const activeAreas = zone.areas.filter((area) => area.active);
-              const areasSummary = activeAreas.length > 0
-                ? activeAreas.map((a) => a.compound || a.district || a.city).slice(0, 3).join('، ') + (activeAreas.length > 3 ? '...' : '')
-                : 'بدون أحياء فرعية';
-              return (
-                <ToggleChoice
-                  key={zone.id}
-                  checked={zoneIds.includes(zone.id)}
-                  onChange={(checked) => toggle(zoneIds, zone.id, checked, setZoneIds)}
-                  label={zone.name}
-                  hint={`${activeAreas.length} أحياء نشطة · ${areasSummary}`}
-                />
-              );
-            })}
-          </div>
-        </div>
-
-        <div>
-          <div className="flex items-end justify-between gap-3">
-            <div>
               <h3 className="text-sm font-black">قدرات الخدمات</h3>
               <p className="mt-1 text-xs text-white/38">لن يظهر الفريق كمرشح لخدمة غير محددة هنا.</p>
             </div>
@@ -1927,320 +1896,186 @@ function CoverageSection({ branch, tools }: {
   branch: SetupBranchDto;
   tools: SectionTools;
 }) {
-  const [selectedZoneId, setSelectedZoneId] = useState(branch.zones[0]?.id ?? 'new');
+  const defaultZone = branch.zones[0];
+  const allAreas = useMemo(() => branch.zones.flatMap((z) => z.areas), [branch.zones]);
   const [selectedAreaId, setSelectedAreaId] = useState<string>('new');
-  const selectedZone = branch.zones.find((zone) => zone.id === selectedZoneId);
-  const selectedArea = selectedZone?.areas.find((area) => area.id === selectedAreaId);
+  const selectedArea = allAreas.find((area) => area.id === selectedAreaId);
 
   return (
-    <>
-      <div className="grid gap-6 xl:grid-cols-[minmax(300px,0.75fr)_minmax(520px,1.25fr)]">
+    <div className="space-y-6">
+      <div className="grid gap-6 xl:grid-cols-[minmax(320px,0.8fr)_minmax(480px,1.2fr)]">
         <Panel
-          title="زونات الفرع"
-          description="الزون هو نطاق سياسات الانتقال وإسناد الفرق."
+          title="مناطق وكمبوندات التغطية"
+          description="الكمبوندات والمناطق السكنية التي يخدمها هذا الفرع وتظهر للعملاء في شاشة حجز الخدمة."
           actions={(
             <button
               type="button"
-              onClick={() => {
-                setSelectedZoneId('new');
-                setSelectedAreaId('new');
-              }}
+              onClick={() => setSelectedAreaId('new')}
               className={secondaryButtonClass}
             >
               <Plus className="size-4" aria-hidden="true" />
-              زون جديد
+              إضافة منطقة / كمبوند
             </button>
           )}
         >
-          {branch.zones.length ? (
-            <div className="space-y-2">
-              {branch.zones.map((zone) => (
+          {allAreas.length ? (
+            <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1">
+              {allAreas.map((area) => (
                 <button
-                  key={zone.id}
+                  key={area.id}
                   type="button"
-                  onClick={() => {
-                    setSelectedZoneId(zone.id);
-                    setSelectedAreaId('new');
-                  }}
-                  className={'w-full rounded-xl border p-4 text-right transition ' + (
-                    selectedZoneId === zone.id
+                  onClick={() => setSelectedAreaId(area.id)}
+                  className={'w-full rounded-xl border p-3.5 text-right transition ' + (
+                    selectedAreaId === area.id
                       ? 'border-[#d4af37]/35 bg-[#d4af37]/8'
                       : 'border-white/8 bg-black/25 hover:border-white/18'
                   )}
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <p className="font-black text-white/85">{zone.name}</p>
-                    <span className="rounded-full bg-white/[0.055] px-2 py-1 text-[11px] text-white/45">{zone.areas.length} منطقة</span>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-bold text-white/85 text-sm">{area.compound}</span>
+                    <StatusPill active={area.active} activeLabel="متاحة للحجز" inactiveLabel="متوقفة" />
                   </div>
-                  <p className="mt-2 line-clamp-2 text-xs leading-5 text-white/38">{zone.description || 'بدون وصف'}</p>
+                  <p className="mt-1 text-xs text-white/40">
+                    {area.city} {area.district ? `· ${area.district}` : ''} {area.governorate ? `· ${area.governorate}` : ''}
+                  </p>
+                  <div className="mt-2 flex items-center gap-2 text-[11px] text-white/30">
+                    <span>أولوية العرض: {area.priority}</span>
+                    <span>·</span>
+                    <span>{area.bookingCount} حجز سابق</span>
+                  </div>
                 </button>
               ))}
             </div>
-          ) : <EmptyState title="لا توجد زونات" text="أنشئ زون التغطية الأول للفرع." />}
+          ) : (
+            <EmptyState
+              title="لا توجد مناطق تغطية مضافة"
+              text="أضف الكمبوندات والمناطق التي يخدمها هذا الفرع لتظهر للعملاء عند الحجز."
+            />
+          )}
         </Panel>
 
-        <div className="space-y-6">
-          <ZoneEditor key={selectedZone?.id ?? 'new'} branch={branch} zone={selectedZone} tools={tools} />
-          {selectedZone ? (
-            <Panel
-        title={'مناطق ' + selectedZone.name}
-              description="المناطق النشطة فقط تظهر للعميل عند اختيار عنوان الخدمة."
-              actions={(
-                <button type="button" onClick={() => setSelectedAreaId('new')} className={secondaryButtonClass}>
-                  <Plus className="size-4" aria-hidden="true" />
-                  منطقة جديدة
-                </button>
-              )}
-            >
-              <div className="grid gap-5 lg:grid-cols-[minmax(220px,0.65fr)_minmax(360px,1.35fr)]">
-                <div className="space-y-2">
-                  {selectedZone.areas.map((area) => (
-                    <button
-                      key={area.id}
-                      type="button"
-                      onClick={() => setSelectedAreaId(area.id)}
-                      className={'w-full rounded-xl border p-3 text-right transition ' + (
-                        selectedAreaId === area.id
-                          ? 'border-[#d4af37]/35 bg-[#d4af37]/8'
-                          : 'border-white/8 bg-black/25 hover:border-white/18'
-                      )}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-bold text-white/78">{area.compound}</span>
-                        <StatusPill active={area.active} />
-                      </div>
-                      <p className="mt-1 text-[11px] text-white/35">{area.district} · أولوية {area.priority}</p>
-                    </button>
-                  ))}
-                  {!selectedZone.areas.length ? <EmptyState title="الزون فارغ" text="أضف منطقة أو كمبوند." /> : null}
-                </div>
-                <AreaEditor
-                  key={selectedArea?.id ?? 'new'}
-                  branch={branch}
-                  zone={selectedZone}
-                  area={selectedArea}
-                  tools={tools}
-                />
-              </div>
-            </Panel>
-          ) : null}
-        </div>
+        <StreamlinedAreaEditor
+          key={selectedArea?.id ?? 'new'}
+          branch={branch}
+          defaultZoneId={defaultZone?.id}
+          area={selectedArea}
+          tools={tools}
+        />
       </div>
-
-      <TravelMatrix branch={branch} tools={tools} />
-    </>
+    </div>
   );
 }
 
-function ZoneEditor({
+function StreamlinedAreaEditor({
   branch,
-  zone,
-  tools,
-}: {
-  branch: SetupBranchDto;
-  zone?: SetupZoneDto;
-  tools: SectionTools;
-}) {
-  function submit(event: FormEvent<HTMLFormElement>) {
-    tools.execute(saveSetupZoneAction, formDataFrom(event));
-  }
-  const bookingCount = zone?.areas.reduce((total, area) => total + area.bookingCount, 0) ?? 0;
-  return (
-    <Panel
-      title={zone ? 'بيانات ' + zone.name : 'إنشاء زون تغطية'}
-      description="استخدم أسماء واضحة لأنها تظهر في ربط الفرق ومصفوفة الانتقال."
-    >
-      <form onSubmit={submit} className="space-y-4">
-        {zone ? <input type="hidden" name="zoneId" value={zone.id} /> : null}
-        <input type="hidden" name="branchId" value={branch.id} />
-        <label className="block text-xs font-bold text-white/65">
-          اسم الزون
-          <input name="name" required minLength={2} maxLength={200} defaultValue={zone?.name ?? ''} className={inputClass} />
-        </label>
-        <label className="block text-xs font-bold text-white/65">
-          الوصف
-          <textarea name="description" maxLength={500} defaultValue={zone?.description ?? ''} className={textareaClass} />
-        </label>
-        <div className="flex flex-col gap-3 border-t border-white/8 pt-4 sm:flex-row sm:justify-between">
-          {zone ? (
-            <button
-              type="button"
-              disabled={tools.pending}
-              onClick={() => tools.requestConfirmation({
-                title: 'حذف زون ' + zone.name,
-                description: bookingCount > 0
-                  ? 'هذا الزون مرتبط بـ ' + bookingCount + ' حجز؛ سيرفض النظام الحذف حفاظًا على السجل.'
-                  : 'سيتم حذف المناطق ومصفوفة الانتقال وروابط الفرق التابعة له.',
-                action: deleteSetupZoneAction,
-                entityId: zone.id,
-                branchId: branch.id,
-                confirmLabel: 'حذف الزون',
-              })}
-              className={dangerButtonClass}
-            >
-              <Trash2 className="size-4" aria-hidden="true" />
-              حذف الزون
-            </button>
-          ) : <span />}
-          <SaveButton pending={tools.pending} label={zone ? 'حفظ الزون' : 'إنشاء الزون'} />
-        </div>
-      </form>
-    </Panel>
-  );
-}
-
-function AreaEditor({
-  branch,
-  zone,
+  defaultZoneId,
   area,
   tools,
 }: {
   branch: SetupBranchDto;
-  zone: SetupZoneDto;
+  defaultZoneId?: string;
   area?: SetupAreaDto;
   tools: SectionTools;
 }) {
   function submit(event: FormEvent<HTMLFormElement>) {
     tools.execute(saveSetupAreaAction, formDataFrom(event));
   }
-  return (
-    <form onSubmit={submit} className="space-y-4 rounded-2xl border border-white/8 bg-black/20 p-4">
-      {area ? <input type="hidden" name="areaId" value={area.id} /> : null}
-      <input type="hidden" name="zoneId" value={zone.id} />
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h3 className="font-black">{area ? 'تعديل ' + area.compound : 'منطقة جديدة'}</h3>
-          <p className="mt-1 text-xs text-white/35">{branch.nameAr} · {zone.name}</p>
-        </div>
-        {area ? <StatusPill active={area.active} /> : null}
-      </div>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <label className="text-xs font-bold text-white/65">
-          المحافظة
-          <input name="governorate" required defaultValue={area?.governorate ?? ''} placeholder="المحافظة" className={inputClass} />
-        </label>
-        <label className="text-xs font-bold text-white/65">
-          المدينة
-          <input name="city" required defaultValue={area?.city ?? ''} placeholder="المدينة" className={inputClass} />
-        </label>
-        <label className="text-xs font-bold text-white/65">
-          الحي
-          <input name="district" required defaultValue={area?.district ?? ''} className={inputClass} />
-        </label>
-        <label className="text-xs font-bold text-white/65">
-          الكمبوند / المنطقة
-          <input name="compound" required defaultValue={area?.compound ?? ''} className={inputClass} />
-        </label>
-        <label className="text-xs font-bold text-white/65">
-          أولوية العرض
-          <input name="priority" type="number" min={1} max={1000} required defaultValue={area?.priority ?? 1} className={inputClass} />
-        </label>
-        <label className="text-xs font-bold text-white/65">
-          بديل زمن الانتقال
-          <input
-            name="travelBufferOverride"
-            type="number"
-            min={0}
-            max={180}
-            placeholder="استخدم افتراضي الفرع"
-            defaultValue={area?.travelBufferOverride ?? ''}
-            className={inputClass}
-          />
-        </label>
-      </div>
-      <BooleanField name="active" label="متاحة للحجز" defaultChecked={area?.active ?? true} />
-      <div className="flex flex-col gap-3 border-t border-white/8 pt-4 sm:flex-row sm:justify-between">
-        {area ? (
-          <button
-            type="button"
-            disabled={tools.pending}
-            onClick={() => tools.requestConfirmation({
-              title: 'حذف منطقة ' + area.compound,
-              description: area.bookingCount > 0
-                ? 'المنطقة مرتبطة بـ ' + area.bookingCount + ' حجز؛ عطّلها بدل الحذف.'
-                : 'سيتم حذف المنطقة نهائيًا من نطاق التغطية.',
-              action: deleteSetupAreaAction,
-              entityId: area.id,
-              branchId: branch.id,
-              confirmLabel: 'حذف المنطقة',
-            })}
-            className={dangerButtonClass}
-          >
-            <Trash2 className="size-4" aria-hidden="true" />
-            حذف
-          </button>
-        ) : <span />}
-        <SaveButton pending={tools.pending} label={area ? 'حفظ المنطقة' : 'إضافة المنطقة'} />
-      </div>
-    </form>
-  );
-}
 
-function TravelMatrix({ branch, tools }: { branch: SetupBranchDto; tools: SectionTools }) {
-  const travelMap = useMemo(
-    () => new Map(branch.travelTimes.map((travel) => [
-      travel.fromZoneId + ':' + travel.toZoneId,
-      travel.durationMinutes,
-    ])),
-    [branch.travelTimes],
-  );
+  const zoneIdToUse = defaultZoneId || branch.zones[0]?.id;
+
   return (
     <Panel
-      title="مصفوفة زمن الانتقال"
-      description="القيم اتجاهية: زمن A ← B قد يختلف عن B ← A. وجود قيمة داخل نفس الزون يمثل سياسة صريحة."
-      actions={<Route className="size-5 text-[#d4af37]" aria-hidden="true" />}
+      title={area ? `تعديل منطقة "${area.compound}"` : 'إضافة كمبوند / منطقة جديدة'}
+      description="تظهر هذه المنطقة في قائمة العناوين المتاحة للعميل عند اختيار حجز الخدمة."
     >
-      {branch.zones.length ? (
-        <div className="overflow-x-auto rounded-2xl border border-white/10">
-          <table className="min-w-[720px] w-full border-collapse text-sm">
-            <thead className="bg-white/[0.035] text-white/45">
-              <tr>
-                <th className="border-b border-l border-white/8 p-3 text-right">من ↓ / إلى ←</th>
-                {branch.zones.map((zone) => <th key={zone.id} className="border-b border-l border-white/8 p-3 text-center">{zone.name}</th>)}
-              </tr>
-            </thead>
-            <tbody>
-              {branch.zones.map((fromZone) => (
-                <tr key={fromZone.id}>
-                  <th className="border-b border-l border-white/8 bg-white/[0.02] p-3 text-right font-bold text-white/70">{fromZone.name}</th>
-                  {branch.zones.map((toZone) => {
-                    const key = fromZone.id + ':' + toZone.id;
-                    const explicit = travelMap.get(key);
-                    const fallback = fromZone.id === toZone.id ? 0 : branch.travelBufferMinutes;
-                    return (
-                      <td key={toZone.id} className="border-b border-l border-white/8 p-2">
-                        <form
-                          onSubmit={(event) => tools.execute(saveZoneTravelTimeAction, formDataFrom(event))}
-                          className="flex items-center gap-2"
-                        >
-                          <input type="hidden" name="branchId" value={branch.id} />
-                          <input type="hidden" name="fromZoneId" value={fromZone.id} />
-                          <input type="hidden" name="toZoneId" value={toZone.id} />
-                          <label className="sr-only">دقائق من {fromZone.name} إلى {toZone.name}</label>
-                          <input
-                            name="durationMinutes"
-                            type="number"
-                            min={0}
-                            max={180}
-                            required
-                            defaultValue={explicit ?? fallback}
-                            className="min-h-10 w-20 rounded-lg border border-white/10 bg-black/40 px-2 text-center tabular-nums outline-none focus:border-[#d4af37]"
-                          />
-                          <button type="submit" disabled={tools.pending} className="grid size-10 shrink-0 place-items-center rounded-lg border border-white/10 text-white/45 hover:border-[#d4af37]/30 hover:text-[#d4af37] focus-visible:ring-2 focus-visible:ring-[#d4af37] disabled:opacity-40">
-                            <Save className="size-4" aria-hidden="true" />
-                            <span className="sr-only">حفظ زمن الانتقال</span>
-                          </button>
-                        </form>
-                        <p className="mt-1 text-center text-[9px] text-white/25">{explicit === undefined ? 'افتراضي' : 'سياسة محفوظة'}</p>
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <form onSubmit={submit} className="space-y-4">
+        {area ? <input type="hidden" name="areaId" value={area.id} /> : null}
+        <input type="hidden" name="branchId" value={branch.id} />
+        {zoneIdToUse ? <input type="hidden" name="zoneId" value={zoneIdToUse} /> : null}
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="text-xs font-bold text-white/65 sm:col-span-2">
+            اسم الكمبوند / المنطقة
+            <input
+              name="compound"
+              required
+              minLength={2}
+              maxLength={200}
+              defaultValue={area?.compound ?? ''}
+              placeholder="مثال: KARMA 1، سوديك، بيفرلي هيلز، الحي المتميز..."
+              className={inputClass}
+            />
+          </label>
+          <label className="text-xs font-bold text-white/65">
+            المدينة
+            <input
+              name="city"
+              required
+              defaultValue={area?.city ?? 'الشيخ زايد'}
+              placeholder="مثال: الشيخ زايد، 6 أكتوبر، القاهرة الجديدة..."
+              className={inputClass}
+            />
+          </label>
+          <label className="text-xs font-bold text-white/65">
+            الحي / المجاورة
+            <input
+              name="district"
+              required
+              defaultValue={area?.district ?? 'الشيخ زايد'}
+              placeholder="مثال: الحي الأول، التوسعات..."
+              className={inputClass}
+            />
+          </label>
+          <label className="text-xs font-bold text-white/65">
+            المحافظة
+            <input
+              name="governorate"
+              required
+              defaultValue={area?.governorate ?? 'الجيزة'}
+              placeholder="مثال: الجيزة، القاهرة..."
+              className={inputClass}
+            />
+          </label>
+          <label className="text-xs font-bold text-white/65">
+            أولوية العرض في القائمة
+            <input
+              name="priority"
+              type="number"
+              min={1}
+              max={1000}
+              required
+              defaultValue={area?.priority ?? 1}
+              className={inputClass}
+            />
+          </label>
         </div>
-      ) : <EmptyState title="المصفوفة غير متاحة" text="أنشئ زونًا واحدًا على الأقل." />}
+
+        <BooleanField name="active" label="متاحة للحجز للعملاء" defaultChecked={area?.active ?? true} description="عند إلغاء التحديد، ستختفي المنطقة من خيارات العميل دون حذف سجلاتها." />
+
+        <div className="flex flex-col gap-3 border-t border-white/8 pt-4 sm:flex-row sm:justify-between">
+          {area ? (
+            <button
+              type="button"
+              disabled={tools.pending}
+              onClick={() => tools.requestConfirmation({
+                title: 'حذف منطقة ' + area.compound,
+                description: area.bookingCount > 0
+                  ? 'المنطقة مرتبطة بـ ' + area.bookingCount + ' حجز؛ يمكنك إيقاف إتاحتها للحجز بدل الحذف.'
+                  : 'سيتم حذف المنطقة نهائيًا من قائمة التغطية.',
+                action: deleteSetupAreaAction,
+                entityId: area.id,
+                branchId: branch.id,
+                confirmLabel: 'حذف المنطقة',
+              })}
+              className={dangerButtonClass}
+            >
+              <Trash2 className="size-4" aria-hidden="true" />
+              حذف
+            </button>
+          ) : <span />}
+          <SaveButton pending={tools.pending} label={area ? 'حفظ تعديلات المنطقة' : 'إضافة المنطقة'} />
+        </div>
+      </form>
     </Panel>
   );
 }
@@ -2253,10 +2088,9 @@ function BranchEngineRulesInteractiveForm({
   tools: SectionTools;
 }) {
   const [slotUnit, setSlotUnit] = useState<number>(branch.slotUnitMinutes ?? 60);
-  const [travelBuffer, setTravelBuffer] = useState<number>(branch.travelBufferMinutes ?? 15);
-  const [restBuffer, setRestBuffer] = useState<number>(branch.restBufferMinutes ?? 0);
+  const [travelBuffer, setTravelBuffer] = useState<number>(branch.travelBufferMinutes ?? 30);
 
-  const totalGap = Math.max(0, travelBuffer + restBuffer);
+  const totalGap = Math.max(0, travelBuffer);
   const totalSlotStride = slotUnit + totalGap;
 
   const firstOpenDay = branch.workingHours.find((h) => !h.isClosed);
@@ -2277,7 +2111,7 @@ function BranchEngineRulesInteractiveForm({
     const breakStartMin = breakStartStr ? parseMinutes(breakStartStr) : null;
     const breakEndMin = breakEndStr ? parseMinutes(breakEndStr) : null;
 
-    while (currentMinutes + slotUnit <= closeMinutes && slots.length < 16) {
+    while (currentMinutes <= closeMinutes && slots.length < 16) {
       const slotStart = currentMinutes;
       const slotEnd = currentMinutes + slotUnit;
 
@@ -2303,9 +2137,12 @@ function BranchEngineRulesInteractiveForm({
       className="space-y-6"
     >
       <input type="hidden" name="branchId" value={branch.id} />
-      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        <div>
-          <label className="text-xs font-bold text-white/80 block mb-1">
+      <input type="hidden" name="restBufferMinutes" value="0" />
+      <input type="hidden" name="arrivalWindowMinutes" value={String(branch.arrivalWindowMinutes || 30)} />
+
+      <div className="grid gap-5 sm:grid-cols-2">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 space-y-2">
+          <label className="text-xs font-black text-white block">
             مدة السلوت التشغيلي (Slot Unit بالدقائق)
           </label>
           <input
@@ -2318,13 +2155,13 @@ function BranchEngineRulesInteractiveForm({
             onChange={(e) => setSlotUnit(Math.max(15, Number(e.target.value)))}
             className={inputClass}
           />
-          <div className="mt-1.5 flex flex-wrap gap-1">
-            {[15, 30, 45, 60, 90, 120].map((preset) => (
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            {[30, 45, 60, 90, 120].map((preset) => (
               <button
                 key={preset}
                 type="button"
                 onClick={() => setSlotUnit(preset)}
-                className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-colors ${
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-black border transition-colors cursor-pointer ${
                   slotUnit === preset
                     ? 'border-[#cea355] bg-[#cea355]/20 text-[#edce8b]'
                     : 'border-white/10 bg-black/40 text-neutral-400 hover:text-white'
@@ -2334,14 +2171,14 @@ function BranchEngineRulesInteractiveForm({
               </button>
             ))}
           </div>
-          <span className="mt-1 block text-[10px] text-neutral-400">
-            وحدة البناء الأساسية التي تُقاس بها أوقات الخدمات في جدول التشغيل.
+          <span className="block text-[11px] text-neutral-400">
+            المدة الأساسية التي يُقاس بها حجز الخدمة في جدول التشغيل (مثلاً 60 دقيقة).
           </span>
         </div>
 
-        <div>
-          <label className="text-xs font-bold text-white/80 block mb-1">
-            وقت الانتقال بين العملاء (Travel Buffer بالدقائق)
+        <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 space-y-2">
+          <label className="text-xs font-black text-white block">
+            الفاصل الزمني بين المواعيد / وقت الانتقال (Travel Buffer بالدقائق)
           </label>
           <input
             name="travelBufferMinutes"
@@ -2353,13 +2190,13 @@ function BranchEngineRulesInteractiveForm({
             onChange={(e) => setTravelBuffer(Math.max(0, Number(e.target.value)))}
             className={inputClass}
           />
-          <div className="mt-1.5 flex flex-wrap gap-1">
-            {[0, 10, 15, 20, 30, 45].map((preset) => (
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            {[0, 15, 30, 45, 60].map((preset) => (
               <button
                 key={preset}
                 type="button"
                 onClick={() => setTravelBuffer(preset)}
-                className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-colors ${
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-black border transition-colors cursor-pointer ${
                   travelBuffer === preset
                     ? 'border-[#cea355] bg-[#cea355]/20 text-[#edce8b]'
                     : 'border-white/10 bg-black/40 text-neutral-400 hover:text-white'
@@ -2369,67 +2206,13 @@ function BranchEngineRulesInteractiveForm({
               </button>
             ))}
           </div>
-          <span className="mt-1 block text-[10px] text-neutral-400">
-            الفاصل الزمني المتروك تلقائياً بين انتهاء الخدمة وبداية الموعد التالي لانتقال الفريق.
+          <span className="block text-[11px] text-neutral-400">
+            الوقت المتروك تلقائياً بين انتهاء الخدمة وبداية الموعد التالي لانتقال الفريق بين العملاء.
           </span>
         </div>
 
-        <div>
-          <label className="text-xs font-bold text-white/80 block mb-1">
-            وقت الراحة والتجهيز الإضافي (Rest Buffer بالدقائق)
-          </label>
-          <input
-            name="restBufferMinutes"
-            type="number"
-            min={0}
-            max={180}
-            required
-            value={restBuffer}
-            onChange={(e) => setRestBuffer(Math.max(0, Number(e.target.value)))}
-            className={inputClass}
-            placeholder="0 = بدون راحة إضافية"
-          />
-          <div className="mt-1.5 flex flex-wrap gap-1">
-            {[0, 15, 30, 60].map((preset) => (
-              <button
-                key={preset}
-                type="button"
-                onClick={() => setRestBuffer(preset)}
-                className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-colors ${
-                  restBuffer === preset
-                    ? 'border-[#cea355] bg-[#cea355]/20 text-[#edce8b]'
-                    : 'border-white/10 bg-black/40 text-neutral-400 hover:text-white'
-                }`}
-              >
-                {preset} دقيقة {preset === 0 ? '(بدون)' : ''}
-              </button>
-            ))}
-          </div>
-          <span className="mt-1 block text-[10px] text-neutral-400">
-            وقت استراحة إضافي اختياري لفريق العمل بين المواعيد.
-          </span>
-        </div>
-
-        <div>
-          <label className="text-xs font-bold text-white/80 block mb-1">
-            نافذة الوصول المتوقعة (Arrival Window)
-          </label>
-          <input
-            name="arrivalWindowMinutes"
-            type="number"
-            min={0}
-            max={180}
-            required
-            defaultValue={branch.arrivalWindowMinutes}
-            className={inputClass}
-          />
-          <span className="mt-1 block text-[10px] text-neutral-400">
-            نطاق الوصول المعروض للعميل (مثال: من 09:00 إلى 09:30).
-          </span>
-        </div>
-
-        <div>
-          <label className="text-xs font-bold text-white/80 block mb-1">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 space-y-2">
+          <label className="text-xs font-black text-white block">
             الحد الأقصى للحجوزات اليومية للفرع
           </label>
           <input
@@ -2441,16 +2224,22 @@ function BranchEngineRulesInteractiveForm({
             defaultValue={branch.dailyBookingLimit}
             className={inputClass}
           />
+          <span className="block text-[11px] text-neutral-400">
+            أقصى سعة حجوزات يمكن للنظام قبولها في اليوم الواحد للفرع.
+          </span>
         </div>
 
-        <div>
-          <label className="text-xs font-bold text-white/80 block mb-1">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 space-y-2">
+          <label className="text-xs font-black text-white block">
             نمط إسناد الحجوزات للفرق
           </label>
           <select name="assignmentMode" defaultValue={branch.assignmentMode} className={inputClass}>
-            <option value="AUTOMATIC">تلقائي حسب المحرك والمسارات</option>
-            <option value="MANUAL">يدوي من لوحة التشغيل</option>
+            <option value="AUTOMATIC">تلقائي حسب المحرك وتوفر الفرق</option>
+            <option value="MANUAL">يدوي من لوحة إدارة التشغيل</option>
           </select>
+          <span className="block text-[11px] text-neutral-400">
+            طريقة توزيع المهام والحجوزات اليومية على فرق العمل الميدانية.
+          </span>
         </div>
       </div>
 
@@ -2538,6 +2327,9 @@ function ScheduleSection({ branch, employees, tools }: {
                 disabledLabel="الفرع مغلق"
                 action={saveBranchWorkingHoursAction}
                 tools={tools}
+                slotUnitMinutes={branch.slotUnitMinutes ?? 60}
+                travelBufferMinutes={branch.travelBufferMinutes ?? 30}
+                restBufferMinutes={branch.restBufferMinutes ?? 0}
               />
             );
           })}
@@ -2584,6 +2376,9 @@ function ScheduleSection({ branch, employees, tools }: {
                   disabledLabel="إجازة للفريق"
                   action={saveTeamWorkingHoursAction}
                   tools={tools}
+                  slotUnitMinutes={branch.slotUnitMinutes ?? 60}
+                  travelBufferMinutes={branch.travelBufferMinutes ?? 30}
+                  restBufferMinutes={branch.restBufferMinutes ?? 0}
                 />
               );
             })}
@@ -2592,21 +2387,6 @@ function ScheduleSection({ branch, employees, tools }: {
       </Panel>
 
       <BlackoutsPanel branch={branch} tools={tools} />
-
-      <div className="grid gap-6 2xl:grid-cols-2">
-        <TimeOffPanel
-          branch={branch}
-          subjectType="TEAM"
-          subjects={branch.teams.map((team) => ({ id: team.id, name: team.name, timeOff: team.timeOff }))}
-          tools={tools}
-        />
-        <TimeOffPanel
-          branch={branch}
-          subjectType="EMPLOYEE"
-          subjects={employees.map((employee) => ({ id: employee.id, name: employee.fullName, timeOff: employee.timeOff }))}
-          tools={tools}
-        />
-      </div>
     </>
   );
 }
@@ -2620,6 +2400,9 @@ function HoursCard({
   disabledLabel,
   action,
   tools,
+  slotUnitMinutes = 60,
+  travelBufferMinutes = 30,
+  restBufferMinutes = 0,
 }: {
   day: { value: number; label: string };
   hours?: {
@@ -2635,49 +2418,278 @@ function HoursCard({
   disabledLabel: string;
   action: SetupMutation;
   tools: SectionTools;
+  slotUnitMinutes?: number;
+  travelBufferMinutes?: number;
+  restBufferMinutes?: number;
 }) {
+  const [disabled, setDisabled] = useState(hours?.disabled ?? false);
+  const [openTime, setOpenTime] = useState(hours?.openTime ?? '09:00');
+  const [closeTime, setCloseTime] = useState(hours?.closeTime ?? '17:00');
+  const [breakStart, setBreakStart] = useState(hours?.breakStartTime ?? '');
+  const [breakEnd, setBreakEnd] = useState(hours?.breakEndTime ?? '');
+
+  const totalGap = Math.max(0, travelBufferMinutes + restBufferMinutes);
+  const strideMinutes = slotUnitMinutes + totalGap;
+
+  const parseMinutes = (timeStr: string) => {
+    if (!timeStr || !timeStr.includes(':')) return 0;
+    const [h, m] = timeStr.split(':').map(Number);
+    return (h || 0) * 60 + (m || 0);
+  };
+
+  const formatMinutesToTime = (totalMin: number) => {
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  };
+
+  const formatMinutesToDisplay = (totalMin: number) => {
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    const period = h >= 12 ? 'م' : 'ص';
+    const displayH = h === 0 ? 12 : h > 12 ? h - 12 : h;
+    return `${String(displayH).padStart(2, '0')}:${String(m).padStart(2, '0')} ${period}`;
+  };
+
+  const operationalSlots = useMemo(() => {
+    const slots: Array<{
+      startFormatted: string;
+      endFormatted: string;
+      label: string;
+    }> = [];
+    const openMin = parseMinutes(openTime);
+    const closeMin = parseMinutes(closeTime);
+    if (closeMin <= openMin) return slots;
+
+    let cur = openMin;
+    while (cur <= closeMin && slots.length < 16) {
+      const slotStart = cur;
+      const slotEnd = cur + slotUnitMinutes;
+      slots.push({
+        startFormatted: formatMinutesToTime(slotStart),
+        endFormatted: formatMinutesToTime(slotEnd),
+        label: `${formatMinutesToDisplay(slotStart)} إلى ${formatMinutesToDisplay(slotEnd)}`,
+      });
+      cur += strideMinutes;
+    }
+    return slots;
+  }, [openTime, closeTime, slotUnitMinutes, strideMinutes]);
+
+  const livePreview = useMemo(() => {
+    if (disabled) return [];
+    const preview: Array<{ timeDisplay: string; isBreak: boolean }> = [];
+    const openMin = parseMinutes(openTime);
+    const closeMin = parseMinutes(closeTime);
+    const bStart = breakStart ? parseMinutes(breakStart) : null;
+    const bEnd = breakEnd ? parseMinutes(breakEnd) : null;
+    const hasBreak = bStart !== null && bEnd !== null && bStart < bEnd;
+
+    let cur = openMin;
+    while (cur <= closeMin && preview.length < 16) {
+      const slotStart = cur;
+      const slotEnd = cur + slotUnitMinutes;
+
+      if (hasBreak && !(slotEnd <= bStart! || slotStart >= bEnd!)) {
+        preview.push({
+          timeDisplay: `${formatMinutesToDisplay(bStart!)} (استراحة ☕)`,
+          isBreak: true,
+        });
+        const slotUnit = Math.max(15, slotUnitMinutes);
+        const offset = bEnd! - openMin;
+        const alignedOffset = Math.ceil(offset / slotUnit) * slotUnit;
+        cur = openMin + Math.max(offset, alignedOffset);
+        continue;
+      }
+
+      preview.push({
+        timeDisplay: formatMinutesToDisplay(slotStart),
+        isBreak: false,
+      });
+      cur += strideMinutes;
+    }
+    return preview;
+  }, [disabled, openTime, closeTime, breakStart, breakEnd, slotUnitMinutes, strideMinutes]);
+
   return (
     <form
       onSubmit={(event) => tools.execute(action, formDataFrom(event))}
-      className="rounded-2xl border border-white/8 bg-black/25 p-4"
+      className={`rounded-2xl border transition-all ${
+        disabled
+          ? 'border-white/5 bg-black/15 opacity-70'
+          : 'border-white/10 bg-black/30 hover:border-white/20'
+      } p-4 flex flex-col justify-between`}
     >
-      <input type="hidden" name={hiddenName} value={hiddenValue} />
-      <input type="hidden" name="dayOfWeek" value={day.value} />
-      <div className="flex items-center justify-between gap-3">
-        <h3 className="font-black text-white/82">{day.label}</h3>
-        <label className="flex cursor-pointer items-center gap-2 text-xs font-bold text-white/50">
-          <input
-            type="checkbox"
-            name={disabledName}
-            value="true"
-            defaultChecked={hours?.disabled ?? false}
-            className="size-4 accent-red-400"
-          />
-          <input type="hidden" name={disabledName} value="false" />
-          {disabledLabel}
-        </label>
+      <div>
+        <input type="hidden" name={hiddenName} value={hiddenValue} />
+        <input type="hidden" name="dayOfWeek" value={day.value} />
+        <div className="flex items-center justify-between gap-3 border-b border-white/8 pb-3">
+          <h3 className="font-black text-white text-sm sm:text-base">{day.label}</h3>
+          <label className="flex cursor-pointer items-center gap-2 text-xs font-bold text-white/60">
+            <input
+              type="checkbox"
+              name={disabledName}
+              value="true"
+              checked={disabled}
+              onChange={(e) => setDisabled(e.target.checked)}
+              className="size-4 accent-red-500 rounded"
+            />
+            <input type="hidden" name={disabledName} value="false" />
+            <span className={disabled ? 'text-red-400 font-bold' : ''}>{disabledLabel}</span>
+          </label>
+        </div>
+
+        {!disabled && (
+          <div className="mt-3.5 space-y-3.5">
+            <div className="grid grid-cols-2 gap-2.5">
+              <label className="text-[11px] font-bold text-white/55">
+                الفتح
+                <input
+                  name="openTime"
+                  type="time"
+                  step="900"
+                  required
+                  value={openTime}
+                  onChange={(e) => setOpenTime(e.target.value)}
+                  className={inputClass + ' mt-1'}
+                />
+              </label>
+              <label className="text-[11px] font-bold text-white/55">
+                الإغلاق
+                <input
+                  name="closeTime"
+                  type="time"
+                  step="900"
+                  required
+                  value={closeTime}
+                  onChange={(e) => setCloseTime(e.target.value)}
+                  className={inputClass + ' mt-1'}
+                />
+              </label>
+            </div>
+
+            {/* Quick Slot Break Selector */}
+            <div className="rounded-xl bg-white/[0.03] border border-white/5 p-2.5 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-[#edce8b] flex items-center gap-1">
+                  <span>☕ استراحة التشغيل (اختيار سلوت مباشر)</span>
+                </span>
+                {breakStart && breakEnd && (
+                  <button
+                    type="button"
+                    onClick={() => { setBreakStart(''); setBreakEnd(''); }}
+                    className="text-[10px] text-red-400 hover:text-red-300 font-bold underline"
+                  >
+                    إلغاء الاستراحة
+                  </button>
+                )}
+              </div>
+
+              {operationalSlots.length > 0 ? (
+                <div className="flex flex-wrap gap-1">
+                  <button
+                    type="button"
+                    onClick={() => { setBreakStart(''); setBreakEnd(''); }}
+                    className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition-colors ${
+                      !breakStart && !breakEnd
+                        ? 'border-[#cea355] bg-[#cea355]/20 text-[#edce8b]'
+                        : 'border-white/10 bg-black/40 text-neutral-400 hover:text-white'
+                    }`}
+                  >
+                    بدون استراحة
+                  </button>
+                  {operationalSlots.map((slot) => {
+                    const isSelected = breakStart === slot.startFormatted && breakEnd === slot.endFormatted;
+                    return (
+                      <button
+                        key={slot.startFormatted}
+                        type="button"
+                        onClick={() => {
+                          setBreakStart(slot.startFormatted);
+                          setBreakEnd(slot.endFormatted);
+                        }}
+                        className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition-colors ${
+                          isSelected
+                            ? 'border-amber-400 bg-amber-400/25 text-amber-200 shadow-sm'
+                            : 'border-white/10 bg-black/40 text-neutral-300 hover:border-amber-400/50 hover:text-amber-200'
+                        }`}
+                      >
+                        سلوت {slot.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+
+              <div className="grid grid-cols-2 gap-2 pt-1 border-t border-white/5">
+                <label className="text-[10px] text-white/40">
+                  بداية الاستراحة
+                  <input
+                    name="breakStartTime"
+                    type="time"
+                    step="900"
+                    value={breakStart}
+                    onChange={(e) => setBreakStart(e.target.value)}
+                    placeholder="بدون"
+                    className={inputClass + ' mt-0.5 text-xs py-1'}
+                  />
+                </label>
+                <label className="text-[10px] text-white/40">
+                  نهاية الاستراحة
+                  <input
+                    name="breakEndTime"
+                    type="time"
+                    step="900"
+                    value={breakEnd}
+                    onChange={(e) => setBreakEnd(e.target.value)}
+                    placeholder="بدون"
+                    className={inputClass + ' mt-0.5 text-xs py-1'}
+                  />
+                </label>
+              </div>
+            </div>
+
+            {/* Live Customer Preview Window */}
+            <div className="rounded-xl bg-[#09090b] border border-[#d4af37]/20 p-2.5">
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <span className="size-1.5 rounded-full bg-[#cea355] animate-pulse" />
+                <span className="text-[10px] font-black text-[#cea355]">معاينة حية للمواعيد المعروضة للعميل:</span>
+              </div>
+              {livePreview.length > 0 ? (
+                <div className="flex flex-wrap gap-1">
+                  {livePreview.map((slot, idx) => (
+                    <span
+                      key={idx}
+                      className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                        slot.isBreak
+                          ? 'border border-amber-500/40 bg-amber-500/15 text-amber-300'
+                          : 'border border-white/10 bg-white/5 text-neutral-200'
+                      }`}
+                    >
+                      {slot.timeDisplay}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-[10px] text-neutral-500">لا توجد مواعيد متاحة في نطاق هذا الوقت.</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {disabled && (
+          <div className="py-6 text-center text-xs font-bold text-red-400/80">
+            هذا اليوم محدد كإجازة (مغلق)
+          </div>
+        )}
       </div>
-      <div className="mt-4 grid grid-cols-2 gap-3">
-        <label className="text-[11px] font-bold text-white/45">
-          الفتح
-          <input name="openTime" type="time" required defaultValue={hours?.openTime ?? '09:00'} className={inputClass} />
-        </label>
-        <label className="text-[11px] font-bold text-white/45">
-          الإغلاق
-          <input name="closeTime" type="time" required defaultValue={hours?.closeTime ?? '16:00'} className={inputClass} />
-        </label>
-        <label className="text-[11px] font-bold text-white/45">
-          بداية الاستراحة <span className="text-neutral-500 font-normal">(اختياري)</span>
-          <input name="breakStartTime" type="time" defaultValue={hours?.breakStartTime ?? ''} placeholder="بدون استراحة" className={inputClass} />
-        </label>
-        <label className="text-[11px] font-bold text-white/45">
-          نهاية الاستراحة <span className="text-neutral-500 font-normal">(اختياري)</span>
-          <input name="breakEndTime" type="time" defaultValue={hours?.breakEndTime ?? ''} placeholder="بدون استراحة" className={inputClass} />
-        </label>
-      </div>
-      <button type="submit" disabled={tools.pending} className={secondaryButtonClass + ' mt-4 w-full'}>
-        <Save className="size-4" aria-hidden="true" />
-        حفظ {day.label}
+
+      <button
+        type="submit"
+        disabled={tools.pending}
+        className={secondaryButtonClass + ' mt-4 w-full justify-center'}
+      >
+        <Save className="size-3.5" aria-hidden="true" />
+        <span>حفظ {day.label}</span>
       </button>
     </form>
   );
@@ -3425,7 +3437,7 @@ export default function SetupCenter({ actor, branches, employees, permissions, s
     { id: 'operations_management', label: 'إدارة التشغيل', hint: 'المدراء والفروع المتعددة', icon: ShieldCheck },
     { id: 'workforce', label: 'موظفو التنفيذ', hint: 'الفنيين وحسابات الفرع', icon: UserRoundCog },
     { id: 'teams', label: 'الفرق', hint: 'الأعضاء والقدرات', icon: UsersRound },
-    { id: 'coverage', label: 'التغطية والتنقل', hint: 'الزونات والمصفوفة', icon: MapPinned },
+    { id: 'coverage', label: 'مناطق التغطية', hint: 'الكمبوندات والمناطق المخدومة', icon: MapPinned },
     { id: 'schedule', label: 'الوقت والسعة', hint: 'الساعات والإغلاقات', icon: CalendarClock },
     { id: 'payments', label: 'وسائل الدفع', hint: 'الحسابات والتعليمات', icon: CreditCard },
     { id: 'checklists', label: 'قوائم التنفيذ', hint: 'القوالب والبنود', icon: ClipboardCheck },

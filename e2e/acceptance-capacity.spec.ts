@@ -165,15 +165,15 @@ test.describe('Capacity contention acceptance', () => {
       await page.goto(`/services/${service.slug}/book?vehicleId=${customer.vehicle.id}&addressId=${customer.address.id}`);
       await page.getByTestId('booking-step-1-next').click();
       await page.getByTestId('booking-step-2-next').click();
-      await page.getByTestId('booking-step-3-next').click();
       await page.locator('#booking-date').fill(bookingDate);
       const firstSlot = page.locator('input[name="booking-slot"]').first();
       await expect(firstSlot).toBeVisible({ timeout: 60_000 });
       await firstSlot.check();
+      await page.getByTestId('booking-step-3-next').click();
       await page.getByTestId('booking-step-4-next').click();
       await page.locator('#contact-phone').fill(`0100000000${customerIndex}`);
       await page.locator('#contact-whatsapp').fill(`0100000000${customerIndex}`);
-      await page.getByTestId('booking-step-5-next').click();
+      await page.getByTestId('booking-step-4-next').click();
       await page.locator('#policy-accepted').check();
       return page;
     }
@@ -210,7 +210,7 @@ test.describe('Capacity contention acceptance', () => {
       })).toBe(1);
 
       const rejectedPage = outcomes.find(({ outcome }) => outcome.kind === 'rejected')!.page;
-      await expect(rejectedPage.getByRole('alert')).toContainText(/لم يعد متاح|حُجز/);
+      await expect(rejectedPage.locator('main [role="alert"]').first()).toContainText(/لم يعد متاح|حُجز/);
     } finally {
       await Promise.all(contexts.map((context) => context.close()));
       const bookingIds = (await prisma!.booking.findMany({
@@ -219,6 +219,8 @@ test.describe('Capacity contention acceptance', () => {
       if (bookingIds.length) {
         await prisma!.bookingStatusHistory.deleteMany({ where: { bookingId: { in: bookingIds } } });
         await prisma!.bookingHold.deleteMany({ where: { bookingId: { in: bookingIds } } });
+        await prisma!.bookingItem.deleteMany({ where: { bookingId: { in: bookingIds } } });
+        await prisma!.invoice.deleteMany({ where: { bookingId: { in: bookingIds } } });
         await prisma!.booking.deleteMany({ where: { id: { in: bookingIds } } });
       }
       await prisma!.team.delete({ where: { id: team.id } });

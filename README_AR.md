@@ -120,11 +120,17 @@ npm run audit
 
 `npm run test:e2e:list` يعرض الحالات فقط ولا ينفذها. ما لم يشر `E2E_BASE_URL` إلى خادم خارجي قائم، يشغّل Playwright سيرفر التطوير ويديره على `E2E_PORT` (الافتراضي 3000، ويمكن استخدام 3417 كمنفذ محلي معزول). تغطي حالات القبول المرتبطة بقاعدة البيانات سيناريوهات الـMaster للحجز الكامل، وتنافس آخر سعة، وإعادة رفع إثبات الدفع، والاشتراكات، وحد الفروع، وعزل الصلاحيات، وخارج التغطية (1 و3 و6 و8 و9 و10 و12). تحتاج `E2E_DATABASE_URL` يشير إلى PostgreSQL منفصل ومهاجر ومعبأ بالـSeed، وتتخطى نفسها إذا لم يتوفر الشرط. لا توجّهها أبدًا إلى بيانات التطوير أو الإنتاج، وتخلّص من قاعدة E2E أو أعد بنائها بعد التشغيل. يفرض `npm run audit` سياسة الحزم عند مستوى High.
 
-ينشئ `.github/workflows/ci.yml` قاعدتي PostgreSQL 16 منفصلتين: Job للتحقق من الهجرات وSchema drift وسياسة الحزم وTypeScript وLint وUnit والبناء، وJob يهاجر قاعدة E2E ويملؤها بالـSeed ويثبت Chromium ثم يشغّل Playwright كاملًا.
+ينشئ `.github/workflows/ci.yml` قاعدتي PostgreSQL 16 منفصلتين للتحقق وE2E، مع Job ثالث لبناء الحاويات. يتحقق Job التحقق من الهجرات وSchema drift وسياسة الحزم وTypeScript وLint وUnit والبناء وprobe تشغيل standalone، ويهاجر Job E2E قاعدة قابلة للمسح ويملؤها بالـSeed ويثبت Chromium ثم يشغّل Playwright كاملًا، بينما يتحقق Job الحاويات من Compose ويبني صورتي web وmigrate للإنتاج.
 
 ## Docker والنشر
 
 بعد إنشاء `.env` بقيم إنتاج حقيقية:
+
+```bash
+NODE_ENV=production npm run check:production-env
+```
+
+شغّله مع متغيرات بيئة الإنتاج؛ سيفشل عند وجود رابط غير HTTPS أو أسرار ضعيفة/افتراضية أو تخزين مؤقت.
 
 ```bash
 docker compose build web migrate

@@ -18,7 +18,7 @@ test.describe('§1 — Login page: UI structure & client-side validation', () =>
   test('login page renders all required elements', async ({ page }) => {
     test.setTimeout(60_000);
     await page.goto('/login', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('h1')).toContainText('تسجيل الدخول', { timeout: 20_000 });
+    await expect(page.locator('h1:visible').first()).toContainText('تسجيل الدخول', { timeout: 20_000 });
     await expect(page.locator('#login-phone')).toBeVisible();
     await expect(page.locator('#login-password')).toBeVisible();
     await expect(page.getByRole('button', { name: /تسجيل الدخول/ })).toBeVisible();
@@ -88,7 +88,7 @@ test.describe('§1 — Login page: UI structure & client-side validation', () =>
 test.describe('§2 — Register page: UI structure & client-side validation', () => {
   test('register page renders all required fields', async ({ page }) => {
     await page.goto('/register');
-    await expect(page.locator('h1')).toContainText('إنشاء حساب');
+    await expect(page.locator('h1:visible').first()).toContainText('إنشاء حساب');
     await expect(page.locator('#register-name')).toBeVisible();
     await expect(page.locator('#register-phone')).toBeVisible();
     await expect(page.locator('#register-whatsapp')).toBeVisible();
@@ -135,7 +135,7 @@ test.describe('§2 — Register page: UI structure & client-side validation', ()
     await page.getByRole('button', { name: /إنشاء الحساب/ }).click();
     // Either an error appears or it redirects (if phone not taken it might succeed)
     // We just verify no JS error / crash
-    await expect(page.locator('main')).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('main:visible').first()).toBeVisible({ timeout: 15_000 });
   });
 });
 
@@ -236,6 +236,7 @@ test.describe('§5 — Authenticated customer account portal', () => {
   test('scenario A: customer can access all account sub-pages and sees their name', async ({ browser }) => {
     test.setTimeout(120_000);
     const user = await createAcceptanceUser(prisma!, UserRole.CUSTOMER, 'portal-nav');
+    await prisma!.customerProfile.create({ data: { userId: user.id } });
     const contexts: BrowserContext[] = [];
     try {
       const ctx = await browser.newContext();
@@ -255,10 +256,19 @@ test.describe('§5 — Authenticated customer account portal', () => {
       ];
 
       for (const route of accountRoutes) {
-        const res = await page.goto(route, { waitUntil: 'domcontentloaded' });
+        let res;
+        try {
+          res = await page.goto(route, { waitUntil: 'domcontentloaded' });
+        } catch (error) {
+          // Next dev can reset a navigation while compiling a newly visited
+          // server route; retry the same destination once before treating it
+          // as a real route failure.
+          if (!(error instanceof Error) || !/ERR_ABORTED|aborted|ECONNRESET/i.test(error.message)) throw error;
+          res = await page.goto(route, { waitUntil: 'domcontentloaded' });
+        }
         expect(res?.status(), `${route} must be accessible to authenticated customer`).toBeLessThan(400);
         await expect(page).not.toHaveURL(/\/login/);
-        await expect(page.locator('main')).toBeVisible({ timeout: 15_000 });
+        await expect(page.locator('main:visible').first()).toBeVisible({ timeout: 15_000 });
       }
     } finally {
       await Promise.all(contexts.map((c) => c.close()));
@@ -316,7 +326,7 @@ test.describe('§5 — Authenticated customer account portal', () => {
       const res = await page.goto('/operations', { waitUntil: 'domcontentloaded' });
       expect(res?.status()).toBeLessThan(400);
       await expect(page).not.toHaveURL(/\/login/);
-      await expect(page.locator('main')).toBeVisible();
+      await expect(page.locator('main:visible').first()).toBeVisible();
     } finally {
       await Promise.all(contexts.map((c) => c.close()));
       await cleanupAcceptanceUsers(prisma!, [manager.id]);
@@ -335,7 +345,7 @@ test.describe('§5 — Authenticated customer account portal', () => {
       const res = await page.goto('/admin', { waitUntil: 'domcontentloaded' });
       expect(res?.status()).toBeLessThan(400);
       await expect(page).not.toHaveURL(/\/login/);
-      await expect(page.locator('main')).toBeVisible();
+      await expect(page.locator('main:visible').first()).toBeVisible();
     } finally {
       await Promise.all(contexts.map((c) => c.close()));
       await cleanupAcceptanceUsers(prisma!, [owner.id]);
@@ -354,7 +364,7 @@ test.describe('§5 — Authenticated customer account portal', () => {
       const res = await page.goto('/system-admin', { waitUntil: 'domcontentloaded' });
       expect(res?.status()).toBeLessThan(400);
       await expect(page).not.toHaveURL(/\/login/);
-      await expect(page.locator('main')).toBeVisible();
+      await expect(page.locator('main:visible').first()).toBeVisible();
     } finally {
       await Promise.all(contexts.map((c) => c.close()));
       await cleanupAcceptanceUsers(prisma!, [admin.id]);
@@ -444,7 +454,9 @@ test.describe('§5 — Authenticated customer account portal', () => {
       await page.goto('/account');
       // Should redirect to change-password or show a warning banner
       const url = page.url();
-      const hasChangePwdRoute = url.includes('change-password') || url.includes('login');
+      const hasChangePwdRoute = url.includes('change-password')
+        || url.includes('change_password=true')
+        || url.includes('login');
       const hasBanner = await page.locator('[data-testid="must-change-pwd"]').isVisible()
         .catch(() => false);
       expect(hasChangePwdRoute || hasBanner).toBe(true);
@@ -487,7 +499,7 @@ test.describe('§6 — Technician (staff) portal access', () => {
       const res = await page.goto('/staff', { waitUntil: 'domcontentloaded' });
       expect(res?.status()).toBeLessThan(400);
       await expect(page).not.toHaveURL(/\/login/);
-      await expect(page.locator('main')).toBeVisible();
+      await expect(page.locator('main:visible').first()).toBeVisible();
     } finally {
       await Promise.all(contexts.map((c) => c.close()));
       await cleanupAcceptanceUsers(prisma!, [tech.id]);

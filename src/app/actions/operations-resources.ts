@@ -716,6 +716,7 @@ export async function assignBookingOperationalResourcesAction(
   try {
     await db.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`booking:${parsed.data.bookingId}`}))`;
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`booking-terminal-reopen:${parsed.data.bookingId}`}))`;
       const booking = await tx.booking.findFirst({
         where: { id: parsed.data.bookingId, deletedAt: null },
         select: {
@@ -724,12 +725,14 @@ export async function assignBookingOperationalResourcesAction(
           startAt: true,
           endAt: true,
           bookingStatus: true,
+          terminalReopenSourceStatus: true,
           assignedTeamId: true,
           assignedEmployeeId: true,
           operationalVehicleId: true,
         },
       });
       if (!booking) throw new Error('BOOKING_NOT_FOUND');
+      if (booking.terminalReopenSourceStatus) throw new Error('BOOKING_TERMINAL_REVIEW');
       if (TERMINAL_BOOKING_STATUSES.includes(booking.bookingStatus as (typeof TERMINAL_BOOKING_STATUSES)[number])) {
         throw new Error('BOOKING_TERMINAL');
       }
@@ -858,6 +861,7 @@ export async function assignBookingOperationalResourcesAction(
     const messages: Record<string, string> = {
       BOOKING_NOT_FOUND: 'الحجز غير موجود.',
       BOOKING_TERMINAL: 'لا يمكن تخصيص موارد لحجز منتهي.',
+      BOOKING_TERMINAL_REVIEW: 'الحجز مفتوح لمراجعة إدارية طرفية؛ أغلق المراجعة قبل تخصيص موارده.',
       BOOKING_TEAM_REQUIRED: 'أسند فريقًا للحجز أولًا قبل تخصيص موظف أو سيارة تشغيل.',
       EMPLOYEE_NOT_IN_ASSIGNED_TEAM: 'الموظف غير نشط أو لا ينتمي إلى فريق الحجز.',
       VEHICLE_NOT_AVAILABLE_FOR_TEAM: 'سيارة التشغيل غير نشطة أو لا تتبع فرع وفريق الحجز.',
@@ -1085,4 +1089,3 @@ export async function deleteEmployeeMaterialStockAction(formData: FormData): Pro
     return { error: resourceError(error) };
   }
 }
-

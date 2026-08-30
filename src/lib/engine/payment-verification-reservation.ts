@@ -13,6 +13,7 @@ interface VerificationBooking {
   startAt: Date;
   endAt: Date;
   totalDurationMinutes: number;
+  terminalReopenSourceStatus?: string | null;
   vehicle: { vehicleSize: VehicleSize };
   addons: Array<{ addonId: string }>;
 }
@@ -87,6 +88,7 @@ export async function ensurePaymentVerificationReservation(
   evaluateAvailability: AvailabilityEvaluator = evaluateRequestedInterval,
 ) {
   const { booking, now } = input;
+  if (booking.terminalReopenSourceStatus) return null;
   const reservedDurationMinutes = booking.totalDurationMinutes;
   if (
     booking.startAt <= now ||

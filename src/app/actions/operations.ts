@@ -1,9 +1,11 @@
 'use server';
 
+import { z } from 'zod';
 import {
   BookingHoldStatus,
   BookingStatus,
   BranchStatus,
+  FileType,
   PaymentStatus,
   Prisma,
   ProofStatus,
@@ -18,6 +20,7 @@ import {
   hasPermissionAcrossScopes,
 } from '@/lib/auth/permissions';
 import { db } from '@/lib/db';
+import { deleteUploadedFile } from '@/lib/upload';
 import { localDateTimeToUtc } from '@/lib/engine/time';
 import {
   AssignmentError,
@@ -435,24 +438,6 @@ export async function reviewBookingAction(formData: FormData) {
         reason: 'توزيع الحجز بعد اعتماده تشغيليًا',
       });
 
-      // Automatically purge payment receipt images to optimize storage
-      const purgeResult = await purgePaymentProofReceiptsForBooking(tx, booking.id);
-      if (purgeResult.deletedFilesCount > 0) {
-        await tx.auditLog.create({
-          data: {
-            actorUserId: manager.id,
-            actorRole: manager.role,
-            action: 'PAYMENT_PROOF_RECEIPT_PURGED_ON_ACCEPTANCE',
-            entityType: 'Booking',
-            entityId: booking.id,
-            afterJson: {
-              purgedFilesCount: purgeResult.deletedFilesCount,
-              savedBytes: purgeResult.purgedSizeBytes,
-            },
-          },
-        });
-      }
-
       return { accepted: true, ...assignment };
     }, {
       maxWait: 15_000,
@@ -537,10 +522,16 @@ export async function recordBalancePaymentAction(formData: FormData) {
     await assertBranchScope(manager, scopedBooking.branchId);
     await db.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`balance:${parsed.data.bookingId}`}))`;
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`booking-terminal-reopen:${parsed.data.bookingId}`}))`;
       const booking = await tx.booking.findFirst({
         where: { id: parsed.data.bookingId, deletedAt: null },
       });
       if (!booking) throw new OperationsInputError('الحجز غير موجود.');
+      if (booking.terminalReopenSourceStatus) {
+        throw new OperationsInputError(
+          'الحجز مفتوح لمراجعة إدارية طرفية؛ أغلق المراجعة قبل تسجيل أي تحصيل.',
+        );
+      }
       const existingPayment = await tx.payment.findUnique({
         where: { idempotencyKey: parsed.data.idempotencyKey },
       });
@@ -750,10 +741,20 @@ export async function cancelBookingByOperationsAction(formData: FormData) {
 
   const booking = await db.booking.findUnique({
     where: { id: parsed.data.bookingId, deletedAt: null },
-    select: { id: true, branchId: true, bookingStatus: true, bookingNumber: true, assignedTeamId: true },
+    select: {
+      id: true,
+      branchId: true,
+      bookingStatus: true,
+      bookingNumber: true,
+      assignedTeamId: true,
+      terminalReopenSourceStatus: true,
+    },
   });
   if (!booking) return { error: 'الحجز غير موجود.' };
   await assertBranchScope(manager, booking.branchId);
+  if (booking.terminalReopenSourceStatus) {
+    return { error: 'الحجز مفتوح لمراجعة إدارية طرفية؛ أغلق المراجعة قبل إلغائه.' };
+  }
 
   const TERMINAL: readonly string[] = ['CLOSED', 'CANCELLED', 'REJECTED', 'EXPIRED'];
   if (TERMINAL.includes(booking.bookingStatus)) {
@@ -763,6 +764,7 @@ export async function cancelBookingByOperationsAction(formData: FormData) {
   try {
     await db.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`booking:${booking.id}`}))`;
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`booking-terminal-reopen:${booking.id}`}))`;
 
       // 1. Release any active holds
       await tx.bookingHold.updateMany({
@@ -839,6 +841,9 @@ export async function rescheduleBookingByOperationsAction(formData: FormData) {
   });
   if (!booking) return { error: 'الحجز غير موجود.' };
   await assertBranchScope(manager, booking.branchId);
+  if (booking.terminalReopenSourceStatus) {
+    return { error: 'الحجز مفتوح لمراجعة إدارية طرفية؛ أغلق المراجعة قبل تعديل موعده.' };
+  }
 
   const TERMINAL: readonly string[] = ['CLOSED', 'CANCELLED', 'REJECTED', 'EXPIRED'];
   if (TERMINAL.includes(booking.bookingStatus)) {
@@ -860,6 +865,16 @@ export async function rescheduleBookingByOperationsAction(formData: FormData) {
   try {
     await db.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`booking:${booking.id}`}))`;
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`booking-terminal-reopen:${booking.id}`}))`;
+      const current = await tx.booking.findFirst({
+        where: { id: booking.id, deletedAt: null },
+        select: { terminalReopenSourceStatus: true },
+      });
+      if (!current || current.terminalReopenSourceStatus) {
+        throw new OperationsInputError(
+          'الحجز مفتوح لمراجعة إدارية طرفية؛ أغلق المراجعة قبل تعديل موعده.',
+        );
+      }
 
       const previousStartAt = booking.startAt;
       const previousEndAt = booking.endAt;
@@ -944,10 +959,20 @@ export async function transferBookingTeamAction(formData: FormData) {
 
   const booking = await db.booking.findUnique({
     where: { id: parsed.data.bookingId, deletedAt: null },
-    select: { id: true, branchId: true, assignedTeamId: true, bookingNumber: true, bookingStatus: true },
+    select: {
+      id: true,
+      branchId: true,
+      assignedTeamId: true,
+      bookingNumber: true,
+      bookingStatus: true,
+      terminalReopenSourceStatus: true,
+    },
   });
   if (!booking) return { error: 'الحجز غير موجود.' };
   await assertBranchScope(manager, booking.branchId);
+  if (booking.terminalReopenSourceStatus) {
+    return { error: 'الحجز مفتوح لمراجعة إدارية طرفية؛ أغلق المراجعة قبل نقل فريقه.' };
+  }
 
   const targetTeam = await db.team.findUnique({
     where: { id: parsed.data.targetTeamId },
@@ -960,6 +985,16 @@ export async function transferBookingTeamAction(formData: FormData) {
   try {
     await db.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`booking:${booking.id}`}))`;
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`booking-terminal-reopen:${booking.id}`}))`;
+      const current = await tx.booking.findFirst({
+        where: { id: booking.id, deletedAt: null },
+        select: { terminalReopenSourceStatus: true },
+      });
+      if (!current || current.terminalReopenSourceStatus) {
+        throw new OperationsInputError(
+          'الحجز مفتوح لمراجعة إدارية طرفية؛ أغلق المراجعة قبل نقل فريقه.',
+        );
+      }
 
       const previousTeamId = booking.assignedTeamId;
       const nextStatus = booking.bookingStatus === BookingStatus.AWAITING_ASSIGNMENT
@@ -1065,6 +1100,117 @@ export async function toggleBranchScheduleLockAction(formData: FormData) {
     };
   } catch (error) {
     return { error: operationError(error, 'تعذر تحديث حالة جدول المواعيد.') };
+  }
+}
+
+const deleteProofSchema = z.object({
+  proofId: z.string().trim().min(1, 'معرّف الإثبات مطلوب.'),
+  bookingId: z.string().trim().optional(),
+});
+
+export async function deletePaymentProofReceiptAction(formData: FormData) {
+  try {
+    const actor = await requireRole([
+      UserRole.OWNER,
+      UserRole.SYSTEM_SUPER_ADMIN,
+      UserRole.OPERATIONS_MANAGER,
+    ]);
+
+    const parsed = deleteProofSchema.safeParse({
+      proofId: formData.get('proofId'),
+      bookingId: formData.get('bookingId') || undefined,
+    });
+
+    if (!parsed.success) {
+      return { error: parsed.error.issues[0]?.message ?? 'بيانات غير صالحة.' };
+    }
+
+    const proof = await db.paymentProof.findUnique({
+      where: { id: parsed.data.proofId },
+      include: {
+        booking: {
+          select: {
+            id: true,
+            branchId: true,
+            bookingNumber: true,
+          },
+        },
+      },
+    });
+
+    if (!proof) {
+      return { error: 'إثبات الدفع غير موجود.' };
+    }
+
+    if (actor.role === UserRole.OPERATIONS_MANAGER) {
+      const allowed = await canAccessBranch(actor, proof.booking.branchId);
+      if (!allowed) {
+        return { error: 'ليس لديك صلاحية على هذا الفرع.' };
+      }
+    }
+
+    // Delete the file from storage if fileUrl exists
+    if (proof.proofFileUrl && proof.proofFileUrl.startsWith('/api/files/')) {
+      const parts = proof.proofFileUrl.split('/api/files/');
+      if (parts[1]) {
+        const [subDir, ...rest] = parts[1].split('/');
+        const fileName = rest.join('/');
+        if (subDir && fileName) {
+          try {
+            await deleteUploadedFile(subDir, fileName);
+          } catch (err) {
+            console.warn('[Delete Receipt] Failed to delete file from storage', err);
+          }
+        }
+      }
+    }
+
+    // Update paymentProof and delete associated BookingFile
+    await db.$transaction(async (tx) => {
+      await tx.paymentProof.update({
+        where: { id: proof.id },
+        data: {
+          proofFileUrl: '',
+          proofFileId: null,
+        },
+      });
+
+      if (proof.proofFileId) {
+        await tx.bookingFile.deleteMany({
+          where: { id: proof.proofFileId },
+        });
+      } else {
+        await tx.bookingFile.deleteMany({
+          where: {
+            bookingId: proof.booking.id,
+            fileType: FileType.PAYMENT_PROOF,
+          },
+        });
+      }
+
+      await tx.auditLog.create({
+        data: {
+          actorUserId: actor.id,
+          actorRole: actor.role,
+          action: 'PAYMENT_PROOF_RECEIPT_MANUALLY_DELETED',
+          entityType: 'PaymentProof',
+          entityId: proof.id,
+          afterJson: {
+            bookingId: proof.booking.id,
+            bookingNumber: proof.booking.bookingNumber,
+          },
+        },
+      });
+    });
+
+    revalidateOperations(proof.booking.id);
+    revalidatePath('/admin');
+    revalidatePath('/admin/bookings');
+    revalidatePath(`/account/bookings/${proof.booking.id}`);
+
+    return { success: true, message: 'تم حذف إيصال الدفع بنجاح.' };
+  } catch (error) {
+    return { error: operationError(error, 'تعذر حذف إيصال الدفع.') };
   }
 }
 

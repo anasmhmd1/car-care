@@ -7,6 +7,7 @@ import { requireRole } from '@/lib/auth/session';
 import { canAccessBranch } from '@/lib/auth/authorization';
 import { hasPermission } from '@/lib/auth/permissions';
 import { db } from '@/lib/db';
+import { deleteUploadedFile } from '@/lib/upload';
 import {
   SubscriptionEngineError,
   activateCustomerSubscription,
@@ -399,5 +400,93 @@ export async function adjustSubscriptionVisitsAction(
     return { success: true, subscriptionId: result.subscription.id };
   } catch (error) {
     return actionError(error, 'تعذر تعديل رصيد الزيارات.');
+  }
+}
+
+const deleteSubscriptionProofSchema = z.object({
+  proofId: databaseIdSchema,
+  subscriptionId: databaseIdSchema.optional(),
+});
+
+export async function deleteSubscriptionPaymentProofReceiptAction(
+  formData: FormData,
+): Promise<SubscriptionActionResult> {
+  const actor = await requireRole(SUBSCRIPTION_MANAGER_ROLES);
+  const parsed = deleteSubscriptionProofSchema.safeParse({
+    proofId: formData.get('proofId'),
+    subscriptionId: formData.get('subscriptionId') || undefined,
+  });
+
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? 'بيانات غير صالحة.' };
+  }
+
+  const proof = await db.subscriptionPaymentProof.findUnique({
+    where: { id: parsed.data.proofId },
+    include: {
+      subscription: {
+        select: {
+          id: true,
+          branchId: true,
+          customerId: true,
+        },
+      },
+    },
+  });
+
+  if (!proof) {
+    return { error: 'إثبات دفع الاشتراك غير موجود.' };
+  }
+
+  if (!(await canAccessBranch(actor, proof.subscription.branchId))) {
+    return { error: 'لا تملك صلاحية على هذا الفرع.' };
+  }
+
+  // Delete physical file if local
+  if (proof.proofFileUrl && proof.proofFileUrl.startsWith('/api/files/')) {
+    const parts = proof.proofFileUrl.split('/api/files/');
+    if (parts[1]) {
+      const [subDir, ...rest] = parts[1].split('/');
+      const fileName = rest.join('/');
+      if (subDir && fileName) {
+        try {
+          await deleteUploadedFile(subDir, fileName);
+        } catch (err) {
+          console.warn('[Delete Subscription Receipt] Failed to delete file:', err);
+        }
+      }
+    }
+  }
+
+  try {
+    await db.$transaction(async (tx) => {
+      await tx.subscriptionPaymentProof.update({
+        where: { id: proof.id },
+        data: {
+          proofFileUrl: '',
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          actorUserId: actor.id,
+          actorRole: actor.role,
+          action: 'SUBSCRIPTION_PAYMENT_PROOF_RECEIPT_MANUALLY_DELETED',
+          entityType: 'SubscriptionPaymentProof',
+          entityId: proof.id,
+          afterJson: {
+            subscriptionId: proof.subscription.id,
+          },
+        },
+      });
+    });
+
+    revalidateSubscriptionPaths(proof.subscription.id);
+    revalidatePath('/admin');
+    revalidatePath('/operations');
+
+    return { success: true };
+  } catch (error) {
+    return actionError(error, 'تعذر حذف إيصال دفع الاشتراك.');
   }
 }

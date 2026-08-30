@@ -11,7 +11,6 @@ import OperationsDashboardClient from './OperationsDashboardClient';
 import OperationsCaseQueues from './OperationsCaseQueues';
 import {
   evaluateCancellationPolicyRequest,
-  readPolicyRequestTimestamp,
   readCancellationPolicySnapshot,
 } from '@/lib/policies/cancellation';
 import {
@@ -453,7 +452,7 @@ export default async function OperationsDashboardPage({ searchParams }: Operatio
       customerNotes: true,
       status: true,
       approvedRefundAmount: true,
-      createdAt: true,
+      requestedAt: true,
       updatedAt: true,
       booking: {
         select: {
@@ -468,16 +467,10 @@ export default async function OperationsDashboardPage({ searchParams }: Operatio
           service: { select: { nameAr: true } },
           customer: { select: { user: { select: operationsCustomerUserSelect } } },
           refunds: { select: { amount: true, status: true } },
-          statusHistory: {
-            where: { toStatus: BookingStatus.CANCELLATION_REQUESTED },
-            orderBy: { createdAt: 'desc' },
-            take: 1,
-            select: { createdAt: true, metadata: true },
-          },
         },
       },
     },
-    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    orderBy: [{ requestedAt: 'asc' }, { id: 'asc' }],
     skip: queueWindows.cancellations.skip,
     take: queueWindows.cancellations.take,
   });
@@ -491,6 +484,7 @@ export default async function OperationsDashboardPage({ searchParams }: Operatio
       bookingId: true,
       oldStartAt: true,
       requestedStartAt: true,
+      requestedAt: true,
       reason: true,
       reviewNotes: true,
       booking: {
@@ -504,7 +498,7 @@ export default async function OperationsDashboardPage({ searchParams }: Operatio
         },
       },
     },
-    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    orderBy: [{ requestedAt: 'asc' }, { id: 'asc' }],
     skip: queueWindows.reschedules.skip,
     take: queueWindows.reschedules.take,
   });
@@ -948,10 +942,7 @@ export default async function OperationsDashboardPage({ searchParams }: Operatio
       readCancellationPolicySnapshot(request.booking.cancellationPolicySnapshot),
       'RESCHEDULING',
       request.booking.startAt,
-      readPolicyRequestTimestamp(
-        request.booking.statusHistory[0]?.metadata,
-        request.booking.statusHistory[0]?.createdAt ?? request.updatedAt,
-      ),
+      request.requestedAt,
     ).allowed;
     return {
       ...omitClientFields(request, ['booking', 'updatedAt']),
@@ -961,7 +952,6 @@ export default async function OperationsDashboardPage({ searchParams }: Operatio
         'assignedTeamId',
         'cancellationPolicySnapshot',
         'startAt',
-        'statusHistory',
       ]),
     };
   });

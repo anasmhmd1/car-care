@@ -142,7 +142,12 @@ export async function transitionBookingStatus(
     paymentStatus: booking.paymentStatus,
     reason: input.reason,
     hasAssignedTeam: Boolean(booking.assignedTeamId),
-    actorBelongsToAssignedTeam: Boolean(booking.assignedTeam?.members.length),
+    actorBelongsToAssignedTeam: Boolean(
+      input.actorRole !== UserRole.EMPLOYEE ||
+      booking.assignedTeam?.leaderId === input.actorUserId ||
+      booking.assignedEmployeeId === input.actorUserId ||
+      booking.assignedTeam?.members.some((m) => m.userId === input.actorUserId)
+    ),
     completedChecklistStages,
     beforePhotoCount,
     afterPhotoCount,

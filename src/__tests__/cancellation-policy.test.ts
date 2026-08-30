@@ -5,7 +5,6 @@ import {
   cancellationPolicySnapshot,
   DEFAULT_CANCELLATION_POLICY,
   evaluateCancellationPolicyRequest,
-  readPolicyRequestTimestamp,
   isLateCancellationRequest,
   readCancellationPolicySnapshot,
 } from '@/lib/policies/cancellation';
@@ -146,13 +145,4 @@ describe('cancellation notice window', () => {
     });
   });
 
-  it('uses the persisted policy request instant instead of a later row timestamp', () => {
-    const requestedAt = new Date('2026-08-10T06:00:00.000Z');
-    const fallback = new Date('2026-08-10T06:00:00.010Z');
-
-    expect(readPolicyRequestTimestamp({
-      policyRequestedAt: requestedAt.toISOString(),
-    }, fallback)).toEqual(requestedAt);
-    expect(readPolicyRequestTimestamp({ policyRequestedAt: 'invalid' }, fallback)).toEqual(fallback);
-  });
 });

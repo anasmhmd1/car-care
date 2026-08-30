@@ -187,6 +187,7 @@ export async function rescheduleCalendarBookingAction(formData: FormData) {
   try {
     const result = await db.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`booking:${parsed.data.bookingId}`}))`;
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`booking-terminal-reopen:${parsed.data.bookingId}`}))`;
 
       const booking = await tx.booking.findFirst({
         where: { id: parsed.data.bookingId, deletedAt: null },
@@ -403,6 +404,7 @@ export async function rescheduleCalendarBookingAction(formData: FormData) {
           oldEndAt: booking.endAt,
           requestedStartAt: newStartAt,
           requestedEndAt: newEndAt,
+          requestedAt: now,
           status: TimeChangeStatus.APPROVED,
           requestedByUserId: actor.id,
           reviewedByUserId: actor.id,

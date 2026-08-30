@@ -86,6 +86,10 @@ describe('replaceable private storage adapter', () => {
     expect(() => new SupabaseStorageAdapter({ supabaseUrl: '', serviceRoleKey: '' })).toThrow(
       StorageConfigurationError
     );
+    expect(() => new SupabaseStorageAdapter({
+      supabaseUrl: 'http://test-project.supabase.co',
+      serviceRoleKey: 'test-service-key',
+    })).toThrow(/valid HTTPS SUPABASE_URL/);
 
     const adapter = new SupabaseStorageAdapter({
       supabaseUrl: 'https://test-project.supabase.co',

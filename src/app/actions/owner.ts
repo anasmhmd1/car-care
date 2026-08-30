@@ -54,7 +54,7 @@ function parseStringArray(value: FormDataEntryValue | null): string[] | null {
 }
 
 function isAcceptableTemporaryPassword(password: string): boolean {
-  return password.length >= 8;
+  return password.length >= 12 && !FORBIDDEN_TEMP_PASSWORDS.has(password);
 }
 
 export async function createServiceAction(formData: FormData) {
@@ -748,7 +748,7 @@ export async function requestNewBranchAction(formData: FormData) {
   const branchName = (formData.get('branchName') as string || '').trim();
   const reason = (formData.get('reason') as string || 'إضافة فرع جديد للمالك').trim();
 
-  if (!branchName || !reason) {
+  if (branchName.length < 2 || branchName.length > 120 || reason.length < 3 || reason.length > 1000) {
     return { error: 'يرجى إدخال اسم الفرع وسبب الطلب' };
   }
 
@@ -1410,4 +1410,3 @@ export async function toggleCustomerBlockAction(formData: FormData) {
     return { error: 'تعذر تنفيذ إجراء الحظر/إلغاء الحظر على العميل.' };
   }
 }
-

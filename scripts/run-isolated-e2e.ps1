@@ -37,10 +37,12 @@ function Set-UrlSchema([string]$Url, [string]$Schema) {
   return $Url + $separator + 'schema=' + $Schema
 }
 
-$baseDatabaseUrl = Read-DotEnvValue 'DATABASE_URL'
-$baseDirectUrl = Read-DotEnvValue 'DIRECT_URL'
+$baseDatabaseUrl = Read-DotEnvValue 'E2E_DATABASE_URL'
+$baseDirectUrl = Read-DotEnvValue 'E2E_DIRECT_URL'
 $sessionSecret = Read-DotEnvValue 'SESSION_SECRET'
-if (-not $baseDatabaseUrl) { throw 'DATABASE_URL is missing from .env.' }
+if (-not $baseDatabaseUrl) {
+  throw 'E2E_DATABASE_URL is required in .env. Refusing to run isolated E2E against DATABASE_URL.'
+}
 if (-not $baseDirectUrl) { $baseDirectUrl = $baseDatabaseUrl }
 if (-not $sessionSecret -or $sessionSecret.Length -lt 32) {
   throw 'SESSION_SECRET is missing or too short.'

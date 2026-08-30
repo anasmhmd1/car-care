@@ -16,7 +16,9 @@ import {
   CalendarDays,
   CheckCircle2,
   ClipboardCheck,
+  Download,
   ExternalLink,
+  Eye,
   FileSearch,
   FileText,
   Globe,
@@ -31,6 +33,7 @@ import {
   Search,
   ShieldAlert,
   ShieldCheck,
+  Trash2,
   Unlock,
   User,
   Users,
@@ -45,6 +48,7 @@ import SubscriptionManagementPanel, {
 import {
   assignTeamManuallyAction,
   cancelBookingByOperationsAction,
+  deletePaymentProofReceiptAction,
   recordBalancePaymentAction,
   rescheduleBookingByOperationsAction,
   reviewBookingAction,
@@ -1029,6 +1033,16 @@ export default function OperationsDashboardClient({
               </div>
             }
           />
+          {branches.length > 0 ? (
+            <div aria-label="الفروع المتاحة للتشغيل" className="flex flex-wrap items-center gap-2 rounded-2xl border border-neutral-800/80 bg-[#0e0e12]/80 px-4 py-3">
+              <span className="text-xs font-bold text-neutral-400">الفروع المصرح بها:</span>
+              {branches.map((branch) => (
+                <span key={branch.id} className="rounded-lg border border-[#d4af37]/25 bg-[#d4af37]/10 px-2.5 py-1 text-xs font-bold text-[#edce8b]">
+                  {branch.nameAr}
+                </span>
+              ))}
+            </div>
+          ) : null}
 
           {/* Operations Date Filter Toolbar */}
           <div className="flex flex-col gap-3 rounded-2xl border border-neutral-800/80 bg-[#0e0e12]/90 backdrop-blur-xl p-3 sm:p-4 shadow-lg sm:flex-row sm:items-center sm:justify-between">
@@ -1694,11 +1708,85 @@ export default function OperationsDashboardClient({
               <div><dt className="text-neutral-500">رقم الهاتف / الحساب</dt><dd className="font-bold text-white mt-0.5" dir="ltr">{selectedProof.senderPhoneOrAccount}</dd></div>
               <div><dt className="text-neutral-500">المبلغ المحول</dt><dd className="font-black text-[#f3e4a8] mt-0.5">{formatCurrency(selectedProof.amountSubmitted)}</dd></div>
             </dl>
-            {selectedProof.proofFileUrl && selectedProof.proofFileUrl.startsWith('/api/files/') ? (
-              <a href={selectedProof.proofFileUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-[#d4af37]/50 bg-[#d4af37]/10 px-4 py-2.5 text-xs font-bold text-[#e5c45a] hover:bg-[#d4af37]/20">
-                <span>فتح ملف الإيصال المرفوع</span>
-                <ExternalLink className="size-4" />
-              </a>
+            {selectedProof.proofFileUrl ? (
+              <div className="rounded-2xl border border-[#d4af37]/30 bg-[#080808] p-3.5 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-xs font-bold text-[#edce8b]">صورة الإيصال المرفوعة:</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          const res = await fetch(selectedProof.proofFileUrl);
+                          const blob = await res.blob();
+                          const blobUrl = URL.createObjectURL(blob);
+                          const a = document.createElement('a');
+                          a.href = blobUrl;
+                          a.download = `receipt-${selectedProof.booking.bookingNumber}.jpg`;
+                          document.body.appendChild(a);
+                          a.click();
+                          document.body.removeChild(a);
+                          URL.revokeObjectURL(blobUrl);
+                        } catch {
+                          window.open(selectedProof.proofFileUrl, '_blank');
+                        }
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1 text-xs font-bold text-emerald-300 hover:bg-emerald-500/20 transition-colors"
+                    >
+                      <Download className="size-3.5" />
+                      <span>تحميل على الهاتف</span>
+                    </button>
+                    <a
+                      href={selectedProof.proofFileUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-[#d4af37]/40 bg-[#d4af37]/10 px-2.5 py-1 text-xs font-bold text-[#e5c45a] hover:bg-[#d4af37]/20 transition-colors"
+                    >
+                      <ExternalLink className="size-3.5" />
+                      <span>تكبير</span>
+                    </a>
+                    <button
+                      type="button"
+                      disabled={isSubmitting}
+                      onClick={async () => {
+                        if (!confirm(`هل أنت متأكد من حذف إيصال الدفع للحجز #${selectedProof.booking.bookingNumber}؟`)) return;
+                        setIsSubmitting(true);
+                        try {
+                          const fd = new FormData();
+                          fd.append('proofId', selectedProof.id);
+                          fd.append('bookingId', selectedProof.booking.id);
+                          const res = await deletePaymentProofReceiptAction(fd);
+                          if (res.error) {
+                            setFeedback({ message: res.error, tone: 'error' });
+                          } else {
+                            setSelectedProof((prev) => prev ? { ...prev, proofFileUrl: '' } : null);
+                            router.refresh();
+                          }
+                        } catch {
+                          setFeedback({ message: 'تعذر حذف الإيصال.', tone: 'error' });
+                        } finally {
+                          setIsSubmitting(false);
+                        }
+                      }}
+                      className="inline-flex items-center gap-1 rounded-lg border border-red-500/30 bg-red-500/10 px-2 py-1 text-xs font-bold text-red-300 hover:bg-red-500/20 transition-colors"
+                      title="حذف الوصل"
+                    >
+                      <Trash2 className="size-3.5" />
+                      <span>حذف</span>
+                    </button>
+                  </div>
+                </div>
+                <div className="max-h-64 overflow-auto rounded-xl border border-neutral-800 bg-black/60 flex items-center justify-center p-2">
+                  <img
+                    src={selectedProof.proofFileUrl}
+                    alt="إيصال الدفع"
+                    className="max-h-60 w-auto max-w-full object-contain rounded-lg shadow-md"
+                    onError={(e) => {
+                      (e.target as HTMLElement).style.display = 'none';
+                    }}
+                  />
+                </div>
+              </div>
             ) : null}
             {feedback && (
               <div

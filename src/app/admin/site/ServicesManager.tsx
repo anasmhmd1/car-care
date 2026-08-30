@@ -18,7 +18,6 @@ import {
   Search,
   Settings2,
   Sparkles,
-  Trash2,
 } from 'lucide-react';
 import { saveServiceProductAction } from '@/app/actions/catalog';
 import { prepareImageForUpload } from '@/lib/client/image-upload';

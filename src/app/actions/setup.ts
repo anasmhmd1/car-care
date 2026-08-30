@@ -130,7 +130,8 @@ const zoneSchema = z.object({
 
 const areaSchema = z.object({
   areaId: optionalIdSchema,
-  zoneId: idSchema,
+  zoneId: optionalIdSchema,
+  branchId: optionalIdSchema,
   governorate: z.string().trim().min(2).max(200),
   city: z.string().trim().min(2).max(200),
   district: z.string().trim().min(1).max(200),
@@ -140,7 +141,7 @@ const areaSchema = z.object({
   travelBufferOverride: z.union([
     z.coerce.number().int().min(0).max(180),
     z.null(),
-  ]),
+  ]).optional(),
 });
 
 function validTimeZone(value: string): boolean {
@@ -1122,7 +1123,8 @@ export async function saveSetupAreaAction(formData: FormData): Promise<SetupActi
   const rawOverride = optionalString(formData.get('travelBufferOverride'));
   const parsed = areaSchema.safeParse({
     areaId: optionalString(formData.get('areaId')),
-    zoneId: formData.get('zoneId'),
+    zoneId: optionalString(formData.get('zoneId')),
+    branchId: optionalString(formData.get('branchId')),
     governorate: formData.get('governorate'),
     city: formData.get('city'),
     district: formData.get('district'),
@@ -1133,12 +1135,40 @@ export async function saveSetupAreaAction(formData: FormData): Promise<SetupActi
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'بيانات منطقة التغطية غير صالحة.' };
 
-  const zone = await db.coverageZone.findUnique({
-    where: { id: parsed.data.zoneId },
-    select: { branchId: true },
-  });
-  if (!zone) return { error: 'الزون غير موجود.' };
-  if (!(await assertBranchAccess(actor, zone.branchId))) {
+  // Resolve target zone and branchId
+  let targetZoneId = parsed.data.zoneId;
+  let targetBranchId = parsed.data.branchId;
+
+  if (targetZoneId) {
+    const zone = await db.coverageZone.findUnique({
+      where: { id: targetZoneId },
+      select: { id: true, branchId: true },
+    });
+    if (!zone) return { error: 'نطاق التغطية غير موجود.' };
+    targetBranchId = zone.branchId;
+  } else if (targetBranchId) {
+    let zone = await db.coverageZone.findFirst({
+      where: { branchId: targetBranchId },
+      select: { id: true, branchId: true },
+    });
+    if (!zone) {
+      const branch = await db.branch.findUnique({ where: { id: targetBranchId }, select: { nameAr: true } });
+      if (!branch) return { error: 'الفرع غير موجود.' };
+      zone = await db.coverageZone.create({
+        data: {
+          branchId: targetBranchId,
+          name: branch.nameAr,
+          description: `نطاق تغطية فرع ${branch.nameAr}`,
+        },
+        select: { id: true, branchId: true },
+      });
+    }
+    targetZoneId = zone.id;
+  } else {
+    return { error: 'الفرع مطلوب لحفظ المنطقة.' };
+  }
+
+  if (!targetBranchId || !(await assertBranchAccess(actor, targetBranchId))) {
     return { error: 'غير مصرح لك بإدارة هذا الفرع.' };
   }
   try {
@@ -1150,10 +1180,10 @@ export async function saveSetupAreaAction(formData: FormData): Promise<SetupActi
           })
         : null;
       if (parsed.data.areaId && !before) throw new Error('AREA_NOT_FOUND');
-      if (before && before.zone.branchId !== zone.branchId) throw new Error('AREA_BRANCH_MISMATCH');
+      if (before && before.zone.branchId !== targetBranchId) throw new Error('AREA_BRANCH_MISMATCH');
       const duplicate = await tx.coverageArea.findFirst({
         where: {
-          zoneId: parsed.data.zoneId,
+          zoneId: targetZoneId,
           compound: { equals: parsed.data.compound, mode: 'insensitive' },
           ...(parsed.data.areaId ? { id: { not: parsed.data.areaId } } : {}),
         },
@@ -1161,14 +1191,14 @@ export async function saveSetupAreaAction(formData: FormData): Promise<SetupActi
       });
       if (duplicate) throw new Error('DUPLICATE_AREA');
       const data = {
-        zoneId: parsed.data.zoneId,
+        zoneId: targetZoneId!,
         governorate: parsed.data.governorate,
         city: parsed.data.city,
         district: parsed.data.district,
         compound: parsed.data.compound,
         active: parsed.data.active,
         priority: parsed.data.priority,
-        travelBufferOverride: parsed.data.travelBufferOverride,
+        travelBufferOverride: parsed.data.travelBufferOverride ?? null,
       };
       const area = before
         ? await tx.coverageArea.update({ where: { id: before.id }, data })

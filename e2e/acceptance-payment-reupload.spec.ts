@@ -51,11 +51,21 @@ test.describe('Payment re-upload acceptance', () => {
     await prisma!.branchMembership.create({
       data: { branchId: booking.branchId, userId: manager.id },
     });
+    const bookingArea = await prisma!.coverageArea.findUniqueOrThrow({
+      where: { id: booking.coverageAreaId },
+      select: { zoneId: true },
+    });
+    const bookingSchedule = await prisma!.booking.findUniqueOrThrow({
+      where: { id: booking.bookingId },
+      select: { startAt: true, endAt: true },
+    });
     const holdTeam = await prisma!.team.create({
       data: {
         branchId: booking.branchId,
         name: `E2E payment hold ${randomUUID().slice(0, 8)}`,
         dailyCapacity: 1,
+        capabilities: { create: { serviceId: booking.serviceId } },
+        teamZones: { create: { zoneId: bookingArea.zoneId } },
       },
     });
     const initialProof = await prisma!.paymentProof.create({
@@ -76,8 +86,8 @@ test.describe('Payment re-upload acceptance', () => {
       data: {
         bookingId: booking.bookingId,
         teamId: holdTeam.id,
-        slotStartTime: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
-        slotEndTime: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000 + 60 * 60 * 1000),
+        slotStartTime: bookingSchedule.startAt,
+        slotEndTime: bookingSchedule.endAt,
         expiresAt: new Date(Date.now() + 60 * 60 * 1000),
         status: BookingHoldStatus.ACTIVE,
       },
@@ -193,6 +203,7 @@ test.describe('Payment re-upload acceptance', () => {
       await prisma!.bookingStatusHistory.deleteMany({ where: { bookingId: booking.bookingId } });
       await prisma!.bookingHold.deleteMany({ where: { bookingId: booking.bookingId } });
       await prisma!.bookingFile.deleteMany({ where: { bookingId: booking.bookingId } });
+      await prisma!.invoice.deleteMany({ where: { bookingId: booking.bookingId } });
       await prisma!.booking.deleteMany({ where: { id: booking.bookingId } });
       await prisma!.team.delete({ where: { id: holdTeam.id } });
       await cleanupAcceptanceUsers(prisma!, [booking.user.id, manager.id]);

@@ -548,7 +548,9 @@ export default function BookingWizardClient({
   const fallbackAddress = addresses.find((address) => address.isDefault) ?? addresses[0];
   const firstAddress = requestedAddress ?? fallbackAddress;
   const firstAddressArea = firstAddress ? areaForAddress(firstAddress, coverageAreas) : undefined;
-  const initialAddress = firstAddressArea ? firstAddress : undefined;
+  // Keep an out-of-coverage saved address selected so the customer gets clear
+  // guidance instead of silently falling back to a different branch.
+  const initialAddress = firstAddress;
   const initialArea = firstAddressArea ?? coverageAreas[0];
   const initialVehicleId = defaultVehicle?.id ?? 'new';
   const requestedSubscription = subscriptions.find(
@@ -644,50 +646,12 @@ export default function BookingWizardClient({
     [coverageAreas, selectedBranchId],
   );
 
-  const branchZones = useMemo(() => {
-    const zonesMap = new Map<string, { id: string; name: string; branchId: string; areas: CoverageAreaDto[] }>();
-    for (const area of branchCoverageAreas) {
-      const z = area.zone;
-      const zoneId = z.id || z.name || 'default_zone';
-      const zoneName = z.name || area.city || 'نطاق التغطية الرئيسي';
-      if (!zonesMap.has(zoneId)) {
-        zonesMap.set(zoneId, {
-          id: zoneId,
-          name: zoneName,
-          branchId: z.branchId,
-          areas: [],
-        });
-      }
-      zonesMap.get(zoneId)!.areas.push(area);
-    }
-    return Array.from(zonesMap.values());
-  }, [branchCoverageAreas]);
-
-  const [selectedZoneId, setSelectedZoneId] = useState(
-    () => initialArea?.zone?.id || '',
-  );
-
-  const activeZone = useMemo(() => {
-    return branchZones.find((z) => z.id === selectedZoneId) || branchZones[0];
-  }, [branchZones, selectedZoneId]);
-
-  const zoneCompounds = useMemo(() => {
-    return activeZone ? activeZone.areas : branchCoverageAreas;
-  }, [activeZone, branchCoverageAreas]);
-
-  function handleZoneChange(newZoneId: string) {
-    setSelectedZoneId(newZoneId);
-    const z = branchZones.find((item) => item.id === newZoneId);
-    if (z && z.areas[0]) {
-      setSelectedAreaId(z.areas[0].id);
-      setSelectedSubscriptionId('');
-    }
-  }
 
   const selectedArea = branchCoverageAreas.find((area) => area.id === selectedAreaId) || branchCoverageAreas[0];
   const supportWhatsApp = supportContact?.whatsapp || supportContact?.phone;
   const selectedVehicle = vehicles.find((vehicle) => vehicle.id === selectedVehicleId);
   const selectedAddress = addresses.find((address) => address.id === selectedAddressId);
+  const selectedAddressArea = selectedAddress ? areaForAddress(selectedAddress, coverageAreas) : undefined;
   const selectedSubscription = subscriptions.find(
     (subscription) => subscription.id === selectedSubscriptionId,
   );
@@ -903,7 +867,6 @@ export default function BookingWizardClient({
     if (!area) return;
     setSelectedBranchId(area.zone.branchId);
     setSelectedAreaId(area.id);
-    setSelectedZoneId(area.zone.id || area.zone.name || '');
     setStreet(address.street);
     setBuildingNumber(address.buildingNumber);
     setUnitNumber(address.unitNumber ?? '');
@@ -917,7 +880,6 @@ export default function BookingWizardClient({
     const firstAreaForBranch = areasInBranch[0];
     setSelectedBranchId(branchId);
     setSelectedAreaId(firstAreaForBranch?.id ?? '');
-    setSelectedZoneId(firstAreaForBranch?.zone?.id || firstAreaForBranch?.zone?.name || '');
     setSelectedSubscriptionId('');
     setUiError(null);
 
@@ -946,7 +908,13 @@ export default function BookingWizardClient({
   }
 
   function validateAddress() {
-    if (selectedAddressId !== 'new') return true;
+    if (selectedAddressId !== 'new') {
+      if (!selectedAddressArea) {
+        showError('العنوان المحفوظ خارج نطاق التغطية. اختر عنوانًا متاحًا أو تواصل معنا.', 'saved-address');
+        return false;
+      }
+      return true;
+    }
     if (!selectedArea) {
       showError('اختر منطقة التغطية.', 'coverage-area');
       return false;
@@ -1519,8 +1487,8 @@ export default function BookingWizardClient({
               </fieldset>
             )}
 
-            {/* 3-Tier Cascading Location Selection: Branch -> Zone -> Compound */}
-            <div className="grid gap-5 sm:grid-cols-3">
+            {/* 2-Tier Location Selection: Branch -> Area/Compound */}
+            <div className="grid gap-5 sm:grid-cols-2">
               <div>
                 <label htmlFor="booking-branch" className={labelClass}>
                   الفرع المنفذ
@@ -1541,33 +1509,8 @@ export default function BookingWizardClient({
               </div>
 
               <div>
-                <label htmlFor="coverage-zone" className={labelClass}>
-                  المنطقة / النطاق الرئيسي
-                </label>
-                <select
-                  id="coverage-zone"
-                  value={activeZone?.id || ''}
-                  disabled={selectedAddressId !== 'new'}
-                  onChange={(e) => handleZoneChange(e.target.value)}
-                  className={inputClass}
-                >
-                  {branchZones.length > 0 ? (
-                    branchZones.map((z) => (
-                      <option key={z.id} value={z.id} className="bg-neutral-900 text-white">
-                        {z.name}
-                      </option>
-                    ))
-                  ) : (
-                    <option value="" className="bg-neutral-900 text-neutral-400">
-                      لا توجد مناطق مضافة لهذا الفرع
-                    </option>
-                  )}
-                </select>
-              </div>
-
-              <div>
                 <label htmlFor="coverage-area" className={labelClass}>
-                  الحي / الكمبوند / المنطقة الفرعية
+                  المنطقة / الكمبوند
                 </label>
                 <select
                   id="coverage-area"
@@ -1580,15 +1523,15 @@ export default function BookingWizardClient({
                   aria-invalid={invalidField('coverage-area')}
                   className={inputClass}
                 >
-                  {zoneCompounds.length > 0 ? (
-                    zoneCompounds.map((area) => (
+                  {branchCoverageAreas.length > 0 ? (
+                    branchCoverageAreas.map((area) => (
                       <option key={area.id} value={area.id} className="bg-neutral-900 text-white">
-                        {area.compound}
+                        {area.compound} {area.city ? `(${area.city})` : ''}
                       </option>
                     ))
                   ) : (
                     <option value="" className="bg-neutral-900 text-neutral-400">
-                      لا توجد أحياء أو كمبوندات
+                      لا توجد مناطق أو كمبوندات مضافة لهذا الفرع
                     </option>
                   )}
                 </select>
@@ -1628,6 +1571,16 @@ export default function BookingWizardClient({
                 </div>
               </div>
             )}
+
+            {selectedAddress && !selectedAddressArea && supportWhatsApp ? (
+              <div data-testid="outside-coverage-contact" className="rounded-2xl border border-amber-400/30 bg-amber-400/10 p-5 text-sm text-amber-100">
+                <p className="font-bold">العنوان المحفوظ خارج نطاق التغطية الحالي.</p>
+                <p className="mt-1 text-xs leading-6 text-amber-100/80">يمكنك اختيار عنوان جديد من المناطق المتاحة، أو التواصل معنا للتحقق من إمكانية الخدمة.</p>
+                <a href={whatsappHref(supportWhatsApp, `أرغب في الاستفسار عن تغطية خدمة ${service.nameAr}`)} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-2 rounded-xl border border-emerald-400/40 bg-emerald-400/10 px-4 py-2.5 text-xs font-bold text-emerald-200 hover:bg-emerald-400/20">
+                  تواصل معنا عبر واتساب
+                </a>
+              </div>
+            ) : null}
 
             <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-4">
               <button type="button" onClick={() => goToStep(1)} className="inline-flex items-center justify-center gap-2 rounded-xl border border-neutral-700 px-5 py-3.5 font-semibold text-white hover:border-white w-full sm:w-auto">
@@ -1698,6 +1651,20 @@ export default function BookingWizardClient({
               <span className="text-[11px] font-semibold text-neutral-400 hidden sm:inline-block">
                 متاح حتى 90 يومًا مسبقًا
               </span>
+            </div>
+            <div className="flex items-center gap-3">
+              <label htmlFor="booking-date" className="text-xs font-bold text-neutral-300">تاريخ مخصص:</label>
+              <input
+                id="booking-date"
+                type="date"
+                value={selectedDate}
+                min={new Date().toISOString().slice(0, 10)}
+                onChange={(event) => {
+                  setSelectedDate(event.target.value);
+                  setSelectedSlot(null);
+                }}
+                className="rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm font-bold text-white focus:border-[#cea355] focus:outline-none focus:ring-2 focus:ring-[#cea355]/30"
+              />
             </div>
 
             {/* Mode 1: Quick 7-Day Selector */}

@@ -29,7 +29,7 @@ test.describe('Bareeq public mobile layout', () => {
     for (const route of routes) {
       const response = await page.goto(route, { waitUntil: 'domcontentloaded' });
       expect(response?.status() ?? 200, `${route} should remain publicly reachable`).toBeLessThan(400);
-      await expect(page.locator('main')).toBeVisible({ timeout: 20_000 });
+      await expect(page.locator('main:visible').first()).toBeVisible({ timeout: 20_000 });
       const layout = await page.evaluate(() => ({
         viewport: window.innerWidth,
         documentWidth: document.documentElement.scrollWidth,
@@ -47,7 +47,7 @@ test.describe('Bareeq public mobile layout', () => {
     const res = await page.goto('/services', { waitUntil: 'domcontentloaded' });
     expect(res?.status() ?? 200, '/services must be reachable on mobile').toBeLessThan(400);
 
-    await expect(page.locator('main')).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('main:visible').first()).toBeVisible({ timeout: 30_000 });
     // Service cards should contain images on mobile
     await expect(page.locator('main img').first()).toBeVisible({ timeout: 20_000 });
     // At least one booking CTA button should be visible

@@ -95,6 +95,20 @@ const bookingSummarySelect = {
   customer: { select: { user: { select: { fullName: true, phone: true } } } },
   vehicle: { select: { make: true, model: true, year: true } },
   assignedTeam: { select: { name: true } },
+  paymentProofs: {
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    take: 1,
+    select: {
+      id: true,
+      proofFileUrl: true,
+      amountSubmitted: true,
+      referenceNumber: true,
+      status: true,
+      reviewNotes: true,
+      createdAt: true,
+      paymentMethod: { select: { name: true } },
+    },
+  },
 } satisfies Prisma.BookingSelect;
 
 type BookingSummaryRecord = Prisma.BookingGetPayload<{
@@ -121,6 +135,7 @@ function dateInTimeZone(date: Date, timeZone: string) {
 }
 
 function toBookingDto(booking: BookingSummaryRecord): BookingSummaryDto {
+  const latestProof = booking.paymentProofs?.[0] ?? null;
   return {
     id: booking.id,
     bookingNumber: booking.bookingNumber,
@@ -140,6 +155,16 @@ function toBookingDto(booking: BookingSummaryRecord): BookingSummaryDto {
     customerPhone: booking.customer.user.phone,
     vehicleLabel: `${booking.vehicle.make} ${booking.vehicle.model} ${booking.vehicle.year}`,
     assignedTeamName: booking.assignedTeam?.name ?? null,
+    paymentProof: latestProof ? {
+      id: latestProof.id,
+      proofFileUrl: latestProof.proofFileUrl,
+      amountSubmitted: latestProof.amountSubmitted,
+      referenceNumber: latestProof.referenceNumber,
+      status: latestProof.status,
+      reviewNotes: latestProof.reviewNotes,
+      createdAt: latestProof.createdAt.toISOString(),
+      paymentMethodName: latestProof.paymentMethod.name,
+    } : null,
   };
 }
 
@@ -366,7 +391,7 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
   if (rawSection === 'services') {
     redirect('/admin/site?tab=services');
   }
-  if (rawSection === 'branches' || rawSection === 'teams') {
+  if (rawSection === 'teams') {
     redirect('/admin/setup');
   }
   if (rawSection === 'payments') {

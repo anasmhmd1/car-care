@@ -17,6 +17,7 @@ import {
   DollarSign,
   Download,
   ExternalLink,
+  Eye,
   FileSearch,
   FileSpreadsheet,
   Gauge,
@@ -43,9 +44,11 @@ import {
 import BareeqLogo from '@/components/BareeqLogo';
 import {
   assignTeamManuallyAction,
+  deletePaymentProofReceiptAction,
   reviewBookingAction,
 } from '@/app/actions/operations';
 import { updateBranchAction } from '@/app/actions/owner-brand';
+import { requestNewBranchAction } from '@/app/actions/owner';
 import { logoutAction } from '@/app/actions/auth';
 import CustomerManagementPanel, {
   type CustomerAddressDto,
@@ -131,6 +134,16 @@ export interface BookingSummaryDto {
   customerPhone: string;
   vehicleLabel: string;
   assignedTeamName: string | null;
+  paymentProof?: {
+    id: string;
+    proofFileUrl: string;
+    amountSubmitted: number;
+    referenceNumber: string | null;
+    status: string;
+    reviewNotes: string | null;
+    createdAt: string;
+    paymentMethodName: string;
+  } | null;
 }
 
 export interface PaymentProofDto {
@@ -391,6 +404,7 @@ type ModalState =
   | { type: 'booking-review'; booking: BookingSummaryDto }
   | { type: 'assignment'; booking: BookingSummaryDto }
   | { type: 'edit-branch'; branch: BranchDto }
+  | { type: 'branch-request' }
   | null;
 
 const sectionNav: Array<{
@@ -612,6 +626,54 @@ function BookingCard({
 }: {
   booking: BookingSummaryDto;
 }) {
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [proofDeleted, setProofDeleted] = useState(false);
+  const [feedback, setFeedback] = useState<string | null>(null);
+
+  const proof = !proofDeleted ? booking.paymentProof : null;
+
+  const handleDownloadReceipt = async (url: string, filename: string) => {
+    try {
+      const res = await fetch(url);
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+    } catch {
+      window.open(url, '_blank');
+    }
+  };
+
+  const handleDeleteReceipt = async () => {
+    if (!proof?.id) return;
+    setIsDeleting(true);
+    setFeedback(null);
+    try {
+      const fd = new FormData();
+      fd.append('proofId', proof.id);
+      fd.append('bookingId', booking.id);
+      const res = await deletePaymentProofReceiptAction(fd);
+      if (res.error) {
+        setFeedback(res.error);
+      } else {
+        setProofDeleted(true);
+        setShowDeleteConfirm(false);
+        setShowReceiptModal(false);
+      }
+    } catch {
+      setFeedback('تعذر حذف الإيصال.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   return (
     <article className="rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 transition-all duration-200 hover:border-neutral-700 shadow-md">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -637,6 +699,91 @@ function BookingCard({
         <div><dt className="text-neutral-500 text-[11px] font-medium">السيارة</dt><dd className="mt-1 font-medium text-neutral-300 truncate">{booking.vehicleLabel}</dd></div>
         <div><dt className="text-neutral-500 text-[11px] font-medium">المبلغ المستحق</dt><dd className="mt-1 font-black tabular-nums text-[#f3e4a8]">{formatCurrency(booking.amountDue)}</dd></div>
       </dl>
+
+      {/* Payment Proof Section */}
+      {proof && proof.proofFileUrl && (
+        <div className="mt-3.5 rounded-xl bg-[#09090b] border border-[#d4af37]/30 p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <button
+              type="button"
+              onClick={() => setShowReceiptModal(true)}
+              className="relative size-12 shrink-0 overflow-hidden rounded-lg border border-[#d4af37]/40 bg-black/60 hover:opacity-80 transition-opacity focus-visible:ring-2 focus-visible:ring-[#cea355]"
+            >
+              <img
+                src={proof.proofFileUrl}
+                alt="إيصال الدفع"
+                className="size-full object-cover"
+                onError={(e) => {
+                  (e.target as HTMLElement).style.display = 'none';
+                }}
+              />
+            </button>
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-white flex items-center gap-1.5 truncate">
+                <span>إيصال تحويل: {proof.paymentMethodName}</span>
+                <span className="text-[#edce8b] font-mono text-[11px]">({formatCurrency(proof.amountSubmitted)})</span>
+              </p>
+              {proof.referenceNumber && (
+                <p className="text-[11px] text-neutral-400 font-mono mt-0.5">مرجع: {proof.referenceNumber}</p>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => setShowReceiptModal(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[#d4af37]/40 bg-[#d4af37]/10 px-2.5 py-1.5 text-xs font-bold text-[#e5c45a] hover:bg-[#d4af37]/20 transition-colors"
+            >
+              <Eye className="size-3.5" />
+              <span>معاينة الوصل</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleDownloadReceipt(proof.proofFileUrl!, `receipt-${booking.bookingNumber}.jpg`)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5 text-xs font-bold text-emerald-300 hover:bg-emerald-500/20 transition-colors"
+              title="تحميل على الهاتف"
+            >
+              <Download className="size-3.5" />
+              <span className="hidden sm:inline">تحميل</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowDeleteConfirm(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/10 p-1.5 text-xs font-bold text-red-300 hover:bg-red-500/20 transition-colors"
+              title="حذف الوصل"
+            >
+              <Trash2 className="size-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Delete confirmation alert if triggered */}
+      {showDeleteConfirm && (
+        <div className="mt-3 rounded-xl border border-red-500/40 bg-red-500/10 p-3 text-xs space-y-2">
+          <p className="font-bold text-red-200">هل أنت متأكد من حذف إيصال الدفع للحجز #{booking.bookingNumber} نهائياً؟</p>
+          {feedback && <p className="text-red-300 font-bold">{feedback}</p>}
+          <div className="flex items-center gap-2 pt-1">
+            <button
+              type="button"
+              disabled={isDeleting}
+              onClick={handleDeleteReceipt}
+              className="rounded-lg bg-red-600 px-3 py-1 text-xs font-bold text-white hover:bg-red-500 disabled:opacity-50"
+            >
+              {isDeleting ? 'جاري الحذف...' : 'نعم، احذف الإيصال'}
+            </button>
+            <button
+              type="button"
+              disabled={isDeleting}
+              onClick={() => { setShowDeleteConfirm(false); setFeedback(null); }}
+              className="rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-1 text-xs font-bold text-neutral-300 hover:bg-neutral-700"
+            >
+              إلغاء
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-neutral-800/60 pt-3.5">
         <a href={`tel:${booking.customerPhone}`} className="text-xs sm:text-sm font-bold text-[#d4af37] hover:text-[#f3e4a8] transition-colors flex items-center gap-1.5">
           <span>اتصال بالعميل</span>
@@ -646,6 +793,63 @@ function BookingCard({
           الفريق: <span className="text-neutral-300 font-medium">{booking.assignedTeamName ?? 'لم يُسند بعد'}</span>
         </span>
       </div>
+
+      {/* Full-screen / Modal Receipt Preview */}
+      {showReceiptModal && proof?.proofFileUrl && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/85 backdrop-blur-md p-4" role="dialog" aria-modal="true">
+          <div className="w-full max-w-2xl space-y-4 rounded-3xl border border-[#d4af37]/40 bg-[#121214] p-5 sm:p-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
+              <div>
+                <h3 className="text-lg font-black text-white">إيصال الدفع · حجز #{booking.bookingNumber}</h3>
+                <p className="text-xs text-neutral-400 mt-0.5">{booking.customerName} · {proof.paymentMethodName} · {formatCurrency(proof.amountSubmitted)}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowReceiptModal(false)}
+                className="rounded-xl p-2 text-neutral-400 hover:bg-neutral-800 hover:text-white"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+
+            <div className="relative max-h-[60vh] overflow-auto rounded-2xl border border-neutral-800 bg-black/60 flex items-center justify-center p-2">
+              <img
+                src={proof.proofFileUrl}
+                alt="إيصال الدفع الكامل"
+                className="max-h-[55vh] w-auto max-w-full object-contain rounded-lg"
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => handleDownloadReceipt(proof.proofFileUrl!, `receipt-${booking.bookingNumber}.jpg`)}
+                className="inline-flex items-center gap-2 rounded-xl bg-[#d4af37] px-4 py-2.5 text-xs font-black text-neutral-950 hover:bg-[#e5c45a] transition-colors"
+              >
+                <Download className="size-4" />
+                <span>تحميل الوصل على الهاتف / الجهاز</span>
+              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setShowReceiptModal(false); setShowDeleteConfirm(true); }}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs font-bold text-red-300 hover:bg-red-500/20 transition-colors"
+                >
+                  <Trash2 className="size-4" />
+                  <span>حذف الوصل</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowReceiptModal(false)}
+                  className="rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-2 text-xs font-bold text-neutral-300 hover:bg-neutral-700"
+                >
+                  إغلاق
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </article>
   );
 }
@@ -1186,9 +1390,11 @@ function BookingsSection({
 function BranchesSection({
   branches,
   onEditBranch,
+  onRequestBranch,
 }: {
   branches: BranchDto[];
   onEditBranch: (branch: BranchDto) => void;
+  onRequestBranch: () => void;
 }) {
   return (
     <div className="space-y-6">
@@ -1212,6 +1418,14 @@ function BranchesSection({
               <Plus className="size-4" aria-hidden="true" />
               <span>إضافة فرع جديد</span>
             </Link>
+            <button
+              type="button"
+              onClick={onRequestBranch}
+              className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-3.5 text-xs font-bold text-emerald-200 hover:bg-emerald-400/20 transition-all"
+            >
+              <FileSearch className="size-4" aria-hidden="true" />
+              <span>طلب فرع جديد</span>
+            </button>
           </div>
         }
       />
@@ -1331,7 +1545,9 @@ function OwnerActionDialog({
     ? 'تأكيد مراجعة الحجز'
     : modal.type === 'assignment'
       ? 'تأكيد إسناد الفريق'
-      : 'تعديل بيانات الفرع';
+      : modal.type === 'edit-branch'
+        ? 'تعديل بيانات الفرع'
+        : 'طلب فرع جديد';
   const eligibleTeams = modal.type === 'assignment'
     ? teams.filter((team) => team.active && team.branchId === modal.booking.branchId)
     : [];
@@ -1405,6 +1621,18 @@ function OwnerActionDialog({
                     <option value="DISABLED" className="bg-[#111]">معطل (Disabled)</option>
                   </select>
                 </div>
+              </div>
+            </>
+          ) : null}
+          {modal.type === 'branch-request' ? (
+            <>
+              <div>
+                <label htmlFor="branch-request-name" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">اسم الفرع المقترح</label>
+                <input id="branch-request-name" name="branchName" required minLength={2} maxLength={120} autoComplete="off" className={inputClass} />
+              </div>
+              <div>
+                <label htmlFor="branch-request-reason" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">سبب الطلب</label>
+                <textarea id="branch-request-reason" name="reason" required minLength={3} maxLength={1000} rows={4} autoComplete="off" className={inputClass} />
               </div>
             </>
           ) : null}
@@ -1489,7 +1717,9 @@ export default function OwnerCommandCenter(props: OwnerCommandCenterProps) {
         ? await reviewBookingAction(formData)
         : modal.type === 'assignment'
           ? await assignTeamManuallyAction(formData)
-          : await updateBranchAction(formData);
+        : modal.type === 'edit-branch'
+          ? await updateBranchAction(formData)
+          : await requestNewBranchAction(formData);
       if ('error' in result && result.error) {
         setActionError(result.error);
         return;
@@ -1499,7 +1729,9 @@ export default function OwnerCommandCenter(props: OwnerCommandCenterProps) {
           ? 'تم حفظ قرار مراجعة الحجز.'
           : modal.type === 'assignment'
             ? 'تم إسناد الفريق بعد إعادة فحص التعارض.'
-            : 'تم تحديث بيانات الفرع بنجاح.',
+          : modal.type === 'edit-branch'
+            ? 'تم تحديث بيانات الفرع بنجاح.'
+            : 'تم إرسال طلب الفرع للمراجعة.',
       );
       setModal(null);
       router.refresh();
@@ -1537,7 +1769,7 @@ export default function OwnerCommandCenter(props: OwnerCommandCenterProps) {
       );
       break;
     case 'branches':
-      sectionContent = <BranchesSection branches={branches} onEditBranch={(branch) => openModal({ type: 'edit-branch', branch })} />;
+      sectionContent = <BranchesSection branches={branches} onEditBranch={(branch) => openModal({ type: 'edit-branch', branch })} onRequestBranch={() => openModal({ type: 'branch-request' })} />;
       break;
     case 'customers':
       sectionContent = <CustomerManagementPanel customers={customers} query={customerQuery} />;

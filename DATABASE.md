@@ -100,6 +100,14 @@ See [BOOKING_STATE_MACHINE.md](BOOKING_STATE_MACHINE.md) for canonical booking t
 | `20260801080000_branch_scoped_audit_permissions` | Adds `audit.view`/`employee.manage`, derives and backfills `AuditLog.branchId` through a trusted relationship trigger, indexes it, and restores append-only protection after the migration backfill |
 | `20260801090000_booking_manager_override_permission` | Adds non-delegatable `booking.override_close` plus terminal-review source/time markers, check constraint, and index |
 | `20260801091000_service_cancellation_policy` | Adds reusable service cancellation policies, a single active default invariant, required Service backfill, and immutable Booking policy snapshots |
+| `20260804060000_complete_operations_customer_scope` | Completes operations/customer workflow fields, scoped relations, and integrity constraints used by the production dashboards |
+| `20260804070000_team_base_zone` | Adds the team base-zone relation used by travel-time and availability evaluation |
+| `20260804080000_normalize_account_phones` | Normalizes existing account phone values before enforcing the canonical phone contract |
+| `20260814194000_branch_rest_buffer_minutes` | Adds the branch rest/buffer setting used when calculating adjacent bookings |
+| `20260814195000_employee_material_stock` | Adds employee material-stock quantities and movement tracking for inventory deductions |
+| `20260830050000_align_inventory_and_booking_hold_types` | Aligns inventory quantities with fractional usage and makes booking-hold team ownership nullable for unassigned holds |
+| `20260830060000_add_explicit_request_timestamps` | Adds immutable request instants for cancellation and reschedule requests, preserving historical `createdAt` values while removing review-time ambiguity |
+| `20260830070000_request_timestamp_indexes` | Indexes request status and explicit request time for stable, bounded operations-queue ordering |
 
 Apply and inspect them with:
 

@@ -6,7 +6,7 @@ test.describe('Bareeq Public Services & Booking Flow E2E Tests', () => {
     const res = await page.goto('/services', { waitUntil: 'domcontentloaded' });
     expect(res?.status() ?? 200).toBeLessThan(400);
     await expect(page).toHaveTitle(/(?:بريق|BAREEQ)/);
-    const heading = page.locator('h1');
+    const heading = page.locator('h1:visible').first();
     await expect(heading).toBeVisible({ timeout: 20_000 });
   });
 
@@ -19,12 +19,12 @@ test.describe('Bareeq Public Services & Booking Flow E2E Tests', () => {
 
   test('policies pages are accessible and render correctly', async ({ page }) => {
     await page.goto('/policies/booking');
-    await expect(page.locator('h1')).toBeVisible();
+    await expect(page.locator('h1:visible').first()).toBeVisible();
 
     await page.goto('/policies/cancellation');
-    await expect(page.locator('h1')).toBeVisible();
+    await expect(page.locator('h1:visible').first()).toBeVisible();
 
     await page.goto('/policies/privacy');
-    await expect(page.locator('h1')).toBeVisible();
+    await expect(page.locator('h1:visible').first()).toBeVisible();
   });
 });

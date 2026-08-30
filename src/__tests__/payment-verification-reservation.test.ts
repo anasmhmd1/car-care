@@ -35,6 +35,27 @@ function transactionWithHolds(holds: Array<{
 }
 
 describe('payment verification reservation', () => {
+  it('does not mutate preserved holds while a terminal booking is in review', async () => {
+    const { tx, bookingHold } = transactionWithHolds([]);
+    const evaluate = vi.fn();
+
+    const result = await ensurePaymentVerificationReservation(
+      tx,
+      {
+        booking: { ...booking, terminalReopenSourceStatus: 'CANCELLED' },
+        now,
+        holdMinutes: 1_440,
+      },
+      evaluate,
+    );
+
+    expect(result).toBeNull();
+    expect(bookingHold.findMany).not.toHaveBeenCalled();
+    expect(bookingHold.updateMany).not.toHaveBeenCalled();
+    expect(bookingHold.create).not.toHaveBeenCalled();
+    expect(evaluate).not.toHaveBeenCalled();
+  });
+
   it('returns unavailable without writing any hold when capacity was lost', async () => {
     const { tx, bookingHold } = transactionWithHolds([]);
     const evaluate = vi.fn().mockResolvedValue(null);

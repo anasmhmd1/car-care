@@ -41,7 +41,6 @@ import {
   type CancellationPolicyCapability,
   type CancellationPolicySnapshot,
   evaluateCancellationPolicyRequest,
-  readPolicyRequestTimestamp,
   readCancellationPolicySnapshot,
 } from '@/lib/policies/cancellation';
 import {
@@ -367,6 +366,7 @@ export async function requestCancellationAction(formData: FormData) {
         refundRequired: null,
         approvedRefundAmount: null,
         resolvedAt: null,
+        requestedAt,
       };
       const cancellation = booking.cancellationRequest
         ? await tx.cancellationRequest.update({
@@ -512,14 +512,6 @@ export async function reviewCancellationAction(formData: FormData) {
       }
 
       if (parsed.data.resolutionType === 'RESCHEDULE') {
-        const requestTransition = await tx.bookingStatusHistory.findFirst({
-          where: {
-            bookingId: cancellation.bookingId,
-            toStatus: BookingStatus.CANCELLATION_REQUESTED,
-          },
-          orderBy: { createdAt: 'desc' },
-          select: { createdAt: true, metadata: true },
-        });
         const cancellationPolicy = readCancellationPolicySnapshot(
           cancellation.booking.cancellationPolicySnapshot,
         );
@@ -527,10 +519,7 @@ export async function reviewCancellationAction(formData: FormData) {
           cancellationPolicy,
           'RESCHEDULING',
           cancellation.booking.startAt,
-          readPolicyRequestTimestamp(
-            requestTransition?.metadata,
-            requestTransition?.createdAt ?? cancellation.updatedAt,
-          ),
+          cancellation.requestedAt,
         );
         const proposed = Array.isArray(cancellation.alternativeDates)
           ? cancellation.alternativeDates.find((value): value is string => typeof value === 'string' && !Number.isNaN(Date.parse(value)))
@@ -560,6 +549,7 @@ export async function reviewCancellationAction(formData: FormData) {
             oldEndAt: result.booking.endAt,
             requestedStartAt: newStartAt,
             requestedEndAt: result.newEndAt,
+            requestedAt: cancellation.requestedAt,
             status: TimeChangeStatus.APPROVED,
             requestedByUserId: cancellation.booking.customer.userId,
             reviewedByUserId: manager.id,
@@ -732,6 +722,7 @@ export async function requestRescheduleAction(formData: FormData) {
           oldEndAt: booking.endAt,
           requestedStartAt: parsed.data.requestedStartAt,
           requestedEndAt,
+          requestedAt,
           requestedByUserId: user.id,
           reason: parsed.data.reason,
           reviewNotes: [parsed.data.proposedDates, parsed.data.notes].filter(Boolean).join('\n') || null,
@@ -836,14 +827,6 @@ export async function reviewRescheduleAction(formData: FormData) {
       }
 
       const newStartAt = parsed.data.approvedStartAt!;
-      const requestTransition = await tx.bookingStatusHistory.findFirst({
-        where: {
-          bookingId: change.bookingId,
-          toStatus: BookingStatus.RESCHEDULE_REQUESTED,
-        },
-        orderBy: { createdAt: 'desc' },
-        select: { createdAt: true, metadata: true },
-      });
       const cancellationPolicy = readCancellationPolicySnapshot(
         change.booking.cancellationPolicySnapshot,
       );
@@ -851,10 +834,7 @@ export async function reviewRescheduleAction(formData: FormData) {
         cancellationPolicy,
         'RESCHEDULING',
         change.booking.startAt,
-        readPolicyRequestTimestamp(
-          requestTransition?.metadata,
-          requestTransition?.createdAt ?? change.createdAt,
-        ),
+        change.requestedAt,
       );
       const result = await applyApprovedReschedule(tx, {
         bookingId: change.bookingId,

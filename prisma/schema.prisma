@@ -1183,6 +1183,7 @@ model BookingTimeChange {
   reason            String
   reviewNotes       String?
   reviewedAt        DateTime?
+  requestedAt       DateTime         @default(now())
   createdAt         DateTime         @default(now())
 
   booking     Booking @relation(fields: [bookingId], references: [id], onDelete: Restrict)
@@ -1190,6 +1191,7 @@ model BookingTimeChange {
   reviewedBy  User?   @relation("TimeChangeReviewer", fields: [reviewedByUserId], references: [id], onDelete: Restrict)
 
   @@index([bookingId, status])
+  @@index([status, requestedAt, id])
 }
 
 model BookingNote {
@@ -1556,12 +1558,15 @@ model CancellationRequest {
   creditAmount          Int            @default(0)
   attachmentFileId      String?        @unique
   resolvedAt            DateTime?
+  requestedAt           DateTime       @default(now())
   createdAt             DateTime       @default(now())
   updatedAt             DateTime       @updatedAt
 
   booking        Booking      @relation(fields: [bookingId], references: [id], onDelete: Restrict)
   resolvedByUser User?        @relation("CancellationResolver", fields: [resolvedByUserId], references: [id])
   attachmentFile BookingFile? @relation(fields: [attachmentFileId], references: [id], onDelete: Restrict)
+
+  @@index([status, requestedAt, id])
 }
 
 model Complaint {

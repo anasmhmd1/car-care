@@ -556,7 +556,7 @@ function CustomerAccountDialog({
                   id="customer-temporary-password"
                   name="temporaryPassword"
                   type="password"
-                  minLength={8}
+                  minLength={12}
                   maxLength={128}
                   autoComplete="new-password"
                   className={`mt-3 ${inputClass}`}
@@ -862,4 +862,3 @@ export default function CustomerManagementPanel({
     </div>
   );
 }
-

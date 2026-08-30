@@ -178,19 +178,3 @@ export function evaluateCancellationPolicyRequest(
   }
   return { allowed: true, lateRequest };
 }
-
-/**
- * Recovers the instant at which the customer policy was evaluated from the
- * immutable transition metadata. Falling back preserves compatibility with
- * historical requests created before that metadata was introduced.
- */
-export function readPolicyRequestTimestamp(
-  metadata: unknown,
-  fallback: Date,
-): Date {
-  if (isRecord(metadata) && typeof metadata.policyRequestedAt === 'string') {
-    const parsed = new Date(metadata.policyRequestedAt);
-    if (Number.isFinite(parsed.getTime())) return parsed;
-  }
-  return fallback;
-}

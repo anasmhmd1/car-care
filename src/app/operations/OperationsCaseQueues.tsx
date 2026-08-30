@@ -55,7 +55,7 @@ interface CancellationCase {
   status: string;
   approvedRefundAmount: number | null;
   reschedulingAllowed: boolean;
-  createdAt: DateValue;
+  requestedAt: DateValue;
   booking: {
     bookingNumber: string;
     amountPaid: number;
@@ -72,6 +72,7 @@ interface RescheduleCase {
   bookingId: string;
   oldStartAt: DateValue;
   requestedStartAt: DateValue;
+  requestedAt: DateValue;
   reason: string;
   reviewNotes: string | null;
   booking: {
@@ -393,7 +394,7 @@ export default function OperationsCaseQueues({
                       <span>— {item.booking.customer.user.fullName}</span>
                     </div>
                     <span className="mt-1 block text-xs font-normal text-neutral-400">
-                      {item.status} · {item.booking.service.nameAr} · {formatDate(item.createdAt)}
+                      {item.status} · {item.booking.service.nameAr} · {formatDate(item.requestedAt)}
                     </span>
                   </div>
                   <span className="rounded-lg border border-neutral-800 bg-neutral-900 px-2.5 py-1 text-[11px] font-bold text-neutral-300 group-open:bg-[#d4af37]/10 group-open:text-[#d4af37] group-open:border-[#d4af37]/30">
@@ -589,7 +590,7 @@ export default function OperationsCaseQueues({
                     <span>— {item.booking.customer.user.fullName}</span>
                   </div>
                   <span className="mt-1 block text-xs font-normal text-neutral-400">
-                    من {formatDate(item.oldStartAt)} إلى {formatDate(item.requestedStartAt)}
+                    طلب {formatDate(item.requestedAt)} · من {formatDate(item.oldStartAt)} إلى {formatDate(item.requestedStartAt)}
                   </span>
                 </div>
                 <span className="rounded-lg border border-neutral-800 bg-neutral-900 px-2.5 py-1 text-[11px] font-bold text-neutral-300 group-open:bg-[#d4af37]/10 group-open:text-[#d4af37] group-open:border-[#d4af37]/30">

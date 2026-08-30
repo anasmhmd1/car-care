@@ -18,6 +18,8 @@ Do not promote a release until all of the following are true:
 
 Create the server `.env` from `.env.example`; never commit or bake it into the final image.
 
+Before exposing the service, run `npm run check:production-env` with `NODE_ENV=production` and the production environment injected. It validates HTTPS, database URLs, session-key strength, durable storage selection, and removal of seed/bootstrap credentials without printing secret values. The Docker image runs the same check before starting the web server.
+
 | Variable | Required | Secret | Purpose/default |
 |---|:---:|:---:|---|
 | `DATABASE_URL` | Yes | Yes | Runtime PostgreSQL URL; Compose builds it from `POSTGRES_*` |
@@ -38,6 +40,7 @@ Create the server `.env` from `.env.example`; never commit or bake it into the f
 | `SEED_PASSWORD` | Seed only | Yes | Temporary shared non-admin demo password, minimum 12 |
 | `SEED_ADMIN_PASSWORD` | Seed only | Yes | Separate demo System Admin password, minimum 16 |
 | `E2E_DATABASE_URL` | Acceptance only | Yes | Disposable migrated/seeded E2E database; never production |
+| `E2E_DIRECT_URL` | Acceptance only | No | Optional direct/admin URL for creating and cleaning the isolated E2E schema; defaults to `E2E_DATABASE_URL` |
 | `E2E_BASE_URL` | E2E only | No | Existing external target URL; omit to let Playwright manage local Next dev |
 | `E2E_PORT` | Local E2E only | No | Port for the Playwright-managed local server; default 3000, isolated value 3417 recommended |
 | `POSTGRES_USER` | Compose | No | Container database user; default `bareeq` |
@@ -72,7 +75,7 @@ The application reaches private files through the `StorageAdapter` contract. The
 
 ## 3. First Docker deployment
 
-The Compose file binds database and application ports to `127.0.0.1`. The web container runs as a non-root user and has a health check.
+The Compose file binds database and application ports to `127.0.0.1`. The web container runs as a non-root user and has a readiness health check at `/api/health`; it verifies PostgreSQL and storage configuration, and rejects ephemeral local storage in serverless production.
 
 ```bash
 docker compose build web migrate
@@ -88,6 +91,7 @@ Verify migrations and logs:
 ```bash
 docker compose run --rm migrate npm run db:migrate:status
 docker compose logs --tail=200 web db
+curl --fail http://127.0.0.1:3000/api/health
 ```
 
 Expected persistent volumes:
@@ -225,14 +229,14 @@ npm run audit
 For full database-backed acceptance coverage:
 
 1. Create a separate disposable database.
-2. Point `DATABASE_URL`, `DIRECT_URL`, and `E2E_DATABASE_URL` to that database.
+2. Point `DATABASE_URL`, `DIRECT_URL`, and `E2E_DATABASE_URL` to that database. If the isolated runner is used, set `E2E_DIRECT_URL` to its direct/admin URL as well; the runner refuses to fall back to production `DATABASE_URL`.
 3. Set non-production `SEED_PASSWORD` and `SEED_ADMIN_PASSWORD`, run migrations and `npm run db:seed`.
 4. Set a test-only `SESSION_SECRET` of at least 32 characters.
 5. Optionally set `E2E_PORT=3417` to isolate the Playwright-managed local server, then run `npm run test:e2e`. Use `E2E_BASE_URL` instead only when targeting an already running server.
 
 The database-backed suite covers master scenarios 1, 3, 6, 8, 9, 10, and 12, including the full browser lifecycle, final-slot concurrency, proof replacement, subscription ledger, branch limit, authorization isolation, and outside-coverage contact path. These seed-backed cases skip themselves when `E2E_DATABASE_URL` or the database is absent; a skipped prerequisite is not proof that the acceptance scenario passed. The suite mutates fixtures and must never target development or production data; discard/reset its database after the run. `npm run test:e2e:list` also does not execute tests, and `npm run audit` fails on high-or-critical dependency findings.
 
-The committed `.github/workflows/ci.yml` repeats these gates on Node 20 with PostgreSQL 16. Its `verify` job deploys migrations, checks Prisma drift, audits production dependencies, and runs typecheck/lint/unit/build. Its separate `e2e` job migrates and seeds a disposable database, installs Chromium, and executes Playwright. CI configuration is not a substitute for confirming that the workflow actually ran on the release commit.
+The committed `.github/workflows/ci.yml` repeats these gates on Node 20 with PostgreSQL 16. Its `verify` job deploys migrations, checks Prisma drift, audits production dependencies, and runs typecheck/lint/unit/build plus a standalone runtime smoke test. Its separate `e2e` job migrates and seeds a disposable database, installs Chromium, and executes Playwright. Its `container` job validates Compose interpolation and builds both production images. CI configuration is not a substitute for confirming that the workflow actually ran on the release commit.
 
 ## 9. PostgreSQL backup
 
