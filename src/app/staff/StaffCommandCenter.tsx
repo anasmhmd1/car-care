@@ -37,6 +37,7 @@ import {
   PackageCheck,
   Phone,
   PlusCircle,
+  RotateCcw,
   Search,
   Shield,
   ShieldAlert,
@@ -332,64 +333,73 @@ type WorkflowStatus =
   | 'DELIVERED';
 
 interface WorkflowStepConfig {
-  from: WorkflowStatus;
+  stepNumber: number;
+  stageKey: string;
+  fromStatuses: WorkflowStatus[];
   to: WorkflowStatus;
   label: string;
   shortLabel: string;
   helper: string;
-  stepNumber: number;
 }
 
 const WORKFLOW_STEPS: WorkflowStepConfig[] = [
   {
     stepNumber: 1,
-    from: 'ASSIGNED',
-    to: 'TEAM_ACKNOWLEDGED',
-    label: 'تأكيد استلام المهمة',
-    shortLabel: 'استلام المهمة',
-    helper: 'تأكيد جاهزية الفريق وبدء متابعة تفاصيل الحجز',
+    stageKey: 'TEAM_PREPARATION',
+    fromStatuses: ['ASSIGNED', 'TEAM_ACKNOWLEDGED'],
+    to: 'ON_THE_WAY',
+    label: 'تحضير وانطلاق الفريق',
+    shortLabel: 'انطلاق الفريق',
+    helper: 'تجهيز المواد وانطلاق سيارة التشغيل نحو العميل',
   },
   {
     stepNumber: 2,
-    from: 'TEAM_ACKNOWLEDGED',
-    to: 'ON_THE_WAY',
-    label: 'بدء التحرك نحو العميل',
-    shortLabel: 'انطلاق الفريق',
-    helper: 'تسجيل انطلاق سيارة التشغيل للموقع الجغرافي',
+    stageKey: 'ARRIVAL_INSPECTION',
+    fromStatuses: ['ON_THE_WAY'],
+    to: 'ARRIVED',
+    label: 'فحص ومعاينة الوصول',
+    shortLabel: 'تأكيد الوصول',
+    helper: 'تسجيل الوصول لموقع العميل وبدء الفحص الميداني',
   },
   {
     stepNumber: 3,
-    from: 'ON_THE_WAY',
-    to: 'ARRIVED',
-    label: 'تأكيد الوصول للموقع',
-    shortLabel: 'تأكيد الوصول',
-    helper: 'تسجيل الوصول والبدء في الفحص وتوثيق صور ما قبل الخدمة',
+    stageKey: 'SERVICE_EXECUTION',
+    fromStatuses: ['ARRIVED'],
+    to: 'IN_SERVICE',
+    label: 'بدء تنفيذ الخدمة',
+    shortLabel: 'تنفيذ الخدمة',
+    helper: 'بدء تنفيذ مهام الخدمة وبنود التشيك ليست',
   },
   {
     stepNumber: 4,
-    from: 'ARRIVED',
-    to: 'IN_SERVICE',
-    label: 'بدء تنفيذ الخدمة والتشيك ليست',
-    shortLabel: 'بدء التنفيذ',
-    helper: 'يتطلب اكتمال فحص الوصول وجاهزية المواد المطلوبة',
-  },
-  {
-    stepNumber: 5,
-    from: 'IN_SERVICE',
-    to: 'QUALITY_REVIEW',
-    label: 'إرسال لمراجعة واعتماد الجودة',
-    shortLabel: 'إرسال للجودة',
-    helper: 'يتطلب إنهاء بنود التشيك ليست وصور ما بعد الخدمة',
-  },
-  {
-    stepNumber: 6,
-    from: 'SERVICE_COMPLETED',
+    stageKey: 'CLOSING',
+    fromStatuses: ['IN_SERVICE', 'QUALITY_REVIEW', 'SERVICE_COMPLETED'],
     to: 'DELIVERED',
-    label: 'تأكيد تسليم الخدمة النهائي',
+    label: 'إتمام وتسليم الخدمة',
     shortLabel: 'تسليم للعميل',
-    helper: 'تسليم مفاتيح السيارة للعميل بعد اعتماد الجودة',
+    helper: 'إنهاء البنود وتسليم السيارة وتسوية الحساب',
   },
 ];
+
+const REVERT_MAP: Partial<Record<WorkflowStatus, { to: WorkflowStatus; label: string }>> = {
+  TEAM_ACKNOWLEDGED: { to: 'ASSIGNED', label: 'الرجوع لحالة بانتظار الاستلام' },
+  ON_THE_WAY: { to: 'ASSIGNED', label: 'الرجوع لحالة بانتظار الانطلاق' },
+  ARRIVED: { to: 'ON_THE_WAY', label: 'الرجوع لحالة في الطريق' },
+  IN_SERVICE: { to: 'ARRIVED', label: 'الرجوع لحالة تم الوصول' },
+  QUALITY_REVIEW: { to: 'IN_SERVICE', label: 'الرجوع لمرحلة قيد التنفيذ' },
+  DELIVERED: { to: 'IN_SERVICE', label: 'الرجوع لمرحلة قيد التنفيذ' },
+};
+
+function getTargetStatusForStep(
+  step: WorkflowStepConfig,
+  currentStatus: WorkflowStatus,
+): WorkflowStatus {
+  if (step.stepNumber === 1 && currentStatus === 'ASSIGNED') {
+    return 'TEAM_ACKNOWLEDGED';
+  }
+  return step.to;
+}
+
 
 const STAGE_LABELS: Record<string, string> = {
   BOOKING_REVIEW: 'مراجعة الحجز والإسناد',
@@ -434,15 +444,11 @@ const badgeTone: Record<string, string> = {
   ACCESS_DENIED: 'border-rose-500/40 bg-rose-500/10 text-rose-300',
 };
 
-const CHECKLIST_STAGE_STATUS: Record<string, readonly string[]> = {
-  TEAM_PREPARATION: ['TEAM_ACKNOWLEDGED', 'ON_THE_WAY', 'ARRIVED', 'IN_SERVICE'],
-  ARRIVAL_INSPECTION: ['ARRIVED', 'IN_SERVICE'],
-  SERVICE_EXECUTION: ['IN_SERVICE'],
-  CLOSING: ['IN_SERVICE'],
-};
-
 function canEditChecklistStage(stage: string, bookingStatus: string): boolean {
-  return CHECKLIST_STAGE_STATUS[stage]?.includes(bookingStatus) ?? false;
+  if (['DELIVERED', 'CLOSED', 'CANCELLED', 'REJECTED', 'EXECUTION_FAILED'].includes(bookingStatus)) {
+    return false;
+  }
+  return true;
 }
 
 const numberFormatter = new Intl.NumberFormat('ar-EG');
@@ -535,8 +541,18 @@ function getWeekDays(
     const dayName = ARABIC_DAYS[d.getDay()];
     const dayNumber = d.getDate();
     const monthName = ARABIC_MONTHS[d.getMonth()];
+    const isThisToday = dateStr === todayStr;
 
-    const dayBookings = bookings.filter((b) => toLocalDateString(b.startAt) === dateStr);
+    const dayBookings = bookings.filter((b) => {
+      const bDate = toLocalDateString(b.startAt);
+      if (isThisToday) {
+        const st = taskStatuses[b.id] ?? b.bookingStatus;
+        const isOngoing = ['ON_THE_WAY', 'ARRIVED', 'IN_SERVICE', 'ASSIGNED', 'TEAM_ACKNOWLEDGED'].includes(st);
+        return bDate === dateStr || isOngoing;
+      }
+      return bDate === dateStr;
+    });
+
     const activeCount = dayBookings.filter((b) => {
       const st = taskStatuses[b.id] ?? b.bookingStatus;
       return ['ON_THE_WAY', 'ARRIVED', 'IN_SERVICE'].includes(st);
@@ -557,7 +573,7 @@ function getWeekDays(
       dayNumber,
       monthName,
       fullFormatted: `${dayName} ${dayNumber} ${monthName}`,
-      isToday: dateStr === todayStr,
+      isToday: isThisToday,
       tasksCount: dayBookings.length,
       activeCount,
       completedCount,
@@ -798,10 +814,24 @@ export default function StaffCommandCenter({
   const displayedScheduleBookings = useMemo(() => {
     if (viewAllWeekSchedule) {
       const weekDateSet = new Set(weekInfo.days.map((d) => d.dateStr));
-      return bookings.filter((b) => weekDateSet.has(toLocalDateString(b.startAt)));
+      return bookings.filter((b) => {
+        const bDate = toLocalDateString(b.startAt);
+        const st = taskStatuses[b.id] ?? b.bookingStatus;
+        const isOngoing = ['ON_THE_WAY', 'ARRIVED', 'IN_SERVICE', 'ASSIGNED', 'TEAM_ACKNOWLEDGED'].includes(st);
+        return weekDateSet.has(bDate) || (weekOffset === 0 && isOngoing);
+      });
     }
-    return bookings.filter((b) => toLocalDateString(b.startAt) === selectedScheduleDateStr);
-  }, [bookings, viewAllWeekSchedule, weekInfo.days, selectedScheduleDateStr]);
+    const isToday = selectedScheduleDateStr === weekInfo.todayStr;
+    return bookings.filter((b) => {
+      const bDate = toLocalDateString(b.startAt);
+      if (isToday) {
+        const st = taskStatuses[b.id] ?? b.bookingStatus;
+        const isOngoing = ['ON_THE_WAY', 'ARRIVED', 'IN_SERVICE', 'ASSIGNED', 'TEAM_ACKNOWLEDGED'].includes(st);
+        return bDate === selectedScheduleDateStr || isOngoing;
+      }
+      return bDate === selectedScheduleDateStr;
+    });
+  }, [bookings, viewAllWeekSchedule, weekInfo.days, weekInfo.todayStr, weekOffset, selectedScheduleDateStr, taskStatuses]);
 
   // Delegated active state
   const hasDelegated = Boolean(
@@ -892,7 +922,9 @@ export default function StaffCommandCenter({
   }, [bookings, taskStatuses, statusFilter, dayTaskFilter, searchQuery, weekInfo]);
 
   const nextAvailableStep = useMemo(() => {
-    return WORKFLOW_STEPS.find((step) => step.from === currentTaskStatus) ?? null;
+    return WORKFLOW_STEPS.find((step) =>
+      step.fromStatuses.includes(currentTaskStatus as WorkflowStatus)
+    ) ?? null;
   }, [currentTaskStatus]);
 
   const hasMaterialBlocker = Boolean(
@@ -1146,138 +1178,6 @@ export default function StaffCommandCenter({
             />
           </div>
 
-          {/* Active Mission Hero Card */}
-          {activeMissionBooking ? (
-            <div className="relative overflow-hidden rounded-3xl border border-[#d4af37]/40 bg-gradient-to-br from-[#18181c] via-[#111114] to-[#0d0d10] p-6 shadow-2xl backdrop-blur-md">
-              <div className="pointer-events-none absolute -right-16 -top-16 size-48 rounded-full bg-[#d4af37]/10 blur-3xl" />
-              <div className="pointer-events-none absolute -left-16 -bottom-16 size-48 rounded-full bg-[#d4af37]/5 blur-3xl" />
-
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-white/[0.08] pb-4">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-[#d4af37]/40 bg-[#d4af37]/10 px-3 py-0.5 text-[11px] font-bold text-[#f3e4a8]">
-                      <span className="size-2 rounded-full bg-[#d4af37] animate-ping" />
-                      المهمة الحالية ذات الأولوية
-                    </span>
-                    <StatusBadge
-                      status={
-                        taskStatuses[activeMissionBooking.id] ?? activeMissionBooking.bookingStatus
-                      }
-                    />
-                  </div>
-                  <h3 className="mt-2 text-2xl font-black tracking-tight text-white flex items-center gap-3">
-                    <span dir="ltr" className="font-mono">
-                      {activeMissionBooking.bookingNumber}
-                    </span>
-                    <span className="text-neutral-400 text-lg font-bold">·</span>
-                    <span className="text-[#f3e4a8] text-lg font-bold">
-                      {activeMissionBooking.service.nameAr}
-                    </span>
-                  </h3>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2">
-                  <a
-                    href={phoneHref(activeMissionBooking.customer.user.phone)}
-                    className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-sky-500/30 bg-sky-500/10 px-3.5 text-xs font-black text-sky-200 hover:bg-sky-500/20 transition-all"
-                  >
-                    <Phone className="size-3.5 text-sky-400" />
-                    <span>اتصال</span>
-                  </a>
-                  <a
-                    href={whatsappHref(
-                      activeMissionBooking.customer.user.whatsapp ??
-                        activeMissionBooking.customer.user.phone,
-                      `مرحبًا ${activeMissionBooking.customer.user.fullName}، نتواصل معك من فريق بريق للعناية بالسيارات بخصوص حجزك رقم ${activeMissionBooking.bookingNumber}`,
-                    )}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3.5 text-xs font-black text-emerald-200 hover:bg-emerald-500/20 transition-all"
-                  >
-                    <MessageSquare className="size-3.5 text-emerald-400" />
-                    <span>واتساب</span>
-                  </a>
-                  {sanitizeLocationUrl(activeMissionBooking.locationUrl) && (
-                    <a
-                      href={sanitizeLocationUrl(activeMissionBooking.locationUrl)!}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-[#d4af37]/40 bg-[#d4af37]/10 px-3.5 text-xs font-black text-[#f3e4a8] hover:bg-[#d4af37]/20 transition-all"
-                    >
-                      <Navigation className="size-3.5 text-[#d4af37]" />
-                      <span>الخرائط</span>
-                    </a>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedTaskId(activeMissionBooking.id);
-                      router.push(`/staff?section=tasks&taskId=${activeMissionBooking.id}`);
-                    }}
-                    className="inline-flex min-h-10 items-center gap-1.5 rounded-xl bg-gradient-to-r from-[#d4af37] via-[#e5c45a] to-[#d4af37] px-4 text-xs font-black text-neutral-950 hover:brightness-110 shadow-md shadow-[#d4af37]/20 transition-all"
-                  >
-                    <Wrench className="size-3.5 text-neutral-950" />
-                    <span>الانتقال لشاشة التنفيذ</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Active Hero Grid Details */}
-              <div className="mt-4 grid gap-3 text-xs sm:grid-cols-2 lg:grid-cols-4 rounded-2xl bg-black/40 border border-white/5 p-4">
-                <div>
-                  <span className="text-neutral-500 text-[11px] font-medium">العميل</span>
-                  <p className="mt-1 font-bold text-white text-sm">
-                    {activeMissionBooking.customer.user.fullName}
-                  </p>
-                  <p className="text-[11px] font-mono text-neutral-400" dir="ltr">
-                    {activeMissionBooking.customer.user.phone}
-                  </p>
-                </div>
-                <div>
-                  <span className="text-neutral-500 text-[11px] font-medium">السيارة</span>
-                  <p className="mt-1 font-bold text-white text-sm flex items-center gap-1.5">
-                    <Car className="size-4 text-[#d4af37]" />
-                    {activeMissionBooking.vehicle.make} {activeMissionBooking.vehicle.model}
-                  </p>
-                  <p className="text-[11px] text-amber-200 font-mono">
-                    {activeMissionBooking.vehicle.plateNumber ?? 'بدون لوحة'} ·{' '}
-                    {activeMissionBooking.vehicle.color}
-                  </p>
-                </div>
-                <div>
-                  <span className="text-neutral-500 text-[11px] font-medium">الموعد المحدد</span>
-                  <p className="mt-1 font-bold text-white text-sm">
-                    {formatDateTime(activeMissionBooking.startAt)}
-                  </p>
-                  <p className="text-[11px] text-neutral-400">
-                    سيارة التشغيل:{' '}
-                    <strong className="text-white font-mono">
-                      {activeMissionBooking.operationalVehicle?.code ??
-                        team?.operationalVehicles[0]?.code ??
-                        'غير محددة'}
-                    </strong>
-                  </p>
-                </div>
-                <div>
-                  <span className="text-neutral-500 text-[11px] font-medium">العنوان والموقع</span>
-                  <p className="mt-1 font-medium text-neutral-200 text-xs line-clamp-2 leading-relaxed">
-                    {formatAddressSnapshot(activeMissionBooking.addressSnapshot) || 'موقع محدد بالخريطة'}
-                  </p>
-                </div>
-              </div>
-
-              {/* Gate instructions if present */}
-              {activeMissionBooking.gateInstructions && (
-                <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200 flex items-start gap-2">
-                  <AlertTriangle className="size-4 text-amber-400 shrink-0 mt-0.5" />
-                  <div>
-                    <strong className="font-bold block text-amber-300">تعليمات البوابة والدخول:</strong>
-                    <span>{activeMissionBooking.gateInstructions}</span>
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : null}
 
 
 
@@ -1460,83 +1360,141 @@ export default function StaffCommandCenter({
                   return (
                     <div
                       key={booking.id}
-                      className="flex flex-col gap-3 rounded-2xl border border-neutral-800/80 bg-neutral-950/80 p-4 transition-all hover:border-neutral-700 sm:flex-row sm:items-center sm:justify-between shadow-md"
+                      className={`flex flex-col gap-4 rounded-2xl p-4 sm:p-5 transition-all shadow-md ${
+                        isActive
+                          ? 'border-2 border-[#d4af37] bg-gradient-to-r from-[#d4af37]/15 via-neutral-950/90 to-neutral-950/80 ring-1 ring-[#d4af37]/40 shadow-lg shadow-[#d4af37]/10'
+                          : isDone
+                          ? 'border border-neutral-800/60 bg-neutral-950/60 opacity-90'
+                          : 'border border-neutral-800/80 bg-neutral-950/80 hover:border-neutral-700'
+                      }`}
                     >
-                      <div className="flex items-start gap-3.5 min-w-0">
-                        <span
-                          className={`size-3 rounded-full mt-1.5 shrink-0 ${
-                            isDone
-                              ? 'bg-emerald-400 ring-4 ring-emerald-500/20'
-                              : isActive
-                              ? 'bg-[#d4af37] animate-pulse ring-4 ring-[#d4af37]/25'
-                              : 'bg-neutral-600'
-                          }`}
-                        />
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span dir="ltr" className="font-mono text-sm font-black text-white">
-                              {booking.bookingNumber}
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-white/5 pb-3">
+                        <div className="flex flex-wrap items-center gap-2.5">
+                          <span
+                            className={`size-3 rounded-full shrink-0 ${
+                              isDone
+                                ? 'bg-emerald-400 ring-4 ring-emerald-500/20'
+                                : isActive
+                                ? 'bg-[#d4af37] animate-pulse ring-4 ring-[#d4af37]/25'
+                                : 'bg-neutral-600'
+                            }`}
+                          />
+                          <span dir="ltr" className="font-mono text-base font-black text-white">
+                            {booking.bookingNumber}
+                          </span>
+                          <StatusBadge status={bStatus} />
+                          {isActive && (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-[#d4af37]/40 bg-[#d4af37]/15 px-2.5 py-0.5 text-[10px] font-black text-[#f3e4a8]">
+                              <span className="size-1.5 rounded-full bg-[#d4af37] animate-ping" />
+                              قيد التنفيذ الآن
                             </span>
-                            <StatusBadge status={bStatus} />
-                            <span className="text-xs font-mono font-bold text-[#edce8b] bg-black/40 px-2 py-0.5 rounded border border-neutral-800">
-                              {formatTimeOnly(booking.startAt)}
-                            </span>
-                            {viewAllWeekSchedule && (
-                              <span className="text-[11px] font-bold text-neutral-400">
-                                ({toLocalDateString(booking.startAt)})
-                              </span>
-                            )}
-                          </div>
-
-                          <p className="mt-1.5 text-xs text-neutral-300">
-                            <strong className="text-white font-bold">{booking.customer.user.fullName}</strong>
-                            {booking.customer.user.phone && (
-                              <a
-                                href={`tel:${booking.customer.user.phone}`}
-                                dir="ltr"
-                                className="mr-2 font-mono text-[11px] text-neutral-400 hover:text-[#d4af37] transition-colors"
-                              >
-                                ({booking.customer.user.phone})
-                              </a>
-                            )}
-                            {' · '}
-                            <span className="text-[#edce8b] font-semibold">{booking.service.nameAr}</span>
-                            {' · '}
-                            <span className="text-neutral-400">
-                              {booking.vehicle.make} {booking.vehicle.model}
-                              {booking.vehicle.plateNumber ? ` (${booking.vehicle.plateNumber})` : ''}
-                            </span>
-                          </p>
-
-                          {addressText && (
-                            <p className="mt-1 text-[11px] text-neutral-400 flex items-center gap-1 truncate">
-                              <MapPin className="size-3 text-neutral-500 shrink-0" />
-                              <span className="truncate">{addressText}</span>
-                            </p>
                           )}
-
-                          {booking.gateInstructions && (
-                            <p className="mt-1 text-[11px] text-amber-300/90 flex items-center gap-1">
-                              <AlertTriangle className="size-3 text-amber-400 shrink-0" />
-                              <span>بوابة: {booking.gateInstructions}</span>
-                            </p>
+                          <span className="text-xs font-mono font-bold text-[#edce8b] bg-black/50 px-2.5 py-1 rounded-lg border border-neutral-800">
+                            ⏰ {formatTimeOnly(booking.startAt)}
+                          </span>
+                          {viewAllWeekSchedule && (
+                            <span className="text-[11px] font-bold text-neutral-400">
+                              ({toLocalDateString(booking.startAt)})
+                            </span>
                           )}
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex flex-wrap items-center gap-2">
+                          {booking.customer.user.phone && (
+                            <a
+                              href={phoneHref(booking.customer.user.phone)}
+                              className="inline-flex items-center gap-1.5 rounded-xl border border-sky-500/30 bg-sky-500/10 px-3 py-1.5 text-xs font-bold text-sky-200 hover:bg-sky-500/20 transition-all"
+                            >
+                              <Phone className="size-3.5 text-sky-400" />
+                              <span>اتصال</span>
+                            </a>
+                          )}
+                          {booking.customer.user.phone && (
+                            <a
+                              href={whatsappHref(
+                                booking.customer.user.whatsapp ?? booking.customer.user.phone,
+                                `مرحبًا ${booking.customer.user.fullName}، نتواصل معك من فريق بريق للعناية بالسيارات بخصوص حجزك رقم ${booking.bookingNumber}`,
+                              )}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-bold text-emerald-200 hover:bg-emerald-500/20 transition-all"
+                            >
+                              <MessageSquare className="size-3.5 text-emerald-400" />
+                              <span>واتساب</span>
+                            </a>
+                          )}
+                          {booking.locationUrl && (
+                            <a
+                              href={booking.locationUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 rounded-xl border border-[#d4af37]/40 bg-[#d4af37]/10 px-3 py-1.5 text-xs font-bold text-[#f3e4a8] hover:bg-[#d4af37]/20 transition-all"
+                            >
+                              <Navigation className="size-3.5 text-[#d4af37]" />
+                              <span>الخرائط</span>
+                            </a>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedTaskId(booking.id);
+                              router.push(`/staff?section=tasks&taskId=${booking.id}`);
+                            }}
+                            className={`inline-flex items-center gap-2 rounded-xl px-4 py-1.5 text-xs font-black transition-all shadow-sm ${
+                              isActive
+                                ? 'bg-gradient-to-r from-[#d4af37] via-[#e5c45a] to-[#d4af37] text-neutral-950 hover:brightness-110'
+                                : 'border border-[#d4af37]/40 bg-[#d4af37]/10 text-[#e5c45a] hover:bg-[#d4af37]/20 hover:text-white'
+                            }`}
+                          >
+                            <span>الانتقال لشاشة التنفيذ</span>
+                            <Wrench className="size-3.5" />
+                          </button>
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between sm:justify-end gap-2.5 border-t border-neutral-800/60 pt-3 sm:border-0 sm:pt-0 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedTaskId(booking.id);
-                            router.push(`/staff?section=tasks&taskId=${booking.id}`);
-                          }}
-                          className="inline-flex items-center gap-2 rounded-xl border border-[#d4af37]/40 bg-[#d4af37]/10 px-3.5 py-2 text-xs font-bold text-[#e5c45a] hover:bg-[#d4af37]/20 hover:text-white transition-all shadow-sm"
-                        >
-                          <span>شاشة التنفيذ</span>
-                          <Wrench className="size-3.5 text-[#d4af37]" />
-                        </button>
+                      {/* Card Details Grid */}
+                      <div className="grid gap-3 text-xs sm:grid-cols-2 lg:grid-cols-3 rounded-xl bg-black/30 border border-white/5 p-3.5">
+                        <div>
+                          <span className="text-neutral-500 text-[11px] font-medium block">العميل والخدمة</span>
+                          <p className="mt-1 font-bold text-white text-sm">
+                            {booking.customer.user.fullName}
+                          </p>
+                          <p className="text-xs text-[#edce8b] font-semibold mt-0.5">
+                            {booking.service.nameAr}
+                          </p>
+                        </div>
+
+                        <div>
+                          <span className="text-neutral-500 text-[11px] font-medium block">السيارة</span>
+                          <p className="mt-1 font-bold text-white text-sm flex items-center gap-1.5">
+                            <Car className="size-4 text-[#d4af37]" />
+                            {booking.vehicle.make} {booking.vehicle.model}
+                          </p>
+                          <p className="text-[11px] text-amber-200 font-mono mt-0.5">
+                            {booking.vehicle.plateNumber ?? 'بدون لوحة'} · {booking.vehicle.color}
+                          </p>
+                        </div>
+
+                        <div>
+                          <span className="text-neutral-500 text-[11px] font-medium block">الموقع والعنوان</span>
+                          <p className="mt-1 font-medium text-neutral-200 text-xs line-clamp-2 leading-relaxed flex items-start gap-1">
+                            <MapPin className="size-3.5 text-neutral-500 shrink-0 mt-0.5" />
+                            <span>{addressText || 'موقع محدد بالخريطة'}</span>
+                          </p>
+                        </div>
                       </div>
+
+                      {/* Gate instructions if present */}
+                      {booking.gateInstructions && (
+                        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-200 flex items-start gap-2">
+                          <AlertTriangle className="size-4 text-amber-400 shrink-0 mt-0.5" />
+                          <div>
+                            <strong className="font-bold text-amber-300">تعليمات البوابة: </strong>
+                            <span>{booking.gateInstructions}</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -1835,37 +1793,91 @@ export default function StaffCommandCenter({
                     </button>
                   </div>
 
-                  {/* 6-STAGE WORKFLOW STEPPER TIMELINE */}
+                  {/* Feedback Notification Banner */}
+                  {feedback && (
+                    <div
+                      className={`rounded-2xl border p-4 text-xs flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2 duration-300 ${
+                        feedback.kind === 'error'
+                          ? 'border-rose-500/40 bg-rose-500/15 text-rose-200 shadow-lg shadow-rose-950/40'
+                          : 'border-emerald-500/40 bg-emerald-500/15 text-emerald-200 shadow-lg shadow-emerald-950/40'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        {feedback.kind === 'error' ? (
+                          <AlertTriangle className="size-4 text-rose-400 shrink-0" />
+                        ) : (
+                          <CheckCircle2 className="size-4 text-emerald-400 shrink-0" />
+                        )}
+                        <span className="font-bold">{feedback.message}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setFeedback(null)}
+                        className="rounded-lg p-1 text-neutral-400 hover:bg-white/10 hover:text-white transition-colors shrink-0"
+                      >
+                        <X className="size-4" />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* 4-STAGE WORKFLOW STEPPER TIMELINE */}
                   <section className="rounded-2xl border border-white/[0.08] bg-black/40 p-4 sm:p-5 space-y-3.5">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                       <h3 className="flex items-center gap-2 text-xs font-black text-[#f3e4a8]">
                         <Sparkles className="size-4 text-[#d4af37]" />
                         مسار تنفيذ الخدمة الميداني
                       </h3>
-                      <span className="text-[11px] font-bold text-neutral-400">
-                        المرحلة الحالية: {bookingStatusLabels[currentTaskStatus] ?? currentTaskStatus}
-                      </span>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-[11px] font-bold text-neutral-400">
+                          المرحلة الحالية: {bookingStatusLabels[currentTaskStatus] ?? currentTaskStatus}
+                        </span>
+                        {REVERT_MAP[currentTaskStatus as WorkflowStatus] && (
+                          <button
+                            type="button"
+                            disabled={isPending}
+                            onClick={() => {
+                              const rev = REVERT_MAP[currentTaskStatus as WorkflowStatus];
+                              if (rev) handleStatusChange(rev.to);
+                            }}
+                            className="inline-flex items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-[11px] font-black text-amber-300 hover:bg-amber-500/20 active:scale-[0.98] transition-all"
+                            title="الرجوع خطوة للخلف في حال تم الضغط بالخطأ"
+                          >
+                            <RotateCcw className="size-3.5 text-amber-400 shrink-0" />
+                            <span>تراجع للمرحلة السابقة ({REVERT_MAP[currentTaskStatus as WorkflowStatus]?.label})</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
 
-                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    {/* 4-STAGE WORKFLOW STEPPER TIMELINE */}
+                    <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
                       {WORKFLOW_STEPS.map((step) => {
-                        const isCurrent = currentTaskStatus === step.from;
-                        const stepIdx = WORKFLOW_STEPS.findIndex(
-                          (c) => c.to === currentTaskStatus,
+                        const activeStepIndex = WORKFLOW_STEPS.findIndex((s) =>
+                          s.fromStatuses.includes(currentTaskStatus as WorkflowStatus)
                         );
-                        const isCompleted = stepIdx >= step.stepNumber - 1;
-                        const isBlockedByMaterials =
-                          step.to === 'IN_SERVICE' && hasMaterialBlocker;
+                        const isCurrent = step.fromStatuses.includes(
+                          currentTaskStatus as WorkflowStatus
+                        );
+                        const isCompleted =
+                          (['DELIVERED', 'CLOSED'].includes(currentTaskStatus)) ||
+                          (activeStepIndex > -1 && step.stepNumber <= activeStepIndex);
 
                         return (
                           <button
-                            key={step.to}
+                            key={step.stepNumber}
                             type="button"
-                            disabled={!isCurrent || isPending || isBlockedByMaterials}
-                            onClick={() => handleStatusChange(step.to)}
+                            disabled={!isCurrent || isPending}
+                            onClick={() =>
+                              handleStatusChange(
+                                getTargetStatusForStep(
+                                  step,
+                                  currentTaskStatus as WorkflowStatus
+                                )
+                              )
+                            }
                             className={`group relative flex items-start gap-3 rounded-xl border p-3 text-right transition-all active:scale-[0.98] ${
                               isCurrent
-                                ? 'border-[#d4af37] bg-gradient-to-r from-[#d4af37]/20 via-neutral-900 to-[#d4af37]/10 shadow-lg shadow-[#d4af37]/15 ring-2 ring-[#d4af37]/30'
+                                ? 'border-[#d4af37] bg-gradient-to-r from-[#d4af37]/20 via-neutral-900 to-[#d4af37]/10 shadow-lg shadow-[#d4af37]/15 ring-2 ring-[#d4af37]/30 cursor-pointer'
                                 : isCompleted
                                 ? 'border-emerald-500/20 bg-emerald-500/[0.04] text-neutral-300'
                                 : 'border-white/5 bg-neutral-950/40 text-neutral-500 opacity-60 cursor-not-allowed'
@@ -1896,9 +1908,7 @@ export default function StaffCommandCenter({
                                 {step.label}
                               </p>
                               <p className="mt-0.5 text-[10px] text-neutral-400 leading-4">
-                                {isBlockedByMaterials
-                                  ? 'يوجد نقص بالمواد الإلزامية يمنع البدء.'
-                                  : step.helper}
+                                {step.helper}
                               </p>
                             </div>
 
@@ -1910,6 +1920,7 @@ export default function StaffCommandCenter({
                       })}
                     </div>
                   </section>
+
 
                   {/* Customer, Vehicle, and Location Info */}
                   <div className="grid gap-3 sm:grid-cols-2 text-xs">
@@ -1958,133 +1969,42 @@ export default function StaffCommandCenter({
                     )}
                   </div>
 
-                  {/* PHOTO & EVIDENCE UPLOAD CENTER */}
-                  <section className="rounded-2xl border border-white/[0.08] bg-black/40 p-4 sm:p-5 space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h3 className="flex items-center gap-2 text-xs font-black text-[#f3e4a8]">
-                        <ImageIcon className="size-4 text-[#d4af37]" />
-                        توثيق الصور والأدلة الميدانية
-                      </h3>
-                      <span className="text-[11px] font-bold text-neutral-400">
-                        {selectedBooking.files.length} صور موثقة
-                      </span>
-                    </div>
 
-                    {/* Upload Buttons tailored for allowed stages */}
-                    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-                      {/* Before Photos */}
-                      <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-amber-500/40 bg-amber-500/5 p-3 text-center transition hover:bg-amber-500/10">
-                        <UploadCloud className="size-4 text-[#d4af37] mb-1" />
-                        <span className="text-xs font-bold text-white">صور قبل الخدمة</span>
-                        <span className="text-[10px] text-neutral-400">مرحلة الوصول</span>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          disabled={isPending || uploadingCategory !== null}
-                          onChange={(e) => handleFileUpload(e, 'before-photos')}
-                        />
-                      </label>
-
-                      {/* Damage Photos */}
-                      <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-rose-500/40 bg-rose-500/5 p-3 text-center transition hover:bg-rose-500/10">
-                        <ShieldAlert className="size-4 text-rose-400 mb-1" />
-                        <span className="text-xs font-bold text-white">توثيق أضرار سابقة</span>
-                        <span className="text-[10px] text-neutral-400">خدوش / صدمات</span>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          disabled={isPending || uploadingCategory !== null}
-                          onChange={(e) => handleFileUpload(e, 'existing-damage')}
-                        />
-                      </label>
-
-                      {/* During Service Photos */}
-                      <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-sky-500/40 bg-sky-500/5 p-3 text-center transition hover:bg-sky-500/10">
-                        <Wrench className="size-4 text-sky-400 mb-1" />
-                        <span className="text-xs font-bold text-white">أثناء التنفيذ</span>
-                        <span className="text-[10px] text-neutral-400">خطوات العمل</span>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          disabled={isPending || uploadingCategory !== null}
-                          onChange={(e) => handleFileUpload(e, 'during-photos')}
-                        />
-                      </label>
-
-                      {/* After Photos */}
-                      <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-emerald-500/40 bg-emerald-500/5 p-3 text-center transition hover:bg-emerald-500/10">
-                        <CheckCircle2 className="size-4 text-emerald-400 mb-1" />
-                        <span className="text-xs font-bold text-white">صور بعد الخدمة</span>
-                        <span className="text-[10px] text-neutral-400">للجودة والتسليم</span>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          disabled={isPending || uploadingCategory !== null}
-                          onChange={(e) => handleFileUpload(e, 'after-photos')}
-                        />
-                      </label>
-                    </div>
-
-                    {uploadingCategory && (
-                      <div className="flex items-center gap-2 rounded-xl bg-amber-500/10 border border-amber-500/30 p-2.5 text-xs text-amber-200">
-                        <LoaderCircle className="size-4 animate-spin text-[#d4af37]" />
-                        <span>جاري معالجة وضغط ورفع الصورة...</span>
-                      </div>
-                    )}
-
-                    {/* Gallery Thumbnails */}
-                    {selectedBooking.files.length ? (
-                      <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-6 pt-2">
-                        {selectedBooking.files.map((file) => (
-                          <div
-                            key={file.id}
-                            onClick={() => setPreviewImageUrl(file.fileUrl)}
-                            className="group relative aspect-square overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900 cursor-pointer"
-                          >
-                            <Image
-                              src={file.fileUrl}
-                              alt="صورة التوثيق"
-                              fill
-                              unoptimized
-                              className="object-cover transition duration-300 group-hover:scale-105"
-                            />
-                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                              <Eye className="size-5 text-white" />
-                            </div>
-                            <span className="absolute bottom-1 right-1 rounded bg-black/80 px-1 py-0.5 text-[9px] font-bold text-white">
-                              {file.fileType === 'BEFORE_SERVICE'
-                                ? 'قبل'
-                                : file.fileType === 'AFTER_SERVICE'
-                                ? 'بعد'
-                                : file.fileType === 'EXISTING_DAMAGE'
-                                ? 'ضرر'
-                                : 'أثناء'}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-center text-xs text-neutral-500 py-3">
-                        لم يتم رفع صور لهذا الحجز بعد.
-                      </p>
-                    )}
-                  </section>
 
                   {/* EXECUTION CHECKLISTS ACCORDION */}
                   <section className="rounded-2xl border border-white/[0.08] bg-black/40 p-4 sm:p-5 space-y-4">
                     <div className="flex items-center justify-between">
                       <h3 className="flex items-center gap-2 text-xs font-black text-[#f3e4a8]">
                         <ListChecks className="size-4 text-[#d4af37]" />
-                        قوائم مهام وتشيك ليست الخدمة
+                        قوائم مهام المرحلة الحالية ({bookingStatusLabels[currentTaskStatus] ?? currentTaskStatus})
                       </h3>
                     </div>
 
-                    {selectedBooking.service.checklistTemplates.length ? (
-                      selectedBooking.service.checklistTemplates.map((template) => {
+                    {(() => {
+                      const STAGE_CHECKLIST_MAPPING: Record<string, string[]> = {
+                        ASSIGNED: ['TEAM_PREPARATION'],
+                        TEAM_ACKNOWLEDGED: ['TEAM_PREPARATION'],
+                        ON_THE_WAY: ['TEAM_PREPARATION'],
+                        ARRIVED: ['ARRIVAL_INSPECTION'],
+                        IN_SERVICE: ['SERVICE_EXECUTION', 'CLOSING'],
+                        QUALITY_REVIEW: ['QUALITY_REVIEW', 'SERVICE_EXECUTION'],
+                        SERVICE_COMPLETED: ['CLOSING'],
+                        DELIVERED: ['CLOSING'],
+                      };
+                      const allowedStages = STAGE_CHECKLIST_MAPPING[currentTaskStatus];
+                      const currentPhaseTemplates = selectedBooking.service.checklistTemplates.filter(
+                        (template) => !allowedStages || allowedStages.includes(template.stage)
+                      );
+
+                      if (!currentPhaseTemplates.length) {
+                        return (
+                          <div className="rounded-2xl border border-white/5 bg-black/20 p-4 text-center text-xs text-neutral-400">
+                            لا توجد مهام فحص إضافية مطلوبة في مرحلة «{bookingStatusLabels[currentTaskStatus] ?? currentTaskStatus}».
+                          </div>
+                        );
+                      }
+
+                      return currentPhaseTemplates.map((template) => {
                         const stageEditable = canEditChecklistStage(
                           template.stage,
                           currentTaskStatus,
@@ -2105,12 +2025,7 @@ export default function StaffCommandCenter({
                                   stageEditable ? 'bg-[#d4af37]' : 'bg-neutral-500'
                                 }`}
                               />
-                              {STAGE_LABELS[template.stage] ?? template.name}
-                              {!stageEditable && (
-                                <span className="text-[10px] font-normal text-neutral-400">
-                                  (مغلقة في المرحلة الحالية)
-                                </span>
-                              )}
+                              <span>{template.name || STAGE_LABELS[template.stage] || 'قائمة المهام'}</span>
                             </legend>
 
                             <div className="space-y-2 pt-1">
@@ -2176,12 +2091,8 @@ export default function StaffCommandCenter({
                             </div>
                           </fieldset>
                         );
-                      })
-                    ) : (
-                      <p className="text-center text-xs text-neutral-500 py-3">
-                        لا توجد قوالب فحص محددة لهذه الخدمة.
-                      </p>
-                    )}
+                      });
+                    })()}
                   </section>
                 </article>
 
@@ -2191,8 +2102,15 @@ export default function StaffCommandCenter({
                     <div className="rounded-2xl border border-[#d4af37]/40 bg-[#141418]/95 p-2 shadow-2xl backdrop-blur-md">
                       <button
                         type="button"
-                        disabled={isPending || (nextAvailableStep.to === 'IN_SERVICE' && hasMaterialBlocker)}
-                        onClick={() => handleStatusChange(nextAvailableStep.to)}
+                        disabled={isPending}
+                        onClick={() =>
+                          handleStatusChange(
+                            getTargetStatusForStep(
+                              nextAvailableStep,
+                              currentTaskStatus as WorkflowStatus
+                            )
+                          )
+                        }
                         className="flex w-full min-h-12 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#d4af37] via-[#e5c45a] to-[#d4af37] px-4 text-xs font-black text-neutral-950 shadow-lg shadow-[#d4af37]/20 hover:brightness-110 active:scale-[0.98] disabled:opacity-50"
                       >
                         <CheckCircle2 className="size-4" />

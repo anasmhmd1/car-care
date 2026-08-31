@@ -59,26 +59,35 @@ export const ALLOWED_STATUS_TRANSITIONS: Record<BookingStatus, readonly BookingS
   ],
   TEAM_ACKNOWLEDGED: [
     BookingStatus.ON_THE_WAY,
+    BookingStatus.ASSIGNED,
     BookingStatus.EXECUTION_FAILED,
     BookingStatus.CUSTOMER_NO_SHOW,
     BookingStatus.ACCESS_DENIED,
   ],
   ON_THE_WAY: [
     BookingStatus.ARRIVED,
+    BookingStatus.TEAM_ACKNOWLEDGED,
+    BookingStatus.ASSIGNED,
     BookingStatus.EXECUTION_FAILED,
     BookingStatus.CUSTOMER_NO_SHOW,
     BookingStatus.ACCESS_DENIED,
   ],
   ARRIVED: [
     BookingStatus.IN_SERVICE,
+    BookingStatus.ON_THE_WAY,
     BookingStatus.CUSTOMER_NO_SHOW,
     BookingStatus.ACCESS_DENIED,
     BookingStatus.EXECUTION_FAILED,
   ],
-  IN_SERVICE: [BookingStatus.QUALITY_REVIEW, BookingStatus.EXECUTION_FAILED],
-  QUALITY_REVIEW: [BookingStatus.SERVICE_COMPLETED, BookingStatus.IN_SERVICE],
+  IN_SERVICE: [
+    BookingStatus.DELIVERED,
+    BookingStatus.QUALITY_REVIEW,
+    BookingStatus.ARRIVED,
+    BookingStatus.EXECUTION_FAILED,
+  ],
+  QUALITY_REVIEW: [BookingStatus.DELIVERED, BookingStatus.SERVICE_COMPLETED, BookingStatus.IN_SERVICE],
   SERVICE_COMPLETED: [BookingStatus.DELIVERED],
-  DELIVERED: [BookingStatus.CLOSED],
+  DELIVERED: [BookingStatus.CLOSED, BookingStatus.IN_SERVICE],
   CLOSED: [],
   RESCHEDULE_REQUESTED: [
     BookingStatus.AWAITING_OPERATIONS_REVIEW,
@@ -293,8 +302,8 @@ export function validateStatusTransition(
 
   const completedStages = new Set(evidence.completedChecklistStages ?? []);
   if (toStatus === BookingStatus.IN_SERVICE && !evidence.managerOverride) {
-    if (!completedStages.has(ChecklistStage.TEAM_PREPARATION) || !completedStages.has(ChecklistStage.ARRIVAL_INSPECTION)) {
-      return { allowed: false, code: 'CHECKLIST_INCOMPLETE', message: 'أكمل قوائم التحضير وفحص الوصول قبل بدء الخدمة.' };
+    if (!completedStages.has(ChecklistStage.ARRIVAL_INSPECTION)) {
+      return { allowed: false, code: 'CHECKLIST_INCOMPLETE', message: 'أكمل قائمة فحص ومعاينة الوصول قبل بدء الخدمة.' };
     }
   }
 

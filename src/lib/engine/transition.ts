@@ -1,5 +1,6 @@
 import {
   BookingStatus,
+  ChecklistStage,
   FileType,
   Prisma,
   UserRole,
@@ -106,20 +107,21 @@ export async function transitionBookingStatus(
   const afterPhotoCount = booking.files.filter(
     (file) => file.fileType === FileType.AFTER_SERVICE && file.mimeType.startsWith('image/'),
   ).length;
-  const completedChecklistStages = booking.checklistInstances.flatMap((instance) => {
+  const completedChecklistStages = Object.values(ChecklistStage).filter((stage) => {
     const requiredItems = booking.service.checklistTemplates
-      .filter((template) => template.stage === instance.stage)
+      .filter((template) => template.stage === stage)
       .flatMap((template) => template.items);
-    if (requiredItems.length === 0 || !instance.completedAt) return [];
+    if (requiredItems.length === 0) return true;
+    const instance = booking.checklistInstances.find((i) => i.stage === stage);
+    if (!instance || !instance.completedAt) return false;
     const resultByItemId = new Map(instance.results.map((result) => [result.itemId, result]));
-    const satisfiesCurrentTemplate = requiredItems.every((item) => {
+    return requiredItems.every((item) => {
       const result = resultByItemId.get(item.id);
       return Boolean(
         result?.isChecked &&
         (!item.requiresNote || result.note?.trim()),
       );
     });
-    return satisfiesCurrentTemplate ? [instance.stage] : [];
   });
   const bypassedGuards: string[] = [];
   if (input.managerOverride && input.toStatus === BookingStatus.QUALITY_REVIEW) {

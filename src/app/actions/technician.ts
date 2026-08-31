@@ -54,11 +54,13 @@ const checklistResultSchema = z.object({
 });
 
 const EMPLOYEE_TARGET_STATUSES = new Set<BookingStatus>([
+  BookingStatus.ASSIGNED,
   BookingStatus.TEAM_ACKNOWLEDGED,
   BookingStatus.ON_THE_WAY,
   BookingStatus.ARRIVED,
   BookingStatus.IN_SERVICE,
   BookingStatus.QUALITY_REVIEW,
+  BookingStatus.DELIVERED,
   BookingStatus.EXECUTION_FAILED,
   BookingStatus.CUSTOMER_NO_SHOW,
   BookingStatus.ACCESS_DENIED,
@@ -216,10 +218,7 @@ export async function updateTechnicianTaskStatusAction(formData: FormData) {
 
   try {
     await db.$transaction(async (tx) => {
-      const booking = await requireOperationalBookingAccess(tx, actor, parsed.data.bookingId);
-      if (parsed.data.targetStatus === BookingStatus.IN_SERVICE) {
-        await assertRequiredMaterialsReady(tx, booking);
-      }
+      await requireOperationalBookingAccess(tx, actor, parsed.data.bookingId);
       await transitionBookingStatus(tx, {
         bookingId: parsed.data.bookingId,
         toStatus: parsed.data.targetStatus,
@@ -228,7 +227,7 @@ export async function updateTechnicianTaskStatusAction(formData: FormData) {
         reason: parsed.data.reason,
         metadata: { source: 'TECHNICIAN_APP' },
       });
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    }, { timeout: 20000, maxWait: 10000 });
 
     revalidatePath('/staff');
     return { success: true };
@@ -450,7 +449,6 @@ export async function toggleChecklistItemAction(formData: FormData) {
         const result = resultByItem.get(item.id);
         return Boolean(
           result?.isChecked &&
-          (!item.requiresPhoto || result.photoUrl) &&
           (!item.requiresNote || result.note?.trim()),
         );
       });

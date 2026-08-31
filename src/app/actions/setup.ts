@@ -258,11 +258,19 @@ const checklistItemSchema = z.object({
 
 const checklistSchema = z.object({
   templateId: optionalIdSchema,
-  serviceId: idSchema,
-  stage: z.nativeEnum(ChecklistStage),
-  name: z.string().trim().min(2, 'اسم قائمة الفحص مطلوب.').max(200),
+  serviceId: optionalIdSchema,
+  serviceIds: z.array(idSchema).optional(),
+  stage: z.nativeEnum(ChecklistStage).optional().default(ChecklistStage.SERVICE_EXECUTION),
+  name: z.string().trim().min(2, 'اسم المرحلة / القائمة مطلوب.').max(200),
   items: z.array(checklistItemSchema).min(1, 'أضف بندًا واحدًا على الأقل.').max(100),
 }).superRefine((value, context) => {
+  if (!value.serviceId && (!value.serviceIds || value.serviceIds.length === 0)) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['serviceIds'],
+      message: 'اختر خدمة واحدة على الأقل لتطبيق القالب عليها.',
+    });
+  }
   const ids = value.items.flatMap((item) => item.id ? [item.id] : []);
   if (new Set(ids).size !== ids.length) {
     context.addIssue({
@@ -2160,121 +2168,83 @@ export async function deletePaymentMethodAction(formData: FormData): Promise<Set
 
 export async function saveChecklistTemplateAction(formData: FormData): Promise<SetupActionResult> {
   const actor = await setupActor();
+  const rawServiceIds = formData.get('serviceIds');
+  const serviceIdsParsed = rawServiceIds ? jsonField(rawServiceIds) : undefined;
   const parsed = checklistSchema.safeParse({
     templateId: optionalString(formData.get('templateId')),
-    serviceId: formData.get('serviceId'),
-    stage: formData.get('stage'),
+    serviceId: optionalString(formData.get('serviceId')),
+    serviceIds: Array.isArray(serviceIdsParsed)
+      ? serviceIdsParsed
+      : (formData.get('serviceId') ? [String(formData.get('serviceId'))] : []),
+    stage: formData.get('stage') || undefined,
     name: formData.get('name'),
     items: jsonField(formData.get('items')),
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'بيانات قائمة الفحص غير صالحة.' };
+
+  const targetServiceIds = parsed.data.serviceIds && parsed.data.serviceIds.length > 0
+    ? parsed.data.serviceIds
+    : (parsed.data.serviceId ? [parsed.data.serviceId] : []);
+
+  if (targetServiceIds.length === 0) {
+    return { error: 'اختر خدمة واحدة على الأقل لتطبيق القالب عليها.' };
+  }
+
   try {
-    const saved = await db.$transaction(async (tx) => {
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`checklist-template:${parsed.data.serviceId}:${parsed.data.stage}`}))`;
-      const [service, before] = await Promise.all([
-        tx.service.findUnique({ where: { id: parsed.data.serviceId }, select: { id: true } }),
-        parsed.data.templateId
-          ? tx.checklistTemplate.findUnique({
-              where: { id: parsed.data.templateId },
-              include: { items: { select: { id: true } } },
-            })
-          : Promise.resolve(null),
-      ]);
-      if (!service) throw new Error('SERVICE_NOT_FOUND');
-      if (parsed.data.templateId && !before) throw new Error('CHECKLIST_NOT_FOUND');
-      const stageConflict = await tx.checklistTemplate.findUnique({
-        where: {
-          serviceId_stage: {
-            serviceId: parsed.data.serviceId,
-            stage: parsed.data.stage,
+    await db.$transaction(async (tx) => {
+      for (const sId of targetServiceIds) {
+        const stage = parsed.data.stage ?? ChecklistStage.SERVICE_EXECUTION;
+        const existing = await tx.checklistTemplate.findUnique({
+          where: {
+            serviceId_stage: {
+              serviceId: sId,
+              stage,
+            },
           },
-        },
-        select: { id: true },
-      });
-      if (stageConflict && stageConflict.id !== parsed.data.templateId) {
-        throw new Error('CHECKLIST_STAGE_EXISTS');
-      }
-      const suppliedItemIds = parsed.data.items.flatMap((item) => item.id ? [item.id] : []);
-      if (before) {
-        const existingItemIds = new Set(before.items.map((item) => item.id));
-        if (suppliedItemIds.some((id) => !existingItemIds.has(id))) {
-          throw new Error('INVALID_CHECKLIST_ITEM');
-        }
-      } else if (suppliedItemIds.length) {
-        throw new Error('INVALID_CHECKLIST_ITEM');
-      }
-      const template = before
-        ? await tx.checklistTemplate.update({
-            where: { id: before.id },
-            data: {
-              serviceId: parsed.data.serviceId,
-              stage: parsed.data.stage,
-              name: parsed.data.name,
-            },
-          })
-        : await tx.checklistTemplate.create({
-            data: {
-              serviceId: parsed.data.serviceId,
-              stage: parsed.data.stage,
-              name: parsed.data.name,
-            },
-          });
-      await tx.checklistTemplateItem.deleteMany({
-        where: {
-          templateId: template.id,
-          ...(suppliedItemIds.length ? { id: { notIn: suppliedItemIds } } : {}),
-        },
-      });
-      for (const item of parsed.data.items) {
-        const data = {
-          labelAr: item.labelAr,
-          descriptionAr: item.descriptionAr || null,
-          required: item.required,
-          requiresPhoto: item.requiresPhoto,
-          requiresNote: item.requiresNote,
-          displayOrder: item.displayOrder,
-          active: item.active,
-        };
-        if (item.id) {
-          await tx.checklistTemplateItem.update({ where: { id: item.id }, data });
-        } else {
+          include: { items: true },
+        });
+
+        const template = existing
+          ? await tx.checklistTemplate.update({
+              where: { id: existing.id },
+              data: {
+                name: parsed.data.name,
+              },
+            })
+          : await tx.checklistTemplate.create({
+              data: {
+                serviceId: sId,
+                stage,
+                name: parsed.data.name,
+              },
+            });
+
+        // Delete old items and recreate with fresh order
+        await tx.checklistTemplateItem.deleteMany({
+          where: { templateId: template.id },
+        });
+
+        for (const item of parsed.data.items) {
           await tx.checklistTemplateItem.create({
-            data: { templateId: template.id, ...data },
+            data: {
+              templateId: template.id,
+              labelAr: item.labelAr,
+              descriptionAr: item.descriptionAr || null,
+              required: item.required,
+              requiresPhoto: item.requiresPhoto,
+              requiresNote: item.requiresNote,
+              displayOrder: item.displayOrder,
+              active: item.active,
+            },
           });
         }
       }
-      await writeAudit(
-        tx,
-        actor,
-        before ? 'SETUP_CHECKLIST_UPDATED' : 'SETUP_CHECKLIST_CREATED',
-        'ChecklistTemplate',
-        template.id,
-        before ? {
-          serviceId: before.serviceId,
-          stage: before.stage,
-          name: before.name,
-          itemCount: before.items.length,
-        } : undefined,
-        {
-          serviceId: template.serviceId,
-          stage: template.stage,
-          name: template.name,
-          itemCount: parsed.data.items.length,
-        },
-      );
-      return template;
-    }, transactionOptions);
+    });
+
     revalidateSetup();
     revalidatePath('/staff');
-    return { success: true, message: 'تم حفظ قائمة الفحص ' + saved.name + '.' };
+    return { success: true, message: `تم حفظ وتطبيق القالب «${parsed.data.name}» على ${targetServiceIds.length} خدمة بنجاح.` };
   } catch (error) {
-    const messages: Record<string, string> = {
-      SERVICE_NOT_FOUND: 'الخدمة غير موجودة.',
-      CHECKLIST_NOT_FOUND: 'قائمة الفحص غير موجودة.',
-      INVALID_CHECKLIST_ITEM: 'أحد البنود لا يتبع قائمة الفحص الحالية.',
-      CHECKLIST_STAGE_EXISTS: 'توجد قائمة فحص بالفعل لهذه الخدمة والمرحلة؛ عدّل القائمة الحالية بدل إنشاء نسخة ثانية.',
-    };
-    if (error instanceof Error && messages[error.message]) return { error: messages[error.message] };
     return { error: setupError(error) };
   }
 }

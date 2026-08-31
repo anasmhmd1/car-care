@@ -1337,22 +1337,6 @@ function WorkforceSection({
           employee={selected}
           tools={tools}
         />
-        {selected ? (
-          <PermissionOverridesPanel
-            key={selected.id + '-permissions'}
-            employee={selected}
-            branches={allBranches.filter((candidate) => selected.branchIds.includes(candidate.id))}
-            permissions={permissions}
-            tools={tools}
-          />
-        ) : (
-          <Panel
-            title="استثناءات الصلاحيات"
-            description="أنشئ الحساب أولًا، ثم أضف فقط الاستثناءات اللازمة فوق صلاحيات الدور الافتراضية."
-          >
-            <EmptyState title="لا يوجد حساب محدد" text="اختر فنيًا محفوظًا لإدارة استثناءات صلاحياته." />
-          </Panel>
-        )}
       </div>
     </div>
   );
@@ -3116,25 +3100,25 @@ function ChecklistsSection({ services, tools }: {
   const service = services.find((candidate) => candidate.id === serviceId);
   const template = service?.checklistTemplates.find((candidate) => candidate.id === templateId);
 
-  if (!service) {
+  if (!services.length) {
     return <EmptyState title="لا توجد خدمات" text="أنشئ خدمة من كتالوج الخدمات قبل بناء قوائم التنفيذ." />;
   }
 
   return (
     <>
       <Panel
-        title="الخدمة المستهدفة"
-        description="قوائم التنفيذ عامة للخدمة وتُستخدم في كل الفروع القادرة على تنفيذها."
+        title="قوالب وقوائم مهام المراحل"
+        description="أنشئ وطبّق قوائم مهام الفحص والتنفيذ على خدمة واحدة أو عدة خدمات معاً بضغطة واحدة."
         actions={(
           <label className="text-xs font-bold text-white/55">
-            الخدمة
+            عرض قوالب خدمة:
             <select
               value={serviceId}
               onChange={(event) => {
                 setServiceId(event.target.value);
                 setTemplateId('new');
               }}
-              className={inputClass + ' min-w-72'}
+              className={inputClass + ' min-w-64'}
             >
               {services.map((item) => <option key={item.id} value={item.id}>{item.nameAr}{item.active ? '' : ' — متوقفة'}</option>)}
             </select>
@@ -3148,25 +3132,26 @@ function ChecklistsSection({ services, tools }: {
             className={(templateId === 'new' ? primaryButtonClass : secondaryButtonClass)}
           >
             <Plus className="size-4" aria-hidden="true" />
-            قالب جديد
+            + إضافة مرحلة / قائمة جديدة
           </button>
-          {service.checklistTemplates.map((item) => (
+          {service?.checklistTemplates.map((item) => (
             <button
               key={item.id}
               type="button"
               onClick={() => setTemplateId(item.id)}
               className={(templateId === item.id ? primaryButtonClass : secondaryButtonClass)}
             >
-              {STAGES.find((stage) => stage.value === item.stage)?.label ?? item.stage}
-              <span className="rounded-full bg-black/15 px-1.5 py-0.5 text-[10px]">{item.items.length}</span>
+              {item.name || STAGES.find((stage) => stage.value === item.stage)?.label || item.stage}
+              <span className="rounded-full bg-black/15 px-1.5 py-0.5 text-[10px]">{item.items.length} بنود</span>
             </button>
           ))}
         </div>
       </Panel>
 
       <ChecklistEditor
-        key={template?.id ?? 'new-' + service.id}
-        service={service}
+        key={template?.id ?? 'new-' + (service?.id || 'all')}
+        services={services}
+        initialServiceId={service?.id || services[0]?.id || ''}
         template={template}
         tools={tools}
       />
@@ -3175,14 +3160,20 @@ function ChecklistsSection({ services, tools }: {
 }
 
 function ChecklistEditor({
-  service,
+  services,
+  initialServiceId,
   template,
   tools,
 }: {
-  service: SetupServiceDto;
+  services: SetupServiceDto[];
+  initialServiceId: string;
   template?: SetupChecklistTemplateDto;
   tools: SectionTools;
 }) {
+  const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>(() =>
+    template ? [initialServiceId] : services.map((s) => s.id)
+  );
+
   const sequence = useRef(template?.items.length ?? 1);
   const [items, setItems] = useState<EditableChecklistItem[]>(() => template
     ? template.items.map((item) => ({
@@ -3232,6 +3223,7 @@ function ChecklistEditor({
 
   function submit(event: FormEvent<HTMLFormElement>) {
     const data = formDataFrom(event);
+    data.set('serviceIds', JSON.stringify(selectedServiceIds));
     data.set('items', JSON.stringify(items.map((item) => ({
       id: item.id,
       labelAr: item.labelAr,
@@ -3247,35 +3239,95 @@ function ChecklistEditor({
 
   return (
     <Panel
-      title={template ? 'تحرير ' + template.name : 'قالب جديد لـ ' + service.nameAr}
-      description="رتّب البنود حسب تسلسل التنفيذ، وحدد الأدلة المطلوبة لكل خطوة."
+      title={template ? 'تحرير مرحلة: ' + template.name : 'إنشاء مرحلة / قائمة مهام جديدة'}
+      description="اكتب اسم المرحلة وأضف بنود المهام المطلوب تنفيذها، وحدد الخدمات التابعة لها."
       actions={<ShieldCheck className="size-5 text-[#d4af37]" aria-hidden="true" />}
     >
       <form onSubmit={submit} className="space-y-6">
         {template ? <input type="hidden" name="templateId" value={template.id} /> : null}
-        <input type="hidden" name="serviceId" value={service.id} />
-        <div className="grid gap-4 sm:grid-cols-[220px_1fr]">
-          <label className="text-xs font-bold text-white/65">
-            المرحلة
-            <select name="stage" defaultValue={template?.stage ?? 'TEAM_PREPARATION'} className={inputClass}>
-              {STAGES.map((stage) => <option key={stage.value} value={stage.value}>{stage.label}</option>)}
-            </select>
+        <input type="hidden" name="stage" value={template?.stage ?? 'SERVICE_EXECUTION'} />
+
+        {/* Stage Name Input */}
+        <div>
+          <label className="text-xs font-bold text-white/80 block mb-1">
+            اسم المرحلة / القائمة
           </label>
-          <label className="text-xs font-bold text-white/65">
-            اسم القائمة
-            <input name="name" required minLength={2} maxLength={200} defaultValue={template?.name ?? ''} className={inputClass} />
-          </label>
+          <input
+            name="name"
+            required
+            minLength={2}
+            maxLength={200}
+            placeholder="مثال: تحضير الفريق وتجهيز المواد، فحص السيارة قبل البدء، تنفيذ الغسيل والفرش..."
+            defaultValue={template?.name ?? ''}
+            className={inputClass}
+          />
+        </div>
+
+        {/* Multi-Select Target Services */}
+        <div className="rounded-2xl border border-white/10 bg-black/40 p-4 space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <span className="text-xs font-bold text-[#f3e4a8]">
+              الخدمات المطبق عليها هذا القالب ({selectedServiceIds.length} من {services.length} خدمة):
+            </span>
+            <div className="flex items-center gap-2 text-xs">
+              <button
+                type="button"
+                onClick={() => setSelectedServiceIds(services.map((s) => s.id))}
+                className="font-bold text-[#d4af37] hover:underline"
+              >
+                تحديد كافة الخدمات
+              </button>
+              <span className="text-white/20">|</span>
+              <button
+                type="button"
+                onClick={() => setSelectedServiceIds([])}
+                className="font-bold text-white/40 hover:underline"
+              >
+                إلغاء التحديد
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+            {services.map((s) => {
+              const isChecked = selectedServiceIds.includes(s.id);
+              return (
+                <label
+                  key={s.id}
+                  className={`flex items-center gap-2.5 rounded-xl border p-2.5 text-xs font-bold transition-all cursor-pointer ${
+                    isChecked
+                      ? 'border-[#d4af37]/60 bg-[#d4af37]/15 text-white shadow-sm'
+                      : 'border-white/10 bg-white/[0.02] text-white/50 hover:bg-white/[0.05]'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isChecked}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedServiceIds((prev) => [...prev, s.id]);
+                      } else {
+                        setSelectedServiceIds((prev) => prev.filter((id) => id !== s.id));
+                      }
+                    }}
+                    className="size-4 accent-[#d4af37]"
+                  />
+                  <span className="truncate">{s.nameAr}</span>
+                </label>
+              );
+            })}
+          </div>
         </div>
 
         <div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <h3 className="font-black">بنود القائمة</h3>
-              <p className="mt-1 text-xs text-white/38">كل بند محفوظ كوحدة مستقلة ويمكنه طلب صورة أو ملاحظة.</p>
+              <h3 className="font-black text-white">بنود ومهام المرحلة</h3>
+              <p className="mt-1 text-xs text-white/45">أضف المهام والخطوات التي يجب على الفنيين تنفيذها وتأكيدها.</p>
             </div>
             <button type="button" onClick={addItem} className={secondaryButtonClass}>
               <Plus className="size-4" aria-hidden="true" />
-              إضافة بند
+              إضافة بند مهمة
             </button>
           </div>
 

@@ -182,7 +182,8 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
   ) as Record<DelegatedQueuePermission, boolean>;
 
   const hasDelegatedOperations =
-    Object.values(delegatedEnabled).some(Boolean) || canManagePrices;
+    employee.role !== UserRole.EMPLOYEE &&
+    (Object.values(delegatedEnabled).some(Boolean) || canManagePrices);
 
   const canAccessAssignedTeamTasks = !teamMember
     ? true
