@@ -43,7 +43,12 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
         shortDescriptionAr: true,
         coverImage: true,
         durationMinutes: true,
+        slotCount: true,
         basePrice: true,
+        requiresDeposit: true,
+        depositType: true,
+        depositValue: true,
+        requiresFullPrepayment: true,
         benefits: true,
         includedItems: true,
       },
@@ -101,87 +106,98 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
           </p>
         </div>
 
-        {/* Collection Filter Bar */}
-        {collections.length > 0 && (
-          <div className="flex flex-wrap items-center justify-center gap-2.5 bg-[#101010] p-3 rounded-2xl border border-neutral-800 max-w-4xl mx-auto">
+        {/* View Switcher / Tabs */}
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-neutral-800/80 pb-6">
+          <div className="flex items-center gap-2 p-1 rounded-2xl bg-[#111111] border border-neutral-800">
             <Link
-              href={isViewAll ? '/services?view=all' : '/services'}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-                !activeCollectionId
-                  ? 'gold-gradient text-white shadow-md'
-                  : 'bg-[#181818] text-white hover:bg-[#222]'
+              href="/services"
+              className={`px-5 py-2.5 rounded-xl text-xs sm:text-sm font-black transition-all flex items-center gap-2 ${
+                !isViewAll
+                  ? 'gold-gradient text-neutral-950 shadow-md shadow-[#cea355]/20'
+                  : 'text-neutral-400 hover:text-white hover:bg-neutral-800/50'
               }`}
             >
-              <Layers className="w-3.5 h-3.5 text-white" />
-              <span>جميع الخدمات ({allServices.length})</span>
+              <Layers className="w-4 h-4" />
+              <span>الخدمات الفردية</span>
             </Link>
+            <Link
+              href="/services?view=all"
+              className={`px-5 py-2.5 rounded-xl text-xs sm:text-sm font-black transition-all flex items-center gap-2 ${
+                isViewAll
+                  ? 'gold-gradient text-neutral-950 shadow-md shadow-[#cea355]/20'
+                  : 'text-neutral-400 hover:text-white hover:bg-neutral-800/50'
+              }`}
+            >
+              <Award className="w-4 h-4" />
+              <span>كافة الخدمات والاشتراكات</span>
+            </Link>
+          </div>
 
+          <span className="text-xs text-neutral-400 font-semibold">
+            {displayedServices.length} خدمات متاحة للحجز
+          </span>
+        </div>
+
+        {/* Collections Filter Pills */}
+        {collections.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2.5 pt-2">
+            <span className="text-xs font-bold text-neutral-400 ml-2 flex items-center gap-1.5">
+              <Filter className="w-3.5 h-3.5 text-[#cea355]" />
+              <span>التصنيفات:</span>
+            </span>
+            <Link
+              href="/services"
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border ${
+                !activeCollectionId
+                  ? 'border-[#cea355] bg-[#cea355]/15 text-[#edce8b]'
+                  : 'border-neutral-800 bg-[#121212] text-neutral-400 hover:border-neutral-700 hover:text-white'
+              }`}
+            >
+              الكل ({allServices.length})
+            </Link>
             {collections.map((col) => {
               const isSelected = activeCollectionId === col.id;
-              const viewParam = isViewAll ? '&view=all' : '';
               return (
                 <Link
                   key={col.id}
-                  href={`/services?collection=${col.id}${viewParam}`}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  href={`/services?collection=${encodeURIComponent(col.id)}`}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border flex items-center gap-1.5 ${
                     isSelected
-                      ? 'gold-gradient text-white shadow-md'
-                      : 'bg-[#181818] text-white hover:bg-[#222]'
+                      ? 'border-[#cea355] bg-[#cea355]/15 text-[#edce8b]'
+                      : 'border-neutral-800 bg-[#121212] text-neutral-400 hover:border-neutral-700 hover:text-white'
                   }`}
                 >
                   <span>{col.titleAr}</span>
+                  {isSelected && <X className="w-3 h-3 text-[#cea355]" />}
                 </Link>
               );
             })}
           </div>
         )}
 
-        {/* Active Collection Filter Notification */}
-        {selectedCollection && (
-          <div className="p-4 rounded-2xl bg-[#121212] border border-[#cea355]/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-            <div className="flex items-center gap-2">
-              <Filter className="w-4 h-4 text-[#edce8b]" />
-              <span className="text-white">
-                أنت تستعرض خدمات مجموعة: <strong className="text-white text-sm">{selectedCollection.titleAr}</strong>
-              </span>
-            </div>
-            <Link
-              href={isViewAll ? '/services?view=all' : '/services'}
-              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-black/60 border border-neutral-700 text-white hover:border-[#cea355] transition-all self-start sm:self-auto"
-            >
-              <X className="w-3.5 h-3.5 text-white" />
-              <span>عرض كافة الخدمات</span>
-            </Link>
-          </div>
-        )}
-
         {/* ==================================================== */}
-        {/* 1. INDIVIDUAL SERVICES SECTION                       */}
+        {/* 1. SERVICES GRID SECTION                             */}
         {/* ==================================================== */}
         {showServices && (
-          <section id="individual-services" className="space-y-10">
-            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-neutral-800/80 pb-6">
-              <div className="space-y-1">
-                <span className="text-xs font-bold text-[#edce8b] uppercase tracking-wider">حجز مباشر لكل زيارة</span>
-                <h2 className="text-2xl sm:text-3xl font-black text-white">خدمات بريق المتخصصة</h2>
-              </div>
-              <span className="text-xs font-semibold text-white bg-[#121212] px-3.5 py-1.5 rounded-full border border-neutral-800">
-                {displayedServices.length} خدمة متوفرة
-              </span>
-            </div>
-
+          <section id="individual-services" className="space-y-6">
             {displayedServices.length === 0 ? (
-              <section className="rounded-3xl border border-neutral-800 bg-[#121212] p-10 text-center" aria-labelledby="services-empty-title">
-                <h3 id="services-empty-title" className="text-xl font-bold text-white">لا توجد خدمات متاحة في هذا التصنيف حالياً</h3>
-                <p className="mt-2 text-sm text-white">يمكنك استعراض كافة الخدمات المتوفرة أو التواصل مع فريق بريق.</p>
-                <Link href="/services" className="mt-5 inline-flex min-h-11 items-center justify-center rounded-xl gold-gradient px-6 py-2.5 text-sm font-bold text-white hover:brightness-110 transition-all">
-                  استعرض كافة الخدمات
+              <section aria-label="لا توجد خدمات مطابقة" className="text-center py-20 rounded-3xl bg-[#121212] border border-neutral-800">
+                <p className="text-neutral-400 text-sm font-semibold">لا توجد خدمات متاحة ضمن هذا التصنيف حالياً.</p>
+                <Link href="/services" className="mt-4 inline-block px-5 py-2.5 rounded-xl gold-gradient text-neutral-950 font-bold text-xs">
+                  عرض كافة الخدمات
                 </Link>
               </section>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {displayedServices.map((service) => {
                   const realImg = getServiceRealImage(service.slug, service.coverImage);
+                  const slotCount = service.slotCount || Math.max(1, Math.round(service.durationMinutes / 60));
+                  const depositEgp = service.requiresFullPrepayment
+                    ? service.basePrice
+                    : service.depositType === 'PERCENTAGE'
+                      ? Math.round((service.basePrice * (service.depositValue || 30)) / 100)
+                      : (service.depositValue || 30);
+
                   return (
                     <div
                       key={service.id}
@@ -195,9 +211,9 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
                             sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
                             className="w-full h-full object-cover group-hover:scale-108 transition-transform duration-700"
                           />
-                          <div className="absolute top-4 right-4 bg-black/85 backdrop-blur-md px-3.5 py-1.5 rounded-full text-xs font-bold text-[#edce8b] border border-[#cea355]/40 flex items-center gap-1.5">
-                            <Clock className="w-3.5 h-3.5 text-white" />
-                            <span>المدة: {service.durationMinutes} دقيقة</span>
+                          <div className="absolute top-4 right-4 bg-black/85 backdrop-blur-md px-3.5 py-1.5 rounded-full text-xs font-bold text-[#edce8b] border border-[#cea355]/40 flex items-center gap-1.5 shadow-lg">
+                            <Clock className="w-3.5 h-3.5 text-[#d4af37]" />
+                            <span>المدة: {service.durationMinutes} دقيقة ({slotCount} سلوت)</span>
                           </div>
                         </div>
 
@@ -205,7 +221,7 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
                           <h3 className="text-xl font-extrabold text-white group-hover:text-[#edce8b] transition-colors">
                             {service.nameAr}
                           </h3>
-                          <p className="text-white text-xs leading-relaxed line-clamp-2">
+                          <p className="text-neutral-300 text-xs leading-relaxed line-clamp-2">
                             {service.shortDescriptionAr}
                           </p>
 
@@ -218,8 +234,9 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
                                 ? (service.benefits as string[])
                                 : (Array.isArray(service.includedItems) ? (service.includedItems as string[]) : [])
                               ).slice(0, 3).map((item, idx) => (
-                                <div key={idx} className="text-xs text-white flex items-center gap-2">
-                                  <span className="truncate text-white/90">{item}</span>
+                                <div key={idx} className="text-xs text-neutral-300 flex items-center gap-2">
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-[#cea355] shrink-0" />
+                                  <span className="truncate text-neutral-200">{item}</span>
                                 </div>
                               ))}
                             </div>
@@ -230,8 +247,23 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
                       <div className="p-7 pt-0 space-y-4">
                         <div className="flex items-center justify-between border-t border-neutral-800/80 pt-4">
                           <div>
-                            <span className="text-[11px] text-white block font-medium">السعر يبدأ من</span>
+                            <span className="text-[11px] text-neutral-400 block font-medium">السعر يبدأ من</span>
                             <span className="text-2xl font-black text-[#edce8b]">{service.basePrice} <span className="text-xs font-normal text-white">ج.م</span></span>
+                            {service.requiresFullPrepayment ? (
+                              <span className="mt-1 block text-[10px] font-bold text-amber-400">
+                                دفع كامل المبلغ مسبقاً
+                              </span>
+                            ) : service.requiresDeposit ? (
+                              <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-bold text-[#f3e4a8] bg-[#d4af37]/15 border border-[#d4af37]/35 px-2 py-0.5 rounded-md">
+                                <span>العربون:</span>
+                                <span className="text-white">{depositEgp} ج.م</span>
+                                {service.depositType === 'PERCENTAGE' && <span className="text-[#cea355]">({service.depositValue}%)</span>}
+                              </span>
+                            ) : (
+                              <span className="mt-1 block text-[10px] font-bold text-emerald-400">
+                                بدون عربون مسبق
+                              </span>
+                            )}
                           </div>
 
                           <div className="flex items-center gap-2">
@@ -243,7 +275,7 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
                             </Link>
                             <Link
                               href={`/services/${service.slug}/book`}
-                              className="px-5 py-2.5 rounded-xl gold-gradient text-white font-extrabold text-xs hover:brightness-110 transition-all shadow-lg shadow-[#cea355]/20 active:scale-95"
+                              className="px-5 py-2.5 rounded-xl gold-gradient text-neutral-950 font-extrabold text-xs hover:brightness-110 transition-all shadow-lg shadow-[#cea355]/20 active:scale-95"
                             >
                               احجز الآن
                             </Link>

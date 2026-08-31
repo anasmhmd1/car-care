@@ -6,7 +6,7 @@ import {
   UserRole,
 } from '@prisma/client';
 import { db } from '@/lib/db';
-import { evaluateRequestedInterval } from './availability';
+import { evaluateRequestedInterval, SCHEDULE_BLOCKING_STATUSES } from './availability';
 import { resolveTravelMinutes, type TravelPolicy } from './operations-math';
 import { localDateBoundsUtc } from './time';
 import { transitionBookingStatus } from './transition';
@@ -239,43 +239,68 @@ export async function assignTeamToBookingInTransaction(
     return { assigned: false, reason: 'الحجز بانتظار اختيار مدير التشغيل لفريق.', needsManualReview: true };
   }
 
-  const availability = await evaluateRequestedInterval(tx, {
-    branchId: booking.branchId,
-    serviceId: booking.serviceId,
-    coverageAreaId: booking.coverageAreaId,
-    vehicleSize: booking.vehicle.vehicleSize,
-    addonIds: booking.addons.map(({ addonId }) => addonId),
-    startAt: booking.startAt,
-    excludeBookingId: booking.id,
-    reservedDurationMinutes: booking.totalDurationMinutes,
-  });
+  let candidateTeamIds: string[] = [];
 
-  if (!availability?.feasibleTeamIds.length) {
-    if (input.preferredTeamId) {
-      throw new AssignmentError('الفريق المختار لم يعد متاحًا لهذا الموعد.', 'TEAM_NOT_FEASIBLE');
+  if (input.preferredTeamId) {
+    const slotEnd = new Date(booking.startAt.getTime() + booking.totalDurationMinutes * 60_000);
+    const preferred = await tx.team.findFirst({
+      where: {
+        id: input.preferredTeamId,
+        branchId: booking.branchId,
+        active: true,
+      },
+      include: {
+        bookings: {
+          where: {
+            id: { not: booking.id },
+            startAt: { lt: slotEnd },
+            endAt: { gt: booking.startAt },
+            bookingStatus: { in: SCHEDULE_BLOCKING_STATUSES },
+            terminalReopenSourceStatus: null,
+            deletedAt: null,
+          },
+        },
+      },
+    });
+
+    if (!preferred) {
+      throw new AssignmentError('الفريق المختار غير متاح أو غير تابع لهذا الفرع.', 'TEAM_NOT_FEASIBLE');
     }
-    await moveToManualReview(tx, booking.id, booking.bookingStatus, input);
-    return {
-      assigned: false,
-      reason: 'لا يوجد فريق مؤهل وخالٍ من التعارض لهذا الموعد.',
-      needsManualReview: true,
-    };
-  }
+    if (preferred.bookings.length > 0) {
+      throw new AssignmentError('الفريق المختار لديه حجز آخر متعارض في نفس هذا التوقيت.', 'TEAM_NOT_FEASIBLE');
+    }
+    candidateTeamIds = [preferred.id];
+  } else {
+    const availability = await evaluateRequestedInterval(tx, {
+      branchId: booking.branchId,
+      serviceId: booking.serviceId,
+      coverageAreaId: booking.coverageAreaId,
+      vehicleSize: booking.vehicle.vehicleSize,
+      addonIds: booking.addons.map(({ addonId }) => addonId),
+      startAt: booking.startAt,
+      excludeBookingId: booking.id,
+      reservedDurationMinutes: booking.totalDurationMinutes,
+    });
 
-  if (
-    input.preferredTeamId &&
-    !availability.feasibleTeamIds.includes(input.preferredTeamId)
-  ) {
-    throw new AssignmentError('الفريق المختار غير مؤهل أو لديه تعارض في الموعد.', 'TEAM_NOT_FEASIBLE');
+    if (!availability?.feasibleTeamIds.length) {
+      await moveToManualReview(tx, booking.id, booking.bookingStatus, input);
+      return {
+        assigned: false,
+        reason: 'لا يوجد فريق مؤهل وخالٍ من التعارض لهذا الموعد.',
+        needsManualReview: true,
+      };
+    }
+    candidateTeamIds = availability.feasibleTeamIds;
   }
 
   const dayBounds = localDateBoundsUtc(
     dateInZone(booking.startAt, booking.branch.timezone),
     booking.branch.timezone,
   );
+
   const [candidateTeams, travelRows] = await Promise.all([
     tx.team.findMany({
-      where: { id: { in: availability.feasibleTeamIds } },
+      where: { id: { in: candidateTeamIds } },
       include: {
         bookings: {
           where: {

@@ -223,6 +223,8 @@ export default async function BookingDetailPage({ params }: BookingDetailProps) 
 
         <BookingActionsClient
           bookingId={booking.id}
+          bookingNumber={booking.bookingNumber}
+          serviceName={booking.service.nameAr}
           customerName={user.fullName}
           customerPhone={user.phone}
           paymentMethods={paymentMethods.map((method) => ({

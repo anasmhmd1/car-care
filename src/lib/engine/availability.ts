@@ -228,7 +228,10 @@ async function loadAvailabilityContext(
       where: {
         branchId: branch.id,
         active: true,
-        capabilities: { some: { serviceId: service.id } },
+        OR: [
+          { capabilities: { none: {} } },
+          { capabilities: { some: { serviceId: service.id } } },
+        ],
       },
       include: {
         members: {

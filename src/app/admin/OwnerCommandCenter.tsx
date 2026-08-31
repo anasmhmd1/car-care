@@ -796,8 +796,16 @@ function BookingCard({
 
       {/* Full-screen / Modal Receipt Preview */}
       {showReceiptModal && proof?.proofFileUrl && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/85 backdrop-blur-md p-4" role="dialog" aria-modal="true">
-          <div className="w-full max-w-2xl space-y-4 rounded-3xl border border-[#d4af37]/40 bg-[#121214] p-5 sm:p-6 shadow-2xl">
+        <div
+          className="fixed inset-0 z-50 overflow-y-auto bg-black/90 backdrop-blur-md p-4 sm:p-6 flex min-h-screen items-center justify-center animate-in fade-in duration-200"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setShowReceiptModal(false)}
+        >
+          <div
+            className="relative w-full max-w-3xl my-auto space-y-4 rounded-3xl border border-[#d4af37]/40 bg-[#121214] p-5 sm:p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
               <div>
                 <h3 className="text-lg font-black text-white">إيصال الدفع · حجز #{booking.bookingNumber}</h3>
@@ -812,23 +820,34 @@ function BookingCard({
               </button>
             </div>
 
-            <div className="relative max-h-[60vh] overflow-auto rounded-2xl border border-neutral-800 bg-black/60 flex items-center justify-center p-2">
+            <div className="relative max-h-[70vh] min-h-[300px] overflow-auto rounded-2xl border border-neutral-800 bg-black/80 flex items-center justify-center p-3">
               <img
                 src={proof.proofFileUrl}
                 alt="إيصال الدفع الكامل"
-                className="max-h-[55vh] w-auto max-w-full object-contain rounded-lg"
+                className="max-h-[65vh] w-auto max-w-full object-contain rounded-lg shadow-lg"
               />
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => handleDownloadReceipt(proof.proofFileUrl!, `receipt-${booking.bookingNumber}.jpg`)}
-                className="inline-flex items-center gap-2 rounded-xl bg-[#d4af37] px-4 py-2.5 text-xs font-black text-neutral-950 hover:bg-[#e5c45a] transition-colors"
-              >
-                <Download className="size-4" />
-                <span>تحميل الوصل على الهاتف / الجهاز</span>
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleDownloadReceipt(proof.proofFileUrl!, `receipt-${booking.bookingNumber}.jpg`)}
+                  className="inline-flex items-center gap-2 rounded-xl bg-[#d4af37] px-4 py-2.5 text-xs font-black text-neutral-950 hover:bg-[#e5c45a] transition-colors"
+                >
+                  <Download className="size-4" />
+                  <span>تحميل الوصل</span>
+                </button>
+                <a
+                  href={proof.proofFileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 rounded-xl border border-[#d4af37]/40 bg-[#d4af37]/10 px-4 py-2.5 text-xs font-bold text-[#f3e4a8] hover:bg-[#d4af37]/20 transition-colors"
+                >
+                  <ExternalLink className="size-4" />
+                  <span>فتح بالحجم الأصلي الكامل</span>
+                </a>
+              </div>
               <div className="flex items-center gap-2">
                 <button
                   type="button"

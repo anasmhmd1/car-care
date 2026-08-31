@@ -27,6 +27,8 @@ interface PaymentMethodOption {
 
 interface Props {
   bookingId: string;
+  bookingNumber?: string;
+  serviceName?: string;
   customerName: string;
   customerPhone: string;
   paymentMethods: PaymentMethodOption[];
@@ -68,6 +70,8 @@ async function uploadBookingFile(
 
 export default function BookingActionsClient({
   bookingId,
+  bookingNumber,
+  serviceName,
   customerName,
   customerPhone,
   paymentMethods,
@@ -130,21 +134,20 @@ export default function BookingActionsClient({
     execute(async () => {
       const transferTimestamp = String(values.get('transferTimestamp') ?? '');
       if (transferTimestamp) values.set('transferTimestamp', new Date(transferTimestamp).toISOString());
-      const bookingFileId = uploadedPaymentFileId ?? await uploadBookingFile(
+      const evidenceFileId = uploadedPaymentFileId ?? await uploadBookingFile(
         bookingId,
         'payment-proofs',
         paymentFile!,
       );
-      setUploadedPaymentFileId(bookingFileId);
       values.set('bookingId', bookingId);
-      values.set('bookingFileId', bookingFileId);
+      values.set('evidenceFileId', evidenceFileId);
       const result = await uploadPaymentProofAction(values);
       if (!result.error) {
         setUploadedPaymentFileId(null);
         setPaymentFile(null);
       }
       return result;
-    }, 'تم إرسال إثبات التحويل للمراجعة.', form);
+    }, 'تم رفع إثبات التحويل بنجاح وسيبدأ فريق التشغيل مراجعته.', form);
   }
 
   function submitCancellation(event: FormEvent<HTMLFormElement>) {
@@ -152,33 +155,25 @@ export default function BookingActionsClient({
     const form = event.currentTarget;
     const values = new FormData(form);
     execute(async () => {
-      const alternativeDate = String(values.get('alternativeDates') ?? '');
-      if (alternativeDate) values.set('alternativeDates', new Date(alternativeDate).toISOString());
-      if (cancellationFile) {
-        const attachmentFileId = await uploadBookingFile(
-          bookingId,
-          'cancellation-evidence',
-          cancellationFile,
-        );
-        values.set('attachmentFileId', attachmentFileId);
-      }
+      const evidenceFileId = cancellationFile
+        ? await uploadBookingFile(bookingId, 'cancellation-evidence', cancellationFile)
+        : undefined;
       values.set('bookingId', bookingId);
+      if (evidenceFileId) values.set('evidenceFileId', evidenceFileId);
       return requestCancellationAction(values);
-    }, 'تم إرسال طلب الإلغاء للمراجعة.', form);
+    }, 'تم تسجيل طلب الإلغاء وسيتم مراجعته طبقاً لسياسة الإلغاء.', form);
   }
 
   function submitReschedule(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
     const values = new FormData(form);
-    const requestedStartAt = String(values.get('requestedStartAt') ?? '');
-    if (requestedStartAt) values.set('requestedStartAt', new Date(requestedStartAt).toISOString());
-    values.set('bookingId', bookingId);
-    execute(
-      () => requestRescheduleAction(values),
-      'تم إرسال الموعد المقترح لمدير التشغيل.',
-      form,
-    );
+    execute(async () => {
+      const requestedStartAt = String(values.get('requestedStartAt') ?? '');
+      if (requestedStartAt) values.set('requestedStartAt', new Date(requestedStartAt).toISOString());
+      values.set('bookingId', bookingId);
+      return requestRescheduleAction(values);
+    }, 'تم تسجيل طلب إعادة الجدولة وبانتظار اعتماد الموعد الجديد.', form);
   }
 
   function submitComplaint(event: FormEvent<HTMLFormElement>) {
@@ -208,8 +203,15 @@ export default function BookingActionsClient({
   return (
     <section aria-labelledby="booking-actions-heading" className="space-y-5 rounded-3xl border border-[#c9a227]/25 bg-[#141414] p-5 sm:p-7">
       <div>
-        <h2 id="booking-actions-heading" className="text-lg font-bold text-white">إجراءات الحجز</h2>
-        <p className="mt-1 text-xs text-neutral-400">كل طلب يُراجع ويُسجل في سجل الحجز؛ لن يتغير الموعد أو الدفع من الواجهة فقط.</p>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 id="booking-actions-heading" className="text-lg font-bold text-white">إجراءات الحجز</h2>
+          {bookingNumber && (
+            <span className="text-xs font-bold text-[#e5c45a] bg-[#c9a227]/10 border border-[#c9a227]/30 px-3 py-1 rounded-xl">
+              رقم الحجز: {bookingNumber} {serviceName ? `• ${serviceName}` : ''}
+            </span>
+          )}
+        </div>
+        <p className="mt-1 text-xs text-neutral-400">تُطبق هذه الإجراءات على هذا الحجز المحدد؛ كل طلب يُراجع ويُسجل في سجل العمليات.</p>
       </div>
 
       <div role="tablist" aria-label="إجراءات الحجز" className="flex flex-wrap gap-2">

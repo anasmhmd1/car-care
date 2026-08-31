@@ -123,7 +123,7 @@ export default async function ServiceDetailPage({ params }: ServiceDetailProps) 
           <div>
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#141414] border border-[#c9a227]/30 text-xs font-bold text-[#e5c45a]">
               <Clock className="w-4 h-4 text-[#c9a227]" aria-hidden="true" />
-              <span>المدة المتوقعة: {service.durationMinutes} دقيقة</span>
+              <span>المدة المتوقعة: {service.durationMinutes} دقيقة ({service.slotCount || Math.max(1, Math.round(service.durationMinutes / 60))} سلوت)</span>
             </div>
           </div>
 
@@ -140,15 +140,19 @@ export default async function ServiceDetailPage({ params }: ServiceDetailProps) 
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6 pb-6 border-b border-white/10">
             <div className="flex flex-wrap items-center gap-6 sm:gap-10">
               <div>
-                <span className="text-xs font-bold text-neutral-400 block mb-1">السعر</span>
+                <span className="text-xs font-bold text-neutral-400 block mb-1">السعر يبدأ من</span>
                 <span className="text-3xl sm:text-4xl font-black text-[#e5c45a]">{service.basePrice} ج.م</span>
               </div>
               <div className="border-r border-white/10 pr-6 sm:pr-10">
-                <span className="text-xs font-bold text-neutral-400 block mb-1">مبلغ العربون المبدئي</span>
+                <span className="text-xs font-bold text-neutral-400 block mb-1">العربون المطلوب للتأكيد</span>
                 <span className="text-xl sm:text-2xl font-black text-white">
-                  {service.depositType === 'PERCENTAGE' ? `${service.depositValue}%` : `${service.depositValue} ج.م`}
+                  {service.requiresFullPrepayment
+                    ? `${service.basePrice} ج.م (كامل)`
+                    : service.depositType === 'PERCENTAGE'
+                      ? `${Math.round((service.basePrice * (service.depositValue || 30)) / 100)} ج.م (${service.depositValue}%)`
+                      : `${service.depositValue} ج.م`}
                 </span>
-                <span className="text-[11px] text-neutral-400 block mt-0.5">لتأكيد حجز الموعد مسبقاً</span>
+                <span className="text-[11px] text-neutral-400 block mt-0.5">يُخصم تلقائياً من إجمالي الحساب</span>
               </div>
             </div>
 
