@@ -71,6 +71,13 @@ export class LocalVolumeStorageAdapter implements StorageAdapter {
       await mkdir(path.dirname(fallbackDest), { recursive: true });
       await writeFile(fallbackDest, data);
     }
+    try {
+      const publicDest = path.resolve(process.cwd(), 'public', 'uploads', normalizedKey(key));
+      await mkdir(path.dirname(publicDest), { recursive: true });
+      await writeFile(publicDest, data);
+    } catch {
+      // Ignore if public directory write fails
+    }
   }
 
   async read(key: string) {
@@ -82,7 +89,12 @@ export class LocalVolumeStorageAdapter implements StorageAdapter {
         try {
           return await readFile(this.resolveKey(key, true));
         } catch {
-          return null;
+          try {
+            const publicPath = path.resolve(process.cwd(), 'public', 'uploads', normalizedKey(key));
+            return await readFile(publicPath);
+          } catch {
+            return null;
+          }
         }
       }
       throw error;
