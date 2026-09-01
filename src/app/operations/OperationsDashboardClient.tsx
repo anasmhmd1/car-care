@@ -1249,16 +1249,18 @@ export default function OperationsDashboardClient({
                 </div>
                 {/* Sub-filter Pills */}
                 <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-neutral-800 bg-[#121215] p-1">
-                  {[
-                    { id: 'ALL', label: 'الكل', count: pendingProofs.length + reviewBookings.length + unassignedBookings.length },
-                    { id: 'PROOFS', label: 'إثباتات الدفع', count: pendingProofs.length },
-                    { id: 'REVIEW', label: 'مراجعة التشغيل', count: reviewBookings.length },
-                    { id: 'UNASSIGNED', label: 'قائمة الإسناد', count: unassignedBookings.length },
-                  ].map((filter) => (
+                  {(
+                    [
+                      { id: 'ALL', label: 'الكل', count: pendingProofs.length + reviewBookings.length + unassignedBookings.length },
+                      { id: 'PROOFS', label: 'إثباتات الدفع', count: pendingProofs.length },
+                      { id: 'REVIEW', label: 'مراجعة التشغيل', count: reviewBookings.length },
+                      { id: 'UNASSIGNED', label: 'قائمة الإسناد', count: unassignedBookings.length },
+                    ] as const
+                  ).map((filter) => (
                     <button
                       key={filter.id}
                       type="button"
-                      onClick={() => setBookingQueueSubFilter(filter.id as any)}
+                      onClick={() => setBookingQueueSubFilter(filter.id)}
                       className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all cursor-pointer ${
                         bookingQueueSubFilter === filter.id
                           ? 'bg-[#d4af37] text-neutral-950 font-black shadow-sm'
