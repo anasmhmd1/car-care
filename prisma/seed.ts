@@ -1017,7 +1017,7 @@ async function main() {
       slotCount: definition.slotCount,
       requiredTeamSize: 2,
       requiresDeposit: true,
-      depositType: 'PERCENTAGE',
+      depositType: 'FIXED',
       depositValue: definition.depositValue,
       requiresFullPrepayment: false,
       active: true,

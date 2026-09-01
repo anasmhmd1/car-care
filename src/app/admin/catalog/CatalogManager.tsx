@@ -266,7 +266,7 @@ function ProductEditor({
   const [galleryImages, setGalleryImages] = useState(service?.galleryImages ?? []);
   const [branchOverrides, setBranchOverrides] = useState<BranchOverrideDto[]>(service?.branchOverrides ?? []);
   const [materialRequirements, setMaterialRequirements] = useState<CatalogMaterialRequirementDto[]>(service?.materialRequirements ?? []);
-  const [depositType, setDepositType] = useState<string>(service?.depositType ?? 'PERCENTAGE');
+  const [depositType, setDepositType] = useState<string>(service?.depositType ?? 'FIXED');
   const [slotCount, setSlotCount] = useState<number>(() => {
     if (service?.slotCount && service.slotCount >= 1) return service.slotCount;
     if (service?.durationMinutes) return Math.max(1, Math.round(service.durationMinutes / 60));
@@ -532,8 +532,8 @@ function ProductEditor({
               onChange={(event) => setDepositType(event.target.value)}
               className={inputClass}
             >
-              <option value="PERCENTAGE">نسبة مئوية (%)</option>
               <option value="FIXED">مبلغ ثابت (ج.م)</option>
+              <option value="PERCENTAGE">نسبة مئوية (%)</option>
             </select>
           </label>
           <label className="text-xs font-bold text-white/70">

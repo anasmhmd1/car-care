@@ -642,8 +642,8 @@ model Service {
   slotCount               Int      @default(1)
   requiredTeamSize        Int      @default(2)
   requiresDeposit         Boolean  @default(true)
-  depositType             String   @default("PERCENTAGE") // FIXED, PERCENTAGE
-  depositValue            Int      @default(30)
+  depositType             String   @default("FIXED") // FIXED, PERCENTAGE
+  depositValue            Int      @default(100)
   requiresFullPrepayment  Boolean  @default(false)
   active                  Boolean  @default(true)
   bookableOnline          Boolean  @default(true)
