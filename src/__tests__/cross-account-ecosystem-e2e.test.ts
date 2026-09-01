@@ -771,12 +771,12 @@ describe('🔒 GO-LIVE CLOSURE: Cross-Account Ecosystem Comprehensive E2E', () =
   describe('§7 Evidence Stage & Checklist Gating', () => {
 
     describe('Checklist Stage Windows', () => {
-      it('TEAM_PREPARATION: allowed in TEAM_ACKNOWLEDGED, ON_THE_WAY, ARRIVED', () => {
+      it('TEAM_PREPARATION: allowed in ASSIGNED, TEAM_ACKNOWLEDGED, ON_THE_WAY, ARRIVED', () => {
+        expect(canEditChecklistStage(BookingStatus.ASSIGNED, ChecklistStage.TEAM_PREPARATION)).toBe(true);
         expect(canEditChecklistStage(BookingStatus.TEAM_ACKNOWLEDGED, ChecklistStage.TEAM_PREPARATION)).toBe(true);
         expect(canEditChecklistStage(BookingStatus.ON_THE_WAY, ChecklistStage.TEAM_PREPARATION)).toBe(true);
         expect(canEditChecklistStage(BookingStatus.ARRIVED, ChecklistStage.TEAM_PREPARATION)).toBe(true);
         // Blocked elsewhere
-        expect(canEditChecklistStage(BookingStatus.ASSIGNED, ChecklistStage.TEAM_PREPARATION)).toBe(false);
         expect(canEditChecklistStage(BookingStatus.IN_SERVICE, ChecklistStage.TEAM_PREPARATION)).toBe(false);
         expect(canEditChecklistStage(BookingStatus.QUALITY_REVIEW, ChecklistStage.TEAM_PREPARATION)).toBe(false);
         expect(canEditChecklistStage(BookingStatus.DELIVERED, ChecklistStage.TEAM_PREPARATION)).toBe(false);

@@ -69,10 +69,10 @@ describe('Field Employee / Technician (موظف وفني التنفيذ) Complet
   // =========================================================================
   describe('2. Checklist Stage Windows & Evidence Stage Gates', () => {
     it('restricts TEAM_PREPARATION checklist only to pre-service stages', () => {
+      expect(canEditChecklistStage(BookingStatus.ASSIGNED, ChecklistStage.TEAM_PREPARATION)).toBe(true);
       expect(canEditChecklistStage(BookingStatus.TEAM_ACKNOWLEDGED, ChecklistStage.TEAM_PREPARATION)).toBe(true);
       expect(canEditChecklistStage(BookingStatus.ON_THE_WAY, ChecklistStage.TEAM_PREPARATION)).toBe(true);
       expect(canEditChecklistStage(BookingStatus.ARRIVED, ChecklistStage.TEAM_PREPARATION)).toBe(true);
-      expect(canEditChecklistStage(BookingStatus.ASSIGNED, ChecklistStage.TEAM_PREPARATION)).toBe(false);
       expect(canEditChecklistStage(BookingStatus.IN_SERVICE, ChecklistStage.TEAM_PREPARATION)).toBe(false);
       expect(canEditChecklistStage(BookingStatus.QUALITY_REVIEW, ChecklistStage.TEAM_PREPARATION)).toBe(false);
     });

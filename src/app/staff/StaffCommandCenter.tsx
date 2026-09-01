@@ -1037,20 +1037,24 @@ export default function StaffCommandCenter({
     const nextValue = !checkedItems[key];
     setCheckedItems((curr) => ({ ...curr, [key]: nextValue }));
 
-    startTransition(async () => {
-      const formData = new FormData();
-      formData.set('bookingId', selectedBooking.id);
-      formData.set('itemId', item.id);
-      formData.set('isChecked', String(nextValue));
-      const result = await toggleChecklistItemAction(formData);
-      if (result.error) {
+    (async () => {
+      try {
+        const formData = new FormData();
+        formData.set('bookingId', selectedBooking.id);
+        formData.set('itemId', item.id);
+        formData.set('isChecked', String(nextValue));
+        const result = await toggleChecklistItemAction(formData);
+        if (result.error) {
+          setCheckedItems((curr) => ({ ...curr, [key]: !nextValue }));
+          setFeedback({ kind: 'error', message: result.error });
+        } else {
+          if (!nextValue) setChecklistNotes((curr) => ({ ...curr, [key]: '' }));
+        }
+      } catch {
         setCheckedItems((curr) => ({ ...curr, [key]: !nextValue }));
-        setFeedback({ kind: 'error', message: result.error });
-      } else {
-        if (!nextValue) setChecklistNotes((curr) => ({ ...curr, [key]: '' }));
-        setFeedback({ kind: 'success', message: 'تم حفظ حالة عنصر الفحص.' });
+        setFeedback({ kind: 'error', message: 'تعذر حفظ حالة عنصر الفحص.' });
       }
-    });
+    })();
   }
 
   function handleSubmitChecklistNote() {
@@ -1060,23 +1064,34 @@ export default function StaffCommandCenter({
       setFeedback({ kind: 'error', message: 'اكتب ملاحظة فحص واضحة من 3 أحرف على الأقل.' });
       return;
     }
-    startTransition(async () => {
-      const formData = new FormData();
-      formData.set('bookingId', bookingId);
-      formData.set('itemId', item.id);
-      formData.set('isChecked', 'true');
-      if (checklistNote.trim()) formData.set('note', checklistNote.trim());
-      const result = await toggleChecklistItemAction(formData);
-      if (result.error) {
-        setFeedback({ kind: 'error', message: result.error });
-      } else {
-        setCheckedItems((curr) => ({ ...curr, [`${bookingId}:${item.id}`]: true }));
-        setChecklistNotes((curr) => ({ ...curr, [`${bookingId}:${item.id}`]: checklistNote.trim() }));
-        setActiveChecklistEvidence(null);
-        setChecklistNote('');
-        setFeedback({ kind: 'success', message: 'تم حفظ الملاحظة واعتماد بند الفحص.' });
+    const key = `${bookingId}:${item.id}`;
+    const noteText = checklistNote.trim();
+    setCheckedItems((curr) => ({ ...curr, [key]: true }));
+    if (noteText) {
+      setChecklistNotes((curr) => ({ ...curr, [key]: noteText }));
+    }
+    setActiveChecklistEvidence(null);
+    setChecklistNote('');
+
+    (async () => {
+      try {
+        const formData = new FormData();
+        formData.set('bookingId', bookingId);
+        formData.set('itemId', item.id);
+        formData.set('isChecked', 'true');
+        if (noteText) formData.set('note', noteText);
+        const result = await toggleChecklistItemAction(formData);
+        if (result.error) {
+          setCheckedItems((curr) => ({ ...curr, [key]: false }));
+          setChecklistNotes((curr) => ({ ...curr, [key]: '' }));
+          setFeedback({ kind: 'error', message: result.error });
+        }
+      } catch {
+        setCheckedItems((curr) => ({ ...curr, [key]: false }));
+        setChecklistNotes((curr) => ({ ...curr, [key]: '' }));
+        setFeedback({ kind: 'error', message: 'تعذر حفظ الملاحظة وعنصر الفحص.' });
       }
-    });
+    })();
   }
 
   function handleSendNote() {
@@ -2041,7 +2056,7 @@ export default function StaffCommandCenter({
                                     <button
                                       key={item.id}
                                       type="button"
-                                      disabled={isPending || !stageEditable}
+                                      disabled={!stageEditable}
                                       onClick={() => handleToggleChecklist(item, template.stage)}
                                       className={`flex w-full items-start gap-3.5 rounded-xl border p-3 text-right transition-all active:scale-[0.99] ${
                                         isChecked

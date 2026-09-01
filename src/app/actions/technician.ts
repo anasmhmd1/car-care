@@ -407,7 +407,6 @@ export async function toggleChecklistItemAction(formData: FormData) {
       });
     });
 
-    revalidatePath('/staff');
     return { success: true };
   } catch (error) {
     return { error: error instanceof Error ? error.message : 'تعذر تحديث قائمة الفحص.' };

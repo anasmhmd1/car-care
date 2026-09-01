@@ -4,6 +4,7 @@ const CHECKLIST_STAGE_STATUSES: Partial<
   Record<ChecklistStage, ReadonlySet<BookingStatus>>
 > = {
   [ChecklistStage.TEAM_PREPARATION]: new Set([
+    BookingStatus.ASSIGNED,
     BookingStatus.TEAM_ACKNOWLEDGED,
     BookingStatus.ON_THE_WAY,
     BookingStatus.ARRIVED,

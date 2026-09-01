@@ -154,7 +154,7 @@ const STATUS_AR_LABELS: Record<string, { label: string; tone: string }> = {
 };
 
 const CHECKLIST_STAGE_STATUS: Record<string, readonly string[]> = {
-  TEAM_PREPARATION: ['TEAM_ACKNOWLEDGED', 'ON_THE_WAY', 'ARRIVED', 'IN_SERVICE'],
+  TEAM_PREPARATION: ['ASSIGNED', 'TEAM_ACKNOWLEDGED', 'ON_THE_WAY', 'ARRIVED', 'IN_SERVICE'],
   ARRIVAL_INSPECTION: ['ARRIVED', 'IN_SERVICE'],
   SERVICE_EXECUTION: ['IN_SERVICE'],
   CLOSING: ['IN_SERVICE'],
@@ -279,15 +279,22 @@ export default function TechnicianTaskClient({
     const key = `${selectedTask.id}:${item.id}`;
     const nextValue = !checkedItems[key];
     setCheckedItems((current) => ({ ...current, [key]: nextValue }));
-    startTransition(async () => {
-      const formData = new FormData();
-      formData.set('bookingId', selectedTask.id);
-      formData.set('itemId', item.id);
-      formData.set('isChecked', String(nextValue));
-      const result = await toggleChecklistItemAction(formData);
-      if (result.error) setCheckedItems((current) => ({ ...current, [key]: !nextValue }));
-      setResult(result, 'تم حفظ حالة عنصر الفحص.');
-    });
+    (async () => {
+      try {
+        const formData = new FormData();
+        formData.set('bookingId', selectedTask.id);
+        formData.set('itemId', item.id);
+        formData.set('isChecked', String(nextValue));
+        const result = await toggleChecklistItemAction(formData);
+        if (result.error) {
+          setCheckedItems((current) => ({ ...current, [key]: !nextValue }));
+          setResult(result, '');
+        }
+      } catch {
+        setCheckedItems((current) => ({ ...current, [key]: !nextValue }));
+        setFeedback({ kind: 'error', message: 'تعذر حفظ حالة عنصر الفحص.' });
+      }
+    })();
   };
 
   const handleSubmitChecklistEvidence = () => {
@@ -298,20 +305,29 @@ export default function TechnicianTaskClient({
       return;
     }
 
-    startTransition(async () => {
-      const formData = new FormData();
-      formData.set('bookingId', selectedTask.id);
-      formData.set('itemId', item.id);
-      formData.set('isChecked', 'true');
-      if (checklistNote.trim()) formData.set('note', checklistNote.trim());
-      const result = await toggleChecklistItemAction(formData);
-      setResult(result, 'تم حفظ الملاحظة واعتماد بند الفحص.');
-      if (!result.error) {
-        setCheckedItems((current) => ({ ...current, [`${selectedTask.id}:${item.id}`]: true }));
-        setActiveChecklistEvidence(null);
-        setChecklistNote('');
+    const key = `${selectedTask.id}:${item.id}`;
+    const noteText = checklistNote.trim();
+    setCheckedItems((current) => ({ ...current, [key]: true }));
+    setActiveChecklistEvidence(null);
+    setChecklistNote('');
+
+    (async () => {
+      try {
+        const formData = new FormData();
+        formData.set('bookingId', selectedTask.id);
+        formData.set('itemId', item.id);
+        formData.set('isChecked', 'true');
+        if (noteText) formData.set('note', noteText);
+        const result = await toggleChecklistItemAction(formData);
+        if (result.error) {
+          setCheckedItems((current) => ({ ...current, [key]: false }));
+          setResult(result, '');
+        }
+      } catch {
+        setCheckedItems((current) => ({ ...current, [key]: false }));
+        setFeedback({ kind: 'error', message: 'تعذر حفظ الملاحظة وعنصر الفحص.' });
       }
-    });
+    })();
   };
 
   const handleSubmitNote = () => {
@@ -744,7 +760,7 @@ export default function TechnicianTaskClient({
                                 disabled={isPending || !stageEditable}
                                 aria-pressed={isChecked}
                                 onClick={() => handleToggleChecklist(item, template.stage)}
-                                className={`flex w-full items-start gap-3.5 rounded-xl border p-3 text-right transition-all active:scale-[0.99] ${
+                                className={`flex w-full items-start gap-3.5 rounded-xl border p-3 text-right active:scale-[0.99] ${
                                   isChecked
                                     ? 'border-emerald-500/30 bg-emerald-500/[0.06] text-neutral-200'
                                     : stageEditable
