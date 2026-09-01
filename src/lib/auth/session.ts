@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import type { User, UserRole } from '@prisma/client';
@@ -81,7 +82,7 @@ async function verifySignedClaims(token: string): Promise<SignedSessionClaims | 
   }
 }
 
-async function getValidatedSession(): Promise<ValidatedSession | null> {
+const getValidatedSession = cache(async (): Promise<ValidatedSession | null> => {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
   if (!token) return null;
@@ -148,7 +149,7 @@ async function getValidatedSession(): Promise<ValidatedSession | null> {
     },
     user: persistedSession.user,
   };
-}
+});
 
 export async function createSession(
   user: Pick<User, 'id' | 'sessionVersion'>

@@ -482,8 +482,28 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
     },
   };
 
-  // Staged Core Fetching (Batches of max 4-6 queries to prevent connection pool starvation)
-  const [brandRaw, branchesRaw, teamsRaw] = await Promise.all([
+  // Parallel Core & KPI Fetching
+  const [
+    brandRaw,
+    branchesRaw,
+    teamsRaw,
+    todayStatusGroups,
+    allStatusGroups,
+    paymentStatusGroups,
+    paymentToday,
+    paymentMonth,
+    pendingDue,
+    proofStatusGroups,
+    cancellationStatusGroups,
+    refundStatusGroups,
+    subscriptionStatusGroups,
+    complaintStatusGroups,
+    activeVisitTotals,
+    upcomingBookings,
+    unassignedBookingCount,
+    newCustomersMonth,
+    repeatCustomerGroups,
+  ] = await Promise.all([
     db.brandSettings.findFirst({
       select: { brandNameAr: true, brandNameEn: true, maxBranches: true },
     }),
@@ -547,17 +567,6 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
         },
       },
     }),
-  ]);
-
-  // Core Financial & Operational Status Groups
-  const [
-    todayStatusGroups,
-    allStatusGroups,
-    paymentStatusGroups,
-    paymentToday,
-    paymentMonth,
-    pendingDue,
-  ] = await Promise.all([
     db.booking.groupBy({
       by: ['bookingStatus'],
       where: {
@@ -593,17 +602,6 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
       },
       _sum: { amountDue: true },
     }),
-  ]);
-
-  // Secondary KPI Indicators
-  const [
-    proofStatusGroups,
-    cancellationStatusGroups,
-    refundStatusGroups,
-    subscriptionStatusGroups,
-    complaintStatusGroups,
-    activeVisitTotals,
-  ] = await Promise.all([
     db.paymentProof.groupBy({
       by: ['status'],
       _count: { _all: true },
@@ -628,15 +626,6 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
       where: { status: SubscriptionStatus.ACTIVE },
       _sum: { remainingVisits: true },
     }),
-  ]);
-
-  // Customer & Upcoming Counters
-  const [
-    upcomingBookings,
-    unassignedBookingCount,
-    newCustomersMonth,
-    repeatCustomerGroups,
-  ] = await Promise.all([
     db.booking.count({
       where: {
         deletedAt: null,

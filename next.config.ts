@@ -7,6 +7,9 @@ const e2eDistDir = e2ePort && /^\d{2,5}$/.test(e2ePort)
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  experimental: {
+    optimizePackageImports: ['lucide-react'],
+  },
   // Keep the explicitly requested hero-image quality supported by Next 16+.
   images: {
     qualities: [100],

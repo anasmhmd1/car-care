@@ -26,6 +26,7 @@ import {
   History,
   KeyRound,
   LayoutDashboard,
+  Loader2,
   Lock,
   LogOut,
   Menu,
@@ -2047,11 +2048,26 @@ export default function OperationsDashboardClient({
               <textarea id="proof-notes" value={reviewNotes} onChange={(e) => setReviewNotes(e.target.value)} rows={3} maxLength={1000} className={inputClass} placeholder="إلزامية في حالة الرفض أو المبالغ الناقصة..." />
             </div>
             <div className="grid gap-2 sm:grid-cols-3 pt-2">
-              <button type="button" disabled={isSubmitting} onClick={() => handleReviewProof('VERIFY')} className="rounded-xl bg-emerald-500 px-4 py-2.5 text-xs font-bold text-neutral-950 hover:bg-emerald-400">اعتماد الإثبات</button>
-              <button type="button" disabled={isSubmitting} onClick={() => handleReviewProof('SHORT')} className="rounded-xl bg-amber-500 px-4 py-2.5 text-xs font-bold text-neutral-950 hover:bg-amber-400">المبلغ ناقص</button>
-              <button type="button" disabled={isSubmitting} onClick={() => handleReviewProof('REUPLOAD')} className="rounded-xl bg-sky-500 px-4 py-2.5 text-xs font-bold text-neutral-950 hover:bg-sky-400">طلب إعادة رفع</button>
-              <button type="button" disabled={isSubmitting} onClick={() => handleReviewProof('DUPLICATE')} className="rounded-xl border border-purple-500/60 px-4 py-2.5 text-xs font-bold text-purple-300 hover:bg-purple-500/20">اشتباه تكرار</button>
-              <button type="button" disabled={isSubmitting} onClick={() => handleReviewProof('REJECT')} className="rounded-xl bg-rose-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-rose-500">رفض الإثبات</button>
+              <button type="button" disabled={isSubmitting} onClick={() => handleReviewProof('VERIFY')} className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-500 px-4 py-2.5 text-xs font-bold text-neutral-950 hover:bg-emerald-400 disabled:opacity-50">
+                {isSubmitting ? <Loader2 className="size-3.5 animate-spin" /> : null}
+                <span>اعتماد الإثبات</span>
+              </button>
+              <button type="button" disabled={isSubmitting} onClick={() => handleReviewProof('SHORT')} className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-amber-500 px-4 py-2.5 text-xs font-bold text-neutral-950 hover:bg-amber-400 disabled:opacity-50">
+                {isSubmitting ? <Loader2 className="size-3.5 animate-spin" /> : null}
+                <span>المبلغ ناقص</span>
+              </button>
+              <button type="button" disabled={isSubmitting} onClick={() => handleReviewProof('REUPLOAD')} className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-sky-500 px-4 py-2.5 text-xs font-bold text-neutral-950 hover:bg-sky-400 disabled:opacity-50">
+                {isSubmitting ? <Loader2 className="size-3.5 animate-spin" /> : null}
+                <span>طلب إعادة رفع</span>
+              </button>
+              <button type="button" disabled={isSubmitting} onClick={() => handleReviewProof('DUPLICATE')} className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-purple-500/60 px-4 py-2.5 text-xs font-bold text-purple-300 hover:bg-purple-500/20 disabled:opacity-50">
+                {isSubmitting ? <Loader2 className="size-3.5 animate-spin" /> : null}
+                <span>اشتباه تكرار</span>
+              </button>
+              <button type="button" disabled={isSubmitting} onClick={() => handleReviewProof('REJECT')} className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-rose-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-rose-500 disabled:opacity-50">
+                {isSubmitting ? <Loader2 className="size-3.5 animate-spin" /> : null}
+                <span>رفض الإثبات</span>
+              </button>
             </div>
           </div>
         </div>
@@ -2087,8 +2103,14 @@ export default function OperationsDashboardClient({
               <textarea id="booking-review-reason" value={reviewNotes} onChange={(e) => setReviewNotes(e.target.value)} rows={3} maxLength={1000} className={inputClass} placeholder="اكتب سبب القرار بالتفصيل..." />
             </div>
             <div className="grid grid-cols-2 gap-3 pt-2">
-              <button type="button" disabled={isSubmitting} onClick={() => handleBookingReview('ACCEPT')} className="rounded-xl bg-emerald-500 px-4 py-2.5 text-xs font-bold text-neutral-950 hover:bg-emerald-400">اعتماد وقبول</button>
-              <button type="button" disabled={isSubmitting} onClick={() => handleBookingReview('REJECT')} className="rounded-xl bg-rose-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-rose-500">رفض الحجز</button>
+              <button type="button" disabled={isSubmitting} onClick={() => handleBookingReview('ACCEPT')} className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-500 px-4 py-2.5 text-xs font-bold text-neutral-950 hover:bg-emerald-400 disabled:opacity-50">
+                {isSubmitting ? <Loader2 className="size-3.5 animate-spin" /> : null}
+                <span>اعتماد وقبول</span>
+              </button>
+              <button type="button" disabled={isSubmitting} onClick={() => handleBookingReview('REJECT')} className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-rose-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-rose-500 disabled:opacity-50">
+                {isSubmitting ? <Loader2 className="size-3.5 animate-spin" /> : null}
+                <span>رفض الحجز</span>
+              </button>
             </div>
           </div>
         </div>
@@ -2129,7 +2151,8 @@ export default function OperationsDashboardClient({
                   <textarea id="assignment-reason" value={assignmentReason} onChange={(e) => setAssignmentReason(e.target.value)} rows={3} maxLength={500} className={inputClass} placeholder="اكتب سبب الإسناد..." />
                 </div>
                 <button type="button" disabled={isSubmitting} onClick={handleAssignTeam} className={primaryButtonClass}>
-                  تأكيد الإسناد
+                  {isSubmitting ? <Loader2 className="size-3.5 animate-spin" /> : null}
+                  <span>تأكيد الإسناد</span>
                 </button>
               </>
             ) : (
@@ -2185,7 +2208,8 @@ export default function OperationsDashboardClient({
               <textarea id="settlement-notes" required minLength={3} value={settlementNotes} onChange={(e) => setSettlementNotes(e.target.value)} rows={2} className={inputClass} />
             </div>
             <button type="button" disabled={isSubmitting} onClick={handleRecordSettlement} className={primaryButtonClass}>
-              تأكيد تحصيل {formatCurrency(selectedSettlement.amountDue)}
+              {isSubmitting ? <Loader2 className="size-3.5 animate-spin" /> : null}
+              <span>تأكيد تحصيل {formatCurrency(selectedSettlement.amountDue)}</span>
             </button>
           </div>
         </div>
@@ -2206,8 +2230,9 @@ export default function OperationsDashboardClient({
               <label htmlFor="close-reason" className="mb-2 block text-xs font-bold text-neutral-300">ملاحظة الإغلاق</label>
               <textarea id="close-reason" required minLength={3} value={closeReason} onChange={(e) => setCloseReason(e.target.value)} rows={3} className={inputClass} />
             </div>
-            <button type="button" disabled={isSubmitting} onClick={handleCloseBooking} className="w-full rounded-xl bg-emerald-500 px-4 py-2.5 text-xs sm:text-sm font-bold text-neutral-950 hover:bg-emerald-400">
-              تأكيد الإغلاق النهائي
+            <button type="button" disabled={isSubmitting} onClick={handleCloseBooking} className="inline-flex items-center justify-center gap-1.5 w-full rounded-xl bg-emerald-500 px-4 py-2.5 text-xs sm:text-sm font-bold text-neutral-950 hover:bg-emerald-400 disabled:opacity-50">
+              {isSubmitting ? <Loader2 className="size-3.5 animate-spin" /> : null}
+              <span>تأكيد الإغلاق النهائي</span>
             </button>
           </div>
         </div>
@@ -2311,8 +2336,9 @@ export default function OperationsDashboardClient({
               <textarea id="reschedule-reason" required minLength={3} maxLength={500} value={rescheduleReason} onChange={(e) => setRescheduleReason(e.target.value)} placeholder="طلب العميل هاتفياً، ازدحام طارئ..." rows={2} className={inputClass} />
             </div>
 
-            <button type="button" disabled={isSubmitting || !rescheduleDate || !rescheduleTime} onClick={handleRescheduleBooking} className="w-full rounded-xl bg-sky-500 px-4 py-2.5 text-xs sm:text-sm font-bold text-neutral-950 hover:bg-sky-400 disabled:opacity-50">
-              حفظ الموعد الجديد
+            <button type="button" disabled={isSubmitting || !rescheduleDate || !rescheduleTime} onClick={handleRescheduleBooking} className="inline-flex items-center justify-center gap-1.5 w-full rounded-xl bg-sky-500 px-4 py-2.5 text-xs sm:text-sm font-bold text-neutral-950 hover:bg-sky-400 disabled:opacity-50">
+              {isSubmitting ? <Loader2 className="size-3.5 animate-spin" /> : null}
+              <span>حفظ الموعد الجديد</span>
             </button>
           </div>
         </div>
@@ -2345,8 +2371,9 @@ export default function OperationsDashboardClient({
                   <label htmlFor="transfer-reason" className="mb-2 block text-xs font-bold text-neutral-300">سبب نقل الحجز</label>
                   <textarea id="transfer-reason" required minLength={3} maxLength={500} value={transferReason} onChange={(e) => setTransferReason(e.target.value)} placeholder="إعادة توزيع أحمال، عطل سيارة الفريق السابق..." rows={2} className={inputClass} />
                 </div>
-                <button type="button" disabled={isSubmitting || !transferTeamId} onClick={handleTransferTeam} className="w-full rounded-xl bg-purple-500 px-4 py-2.5 text-xs sm:text-sm font-bold text-white hover:bg-purple-400 disabled:opacity-50">
-                  تأكيد النقل
+                <button type="button" disabled={isSubmitting || !transferTeamId} onClick={handleTransferTeam} className="inline-flex items-center justify-center gap-1.5 w-full rounded-xl bg-purple-500 px-4 py-2.5 text-xs sm:text-sm font-bold text-white hover:bg-purple-400 disabled:opacity-50">
+                  {isSubmitting ? <Loader2 className="size-3.5 animate-spin" /> : null}
+                  <span>تأكيد النقل</span>
                 </button>
               </>
             ) : (
@@ -2392,8 +2419,9 @@ export default function OperationsDashboardClient({
               <button type="button" disabled={isSubmitting} onClick={() => setSelectedCancelBooking(null)} className={secondaryButtonClass}>
                 تراجع
               </button>
-              <button type="button" disabled={isSubmitting || cancelReason.trim().length < 3} onClick={handleCancelBooking} className="rounded-xl bg-rose-600 px-4 py-2.5 text-xs sm:text-sm font-bold text-white hover:bg-rose-500 disabled:opacity-50">
-                تأكيد الإلغاء
+              <button type="button" disabled={isSubmitting || cancelReason.trim().length < 3} onClick={handleCancelBooking} className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-rose-600 px-4 py-2.5 text-xs sm:text-sm font-bold text-white hover:bg-rose-500 disabled:opacity-50">
+                {isSubmitting ? <Loader2 className="size-3.5 animate-spin" /> : null}
+                <span>تأكيد الإلغاء</span>
               </button>
             </div>
           </div>
