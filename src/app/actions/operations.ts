@@ -169,11 +169,20 @@ export async function reviewPaymentProofAction(formData: FormData) {
         throw new OperationsInputError('حالة الحجز لا تسمح بمراجعة هذا الإثبات الآن.');
       }
 
+      const paidAggregate = await tx.payment.aggregate({
+        where: { bookingId: proof.bookingId },
+        _sum: { amount: true },
+      });
+      const verifiedPaid = paidAggregate._sum.amount ?? 0;
+      const targetInitial = proof.booking.depositAmount > 0
+        ? proof.booking.depositAmount
+        : proof.booking.totalPrice;
+      const remainingInitial = Math.max(0, targetInitial - verifiedPaid);
       const expectedAmount = Math.max(
         0,
         Math.min(
-          proof.booking.amountDue,
-          proof.booking.depositAmount - proof.booking.amountPaid,
+          proof.booking.amountDue > 0 ? proof.booking.amountDue : proof.booking.totalPrice,
+          remainingInitial > 0 ? remainingInitial : Math.max(0, proof.booking.totalPrice - verifiedPaid),
         ),
       );
       if (parsed.data.decision === 'VERIFY') {
@@ -183,7 +192,7 @@ export async function reviewPaymentProofAction(formData: FormData) {
         if (proof.amountSubmitted < expectedAmount) {
           throw new OperationsInputError('المبلغ أقل من المطلوب؛ استخدم قرار «مبلغ ناقص».');
         }
-        if (proof.amountSubmitted > proof.booking.amountDue) {
+        if (proof.amountSubmitted > (proof.booking.amountDue > 0 ? proof.booking.amountDue : proof.booking.totalPrice)) {
           throw new OperationsInputError('المبلغ المدخل أكبر من إجمالي المبلغ المستحق.');
         }
       }

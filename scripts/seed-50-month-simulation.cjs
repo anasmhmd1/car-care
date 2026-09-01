@@ -617,7 +617,10 @@ async function main() {
     if (cfg.paymentStatus === PaymentStatus.FULLY_PAID) {
       amountPaid = price;
       amountDue = 0;
-    } else if (cfg.paymentStatus === PaymentStatus.PROOF_UPLOADED || cfg.paymentStatus === PaymentStatus.VERIFIED) {
+    } else if (cfg.paymentStatus === PaymentStatus.PROOF_UPLOADED) {
+      amountPaid = 0;
+      amountDue = price;
+    } else if (cfg.paymentStatus === PaymentStatus.VERIFIED) {
       amountPaid = depositAmount;
       amountDue = price - depositAmount;
     } else if (cfg.paymentStatus === PaymentStatus.REFUNDED) {
