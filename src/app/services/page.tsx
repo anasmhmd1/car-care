@@ -6,7 +6,7 @@ import { getCurrentUser } from '@/lib/auth/session';
 import { db } from '@/lib/db';
 import { createPublicMetadata } from '@/lib/seo';
 import { readServiceCollections } from '@/lib/service-collections';
-import { Clock, CheckCircle2, Award, Layers, Filter, X } from 'lucide-react';
+import { Clock, CheckCircle2, Award, Layers, Filter, X, ArrowLeft } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
@@ -248,42 +248,50 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
                         </div>
                       </div>
 
-                      <div className="p-7 pt-0 space-y-4">
-                        <div className="flex items-center justify-between border-t border-neutral-800/80 pt-4">
+                      <div className="p-6 sm:p-7 pt-0 space-y-4">
+                        {/* Pricing & Deposit Row */}
+                        <div className="flex items-end justify-between border-t border-neutral-800/80 pt-4 gap-3">
                           <div>
                             <span className="text-[11px] text-neutral-400 block font-medium">السعر يبدأ من</span>
-                            <span className="text-2xl font-black text-[#edce8b]">{service.basePrice} <span className="text-xs font-normal text-white">ج.م</span></span>
+                            <div className="flex items-baseline gap-1 mt-0.5">
+                              <span className="text-2xl font-black text-[#edce8b] tracking-tight">{service.basePrice}</span>
+                              <span className="text-xs font-semibold text-neutral-400">ج.م</span>
+                            </div>
+                          </div>
+
+                          <div className="text-left">
                             {service.requiresFullPrepayment ? (
-                              <span className="mt-1 block text-[10px] font-bold text-amber-400">
+                              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-300 bg-amber-500/10 border border-amber-500/30 px-3 py-1.5 rounded-xl">
                                 دفع كامل المبلغ مسبقاً
                               </span>
                             ) : service.requiresDeposit ? (
-                              <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-bold text-[#f3e4a8] bg-[#d4af37]/15 border border-[#d4af37]/35 px-2 py-0.5 rounded-md">
-                                <span>العربون:</span>
-                                <span className="text-white">{depositEgp} ج.م</span>
-                                {service.depositType === 'PERCENTAGE' && <span className="text-[#cea355]">({service.depositValue}%)</span>}
+                              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-[#edce8b] bg-[#d4af37]/10 border border-[#d4af37]/30 px-3 py-1.5 rounded-xl shadow-sm">
+                                <span className="text-neutral-400 font-medium">العربون:</span>
+                                <span className="text-white font-black">{depositEgp} ج.م</span>
                               </span>
                             ) : (
-                              <span className="mt-1 block text-[10px] font-bold text-emerald-400">
+                              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-3 py-1.5 rounded-xl">
                                 بدون عربون مسبق
                               </span>
                             )}
                           </div>
+                        </div>
 
-                          <div className="flex items-center gap-2">
-                            <Link
-                              href={`/services/${service.slug}`}
-                              className="px-4 py-2.5 rounded-xl bg-[#1a1a1a] border border-[#cea355]/30 text-xs font-bold text-white hover:border-[#cea355] transition-all"
-                            >
-                              التفاصيل
-                            </Link>
-                            <Link
-                              href={`/services/${service.slug}/book`}
-                              className="px-5 py-2.5 rounded-xl gold-gradient text-neutral-950 font-extrabold text-xs hover:brightness-110 transition-all shadow-lg shadow-[#cea355]/20 active:scale-95"
-                            >
-                              احجز الآن
-                            </Link>
-                          </div>
+                        {/* Distinct, Spacious Action Buttons */}
+                        <div className="grid grid-cols-5 gap-2.5 pt-1">
+                          <Link
+                            href={`/services/${service.slug}`}
+                            className="col-span-2 inline-flex items-center justify-center rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-neutral-700/80 hover:border-[#cea355]/60 text-xs font-bold text-neutral-300 hover:text-white transition-all py-3 shadow-sm active:scale-95"
+                          >
+                            التفاصيل
+                          </Link>
+                          <Link
+                            href={`/services/${service.slug}/book`}
+                            className="col-span-3 inline-flex items-center justify-center gap-2 rounded-xl gold-gradient text-neutral-950 font-black text-xs hover:brightness-110 transition-all py-3 shadow-lg shadow-[#cea355]/20 active:scale-95"
+                          >
+                            <span>احجز الآن</span>
+                            <ArrowLeft className="w-3.5 h-3.5" />
+                          </Link>
                         </div>
                       </div>
 
