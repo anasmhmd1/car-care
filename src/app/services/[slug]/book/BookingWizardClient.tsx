@@ -1273,6 +1273,22 @@ export default function BookingWizardClient({
         <p className="mt-2 text-sm text-white leading-relaxed">
           أكمل البيانات التالية وسنقوم بتأكيد السعر والموعد فوراً.
         </p>
+
+        {!user && (
+          <div className="mt-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 rounded-2xl border border-[#cea355]/30 bg-[#cea355]/5 text-xs">
+            <div className="flex items-center gap-2.5 text-neutral-300">
+              <UserRound className="size-4 text-[#cea355] shrink-0" />
+              <span>أنت تحجز الآن كضيف سريع دون الحاجة لإنشاء حساب مسبق أو تعيين كلمة مرور.</span>
+            </div>
+            <Link
+              href="/login?callback=/services"
+              className="text-[#edce8b] hover:underline font-bold shrink-0 text-xs flex items-center gap-1"
+            >
+              <span>لديك حساب؟ سجل دخولك</span>
+              <span dir="ltr">←</span>
+            </Link>
+          </div>
+        )}
       </div>
 
       {uiError && (
