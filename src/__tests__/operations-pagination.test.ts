@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   OPERATIONS_PRIMARY_QUEUE_PAGE_SIZE,
+  operationsQueuePageParam,
   operationsQueueWindow,
   pageOperationsQueue,
   parseOperationsQueuePage,
@@ -37,5 +38,13 @@ describe('operations queue pagination', () => {
         hasNextPage: true,
       },
     });
+  });
+
+  it('generates correct query param names for all dashboard queues including merged and past due', () => {
+    expect(operationsQueuePageParam('bookings_queue')).toBe('bookings_queuePage');
+    expect(operationsQueuePageParam('past_due')).toBe('past_duePage');
+    expect(operationsQueuePageParam('proofs')).toBe('proofsPage');
+    expect(operationsQueuePageParam('review')).toBe('reviewPage');
+    expect(operationsQueuePageParam('unassigned')).toBe('unassignedPage');
   });
 });

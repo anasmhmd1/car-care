@@ -18,8 +18,10 @@ import {
   Search,
   Settings2,
   Sparkles,
+  Trash2,
 } from 'lucide-react';
 import { saveServiceProductAction } from '@/app/actions/catalog';
+import { deleteServiceAction } from '@/app/actions/owner';
 import { prepareImageForUpload } from '@/lib/client/image-upload';
 import {
   detectMaterialUnitMeta,
@@ -264,15 +266,43 @@ function ServiceEditor({
   branches,
   materials,
   onServiceSaved,
+  onServiceDeleted,
 }: {
   service?: SiteServiceDto;
   branches: Array<{ id: string; nameAr: string }>;
   materials: CatalogMaterialDto[];
   onServiceSaved?: (id: string) => void;
+  onServiceDeleted?: () => void;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [notice, setNotice] = useState<Notice | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  async function handleDeleteService() {
+    if (!service) return;
+    setIsDeleting(true);
+    setNotice(null);
+    try {
+      const fd = new FormData();
+      fd.set('serviceId', service.id);
+      const res = await deleteServiceAction(fd);
+      if (res && 'error' in res && res.error) {
+        setNotice({ kind: 'error', text: res.error });
+        setShowDeleteModal(false);
+        setIsDeleting(false);
+        return;
+      }
+      setShowDeleteModal(false);
+      onServiceDeleted?.();
+      router.refresh();
+    } catch {
+      setNotice({ kind: 'error', text: 'تعذر حذف الخدمة حالياً، حاول مرة أخرى.' });
+      setShowDeleteModal(false);
+      setIsDeleting(false);
+    }
+  }
   const [nameEn, setNameEn] = useState(service?.nameEn ?? '');
   const autoSlug = useMemo(() => {
     return nameEn
@@ -418,17 +448,29 @@ function ServiceEditor({
             </p>
           </div>
         </div>
-        {service?.slug ? (
-          <Link
-            href={`/services/${service.slug}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-neutral-700 bg-neutral-900/80 px-3.5 text-xs font-bold text-neutral-300 hover:border-[#cea355] hover:text-white transition-all shrink-0"
-          >
-            <ExternalLink className="size-3.5 text-[#cea355]" />
-            <span>معاينة صفحة الخدمة</span>
-          </Link>
-        ) : null}
+        <div className="flex items-center gap-2">
+          {service?.slug ? (
+            <Link
+              href={`/services/${service.slug}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-neutral-700 bg-neutral-900/80 px-3.5 text-xs font-bold text-neutral-300 hover:border-[#cea355] hover:text-white transition-all shrink-0"
+            >
+              <ExternalLink className="size-3.5 text-[#cea355]" />
+              <span>معاينة صفحة الخدمة</span>
+            </Link>
+          ) : null}
+          {service ? (
+            <button
+              type="button"
+              onClick={() => setShowDeleteModal(true)}
+              className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-rose-500/40 bg-rose-500/10 px-3.5 text-xs font-bold text-rose-300 hover:bg-rose-500/20 transition-all shrink-0 cursor-pointer"
+            >
+              <Trash2 className="size-3.5 text-rose-400" />
+              <span>حذف الخدمة</span>
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {/* 1. Basic Content */}
@@ -835,16 +877,65 @@ function ServiceEditor({
         </div>
       </section>
 
-      <div className="sticky bottom-4 z-20 flex justify-end">
+      <div className="sticky bottom-4 z-20 flex items-center justify-between gap-3 rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-3 shadow-2xl">
+        {service ? (
+          <button
+            type="button"
+            onClick={() => setShowDeleteModal(true)}
+            disabled={isPending || isUploading || isDeleting}
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 text-xs font-bold text-rose-300 hover:bg-rose-500/20 transition-all cursor-pointer disabled:opacity-50"
+          >
+            <Trash2 className="size-4 text-rose-400" />
+            <span>حذف الخدمة</span>
+          </button>
+        ) : <span />}
         <button
           type="submit"
-          disabled={isPending || isUploading}
-          className="inline-flex min-h-12 items-center gap-2 rounded-xl gold-gradient px-8 text-sm font-black text-black shadow-2xl hover:brightness-110 disabled:opacity-50 transition-all cursor-pointer"
+          disabled={isPending || isUploading || isDeleting}
+          className="inline-flex min-h-11 items-center gap-2 rounded-xl gold-gradient px-8 text-sm font-black text-black shadow-lg hover:brightness-110 disabled:opacity-50 transition-all cursor-pointer"
         >
           <Save className="size-4" aria-hidden="true" />
           {isPending ? 'جارٍ الحفظ…' : 'حفظ الخدمة'}
         </button>
       </div>
+
+      {showDeleteModal && service ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" dir="rtl">
+          <div className="w-full max-w-md rounded-2xl border border-rose-500/40 bg-[#121216] p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-300">
+                <Trash2 className="size-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-white">تأكيد حذف الخدمة</h3>
+                <p className="text-xs text-neutral-400">{service.nameAr}</p>
+              </div>
+            </div>
+            <p className="text-xs leading-5 text-neutral-300">
+              هل أنت متأكد من رغبتك في حذف هذه الخدمة؟ إذا كانت الخدمة مرتبطة بحجوزات أو فواتير سابقة، فسيتم تعطيلها وحفظها في الأرشيف لحماية السجلات المالية للعملاء.
+            </p>
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-neutral-800">
+              <button
+                type="button"
+                onClick={() => setShowDeleteModal(false)}
+                disabled={isDeleting}
+                className="inline-flex min-h-10 items-center justify-center rounded-xl border border-neutral-700 bg-neutral-800/80 px-4 text-xs font-bold text-neutral-300 hover:text-white transition-all cursor-pointer"
+              >
+                تراجع
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteService}
+                disabled={isDeleting}
+                className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl bg-rose-600 px-5 text-xs font-black text-white hover:bg-rose-500 shadow-md shadow-rose-600/30 transition-all disabled:opacity-50 cursor-pointer"
+              >
+                <Trash2 className="size-4" />
+                <span>{isDeleting ? 'جارٍ الحذف…' : 'تأكيد الحذف'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </form>
   );
 }
@@ -975,6 +1066,7 @@ export default function ServicesManager({
             branches={branches}
             materials={materials}
             onServiceSaved={(savedId) => setSelectedServiceId(savedId)}
+            onServiceDeleted={() => setSelectedServiceId(null)}
           />
         </main>
       </div>

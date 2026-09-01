@@ -73,11 +73,11 @@ const operationsQueuePermissions = [
   'refund.approve',
 ] as const satisfies readonly PermissionCode[];
 
-function dashboardTabValue(
+function parseDashboardTab(
   value: string | string[] | undefined,
 ): OperationsDashboardQueueKey | undefined {
   const tab = searchValue(value);
-  return ['proofs', 'review', 'unassigned', 'bookings', 'terminal'].includes(tab)
+  return ['proofs', 'review', 'unassigned', 'bookings', 'terminal', 'bookings_queue', 'past_due'].includes(tab)
     ? tab as OperationsDashboardQueueKey
     : undefined;
 }
@@ -128,7 +128,8 @@ export default async function OperationsDashboardPage({ searchParams }: Operatio
       }
     : {};
   const manager = await requireRole([UserRole.OPERATIONS_MANAGER, UserRole.OWNER, UserRole.SYSTEM_SUPER_ADMIN]);
-  const permissionSnapshotAt = new Date();
+  const now = new Date();
+  const permissionSnapshotAt = now;
   const [branchIds, permissionRows, roleConfiguration] = await Promise.all([
     getAccessibleBranchIds(manager),
     db.userPermission.findMany({
@@ -201,7 +202,7 @@ export default async function OperationsDashboardPage({ searchParams }: Operatio
         ]),
     ],
   };
-  const dashboardTab = dashboardTabValue(query.dashboardTab);
+  const dashboardTab = parseDashboardTab(query.dashboardTab ?? query.tab);
   const queueWindows = {
     proofs: operationsQueueWindow(
       query[operationsQueuePageParam('proofs')],
@@ -258,7 +259,7 @@ export default async function OperationsDashboardPage({ searchParams }: Operatio
       booking: {
         AND: [
           bookingWhereFor('payment.review'),
-          ...(dateBounds ? [bookingDateWhere] : []),
+          ...(dateBounds ? [bookingDateWhere] : [{ startAt: { gte: now } }]),
         ],
       },
     },
@@ -277,6 +278,7 @@ export default async function OperationsDashboardPage({ searchParams }: Operatio
           branchId: true,
           assignedTeamId: true,
           bookingNumber: true,
+          startAt: true,
           depositAmount: true,
           amountPaid: true,
           amountDue: true,
@@ -295,7 +297,7 @@ export default async function OperationsDashboardPage({ searchParams }: Operatio
     where: {
       AND: [
         bookingWhereFor('booking.accept'),
-        ...(dateBounds ? [bookingDateWhere] : []),
+        ...(dateBounds ? [bookingDateWhere] : [{ startAt: { gte: now } }]),
         {
           bookingStatus: 'AWAITING_OPERATIONS_REVIEW',
           deletedAt: null,
@@ -325,7 +327,7 @@ export default async function OperationsDashboardPage({ searchParams }: Operatio
     where: {
       AND: [
         bookingWhereFor('booking.assign'),
-        ...(dateBounds ? [bookingDateWhere] : []),
+        ...(dateBounds ? [bookingDateWhere] : [{ startAt: { gte: now } }]),
         {
           bookingStatus: { in: ['ACCEPTED', 'AWAITING_ASSIGNMENT', 'ADMIN_REVIEW_REQUIRED'] },
           terminalReopenSourceStatus: null,
@@ -349,6 +351,49 @@ export default async function OperationsDashboardPage({ searchParams }: Operatio
     skip: queueWindows.unassigned.skip,
     take: queueWindows.unassigned.take,
   });
+  const pastDueBookingsPromise = db.booking.findMany({
+    where: {
+      AND: [
+        bookingBranchWhere,
+        {
+          deletedAt: null,
+          startAt: { lt: now },
+          bookingStatus: {
+            notIn: ['CLOSED', 'DELIVERED', 'CANCELLED', 'REJECTED', 'EXPIRED'],
+          },
+        },
+      ],
+    },
+    select: {
+      id: true,
+      branchId: true,
+      assignedTeamId: true,
+      bookingNumber: true,
+      bookingStatus: true,
+      startAt: true,
+      amountPaid: true,
+      amountDue: true,
+      depositAmount: true,
+      paymentStatus: true,
+      service: { select: { nameAr: true } },
+      assignedTeam: { select: { name: true } },
+      customer: { select: { user: { select: operationsCustomerUserSelect } } },
+      vehicle: { select: { make: true, model: true } },
+      branch: { select: { id: true, nameAr: true } },
+      paymentProofs: {
+        where: { status: 'UNDER_REVIEW' },
+        select: {
+          id: true,
+          amountSubmitted: true,
+          proofFileUrl: true,
+          createdAt: true,
+        },
+      },
+    },
+    orderBy: [{ startAt: 'desc' }, { id: 'desc' }],
+    take: 50,
+  });
+
   const activeBookingsPromise = db.booking.findMany({
     where: {
       AND: [
@@ -695,6 +740,7 @@ export default async function OperationsDashboardPage({ searchParams }: Operatio
     complaintRows,
     refundRows,
     managedSubscriptionsRaw,
+    pastDueBookingRows,
   ] = await Promise.all([
     accessibleBranchesPromise,
     pendingProofsPromise,
@@ -708,6 +754,7 @@ export default async function OperationsDashboardPage({ searchParams }: Operatio
     complaintsPromise,
     refundsAwaitingApprovalPromise,
     managedSubscriptionsPromise,
+    pastDueBookingsPromise,
   ]);
   const { records: pendingProofs, pagination: pendingProofsPagination } = pageOperationsQueue(
     pendingProofRows,
@@ -903,10 +950,12 @@ export default async function OperationsDashboardPage({ searchParams }: Operatio
       : Promise.resolve([]),
   ]);
   const dashboardPagination = {
+    bookings_queue: { page: 1, hasNextPage: false, hasPreviousPage: false },
     proofs: pendingProofsPagination,
     review: reviewBookingsPagination,
     unassigned: unassignedBookingsPagination,
     bookings: activeBookingsPagination,
+    past_due: { page: 1, hasNextPage: false, hasPreviousPage: false },
     terminal: terminalBookingsPagination,
   };
   const caseQueuePagination = {
@@ -934,6 +983,28 @@ export default async function OperationsDashboardPage({ searchParams }: Operatio
   const clientUnassignedBookings = assignableBookings.map((booking) => {
     return omitClientFields(booking, ['assignedTeamId']);
   });
+  const clientPastDueBookings = pastDueBookingRows.map((booking) => ({
+    id: booking.id,
+    branchId: booking.branchId,
+    bookingNumber: booking.bookingNumber,
+    bookingStatus: booking.bookingStatus,
+    startAt: booking.startAt.toISOString(),
+    amountPaid: booking.amountPaid,
+    amountDue: booking.amountDue,
+    depositAmount: booking.depositAmount,
+    paymentStatus: booking.paymentStatus,
+    service: booking.service ? { nameAr: booking.service.nameAr } : null,
+    assignedTeam: booking.assignedTeam ? { name: booking.assignedTeam.name } : null,
+    customer: booking.customer ? { user: booking.customer.user } : null,
+    vehicle: booking.vehicle ? { make: booking.vehicle.make, model: booking.vehicle.model } : null,
+    branch: booking.branch ? { id: booking.branch.id, nameAr: booking.branch.nameAr } : null,
+    paymentProofs: booking.paymentProofs.map((p) => ({
+      id: p.id,
+      amountSubmitted: p.amountSubmitted,
+      proofFileUrl: p.proofFileUrl,
+      createdAt: p.createdAt.toISOString(),
+    })),
+  }));
   const clientActiveBookings = activeBookingsWithPermissions.map((booking) => {
     return omitClientFields(booking, ['branchId', 'assignedTeamId']);
   });
@@ -1028,6 +1099,7 @@ export default async function OperationsDashboardPage({ searchParams }: Operatio
       pendingProofs={sanitizeClientData(clientPendingProofs)}
       reviewBookings={sanitizeClientData(clientReviewBookings)}
       unassignedBookings={sanitizeClientData(clientUnassignedBookings)}
+      pastDueBookings={sanitizeClientData(clientPastDueBookings)}
       teams={sanitizeClientData(assignableTeams)}
       activeBookings={sanitizeClientData(clientActiveBookings)}
       terminalBookings={sanitizeClientData(terminalBookings)}

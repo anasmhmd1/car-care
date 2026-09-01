@@ -70,7 +70,17 @@ import {
 } from './pagination';
 
 type DateValue = string | Date;
-type Tab = OperationsDashboardQueueKey | 'cases' | 'subscriptions' | 'quality';
+type Tab =
+  | 'bookings_queue'
+  | 'bookings'
+  | 'subscriptions'
+  | 'quality'
+  | 'cases'
+  | 'past_due'
+  | 'terminal'
+  | 'proofs'
+  | 'review'
+  | 'unassigned';
 type ProofDecision = 'VERIFY' | 'REJECT' | 'SHORT' | 'REUPLOAD' | 'DUPLICATE';
 
 export type { ManagedSubscription };
@@ -83,6 +93,29 @@ interface UserSummary {
 
 interface ManagerSummary extends UserSummary {
   role: string;
+}
+
+interface PastDueBooking {
+  id: string;
+  branchId: string;
+  bookingNumber: string;
+  bookingStatus: string;
+  startAt: DateValue;
+  amountPaid: number;
+  amountDue: number;
+  depositAmount: number;
+  paymentStatus: string;
+  service?: { nameAr: string } | null;
+  assignedTeam?: { name: string } | null;
+  customer?: { user: UserSummary } | null;
+  vehicle?: { make: string; model: string } | null;
+  branch?: { id: string; nameAr: string } | null;
+  paymentProofs?: Array<{
+    id: string;
+    amountSubmitted: number;
+    proofFileUrl: string;
+    createdAt: DateValue;
+  }>;
 }
 
 interface PendingProof {
@@ -98,6 +131,7 @@ interface PendingProof {
   booking: {
     id: string;
     bookingNumber: string;
+    startAt?: DateValue;
     depositAmount: number;
     amountPaid: number;
     amountDue: number;
@@ -186,6 +220,7 @@ interface Props {
   pendingProofs: PendingProof[];
   reviewBookings: ReviewBooking[];
   unassignedBookings: UnassignedBooking[];
+  pastDueBookings?: PastDueBooking[];
   teams: TeamSummary[];
   activeBookings: ActiveBooking[];
   terminalBookings: TerminalBooking[];
@@ -307,6 +342,7 @@ export default function OperationsDashboardClient({
   pendingProofs,
   reviewBookings,
   unassignedBookings,
+  pastDueBookings = [],
   teams,
   activeBookings,
   terminalBookings,
@@ -328,13 +364,18 @@ export default function OperationsDashboardClient({
 }: Props) {
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<Tab>(
-    initialTab ?? (manager.role === 'OWNER' && terminalBookingQuery
-      ? 'terminal'
-      : activeBookingQuery
-        ? 'bookings'
-        : 'proofs'),
-  );
+  const [activeTab, setActiveTab] = useState<Tab>(() => {
+    if (initialTab) {
+      if (initialTab === 'proofs' || initialTab === 'review' || initialTab === 'unassigned') {
+        return 'bookings_queue';
+      }
+      return initialTab;
+    }
+    if (manager.role === 'OWNER' && terminalBookingQuery) return 'terminal';
+    if (activeBookingQuery) return 'bookings';
+    return 'bookings_queue';
+  });
+  const [bookingQueueSubFilter, setBookingQueueSubFilter] = useState<'ALL' | 'PROOFS' | 'REVIEW' | 'UNASSIGNED'>('ALL');
 
   // Modals state
   const [selectedProof, setSelectedProof] = useState<PendingProof | null>(null);
@@ -1144,28 +1185,35 @@ export default function OperationsDashboardClient({
             </div>
           </div>
 
-          {/* Queue Tab Selector */}
+          {/* Queue Tab Selector with exact requested order */}
           <div className="flex gap-2 overflow-x-auto rounded-2xl border border-neutral-800/80 bg-[#0e0e12]/90 backdrop-blur-xl p-1.5 shadow-md">
             {[
-              { id: 'proofs', label: 'إثباتات الدفع', count: pendingProofs.length, icon: FileText },
-              { id: 'subscriptions', label: 'الاشتراكات', count: (managedSubscriptions || []).length, icon: PackageCheck },
-              { id: 'review', label: 'مراجعة الحجوزات', count: reviewBookings.length, icon: ShieldCheck },
-              { id: 'unassigned', label: 'قائمة الإسناد', count: unassignedBookings.length, icon: Users },
+              {
+                id: 'bookings_queue',
+                label: 'الحجوزات',
+                count: pendingProofs.length + reviewBookings.length + unassignedBookings.length,
+                icon: CalendarDays,
+              },
               { id: 'bookings', label: 'الحجوزات النشطة', count: activeBookings.length, icon: Calendar },
+              { id: 'subscriptions', label: 'الاشتراكات', count: (managedSubscriptions || []).length, icon: PackageCheck },
               { id: 'quality', label: 'مراجعة واعتماد الجودة', count: qualityBookingsCount, icon: ShieldCheck },
               { id: 'cases', label: 'الحالات والشكاوى', count: openCasesCount, icon: ShieldAlert },
+              { id: 'past_due', label: 'المواعيد المنتهية / الفائتة', count: pastDueBookings.length, icon: History },
               ...(manager.role === 'OWNER'
                 ? [{ id: 'terminal', label: 'الحجوزات الطرفية', count: terminalBookings.length, icon: AlertTriangle }]
                 : []),
             ].map((tab) => {
               const Icon = tab.icon;
-              const active = activeTab === tab.id;
+              const active =
+                activeTab === tab.id ||
+                (tab.id === 'bookings_queue' &&
+                  (activeTab === 'proofs' || activeTab === 'review' || activeTab === 'unassigned'));
               return (
                 <button
                   key={tab.id}
                   type="button"
                   onClick={() => setActiveTab(tab.id as Tab)}
-                  className={`flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all ${
+                  className={`flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all cursor-pointer ${
                     active
                       ? 'bg-gradient-to-r from-[#d4af37] via-[#e5c45a] to-[#d4af37] text-neutral-950 shadow-md shadow-[#d4af37]/20 font-black'
                       : 'text-neutral-300 hover:bg-white/[0.05] hover:text-white'
@@ -1185,86 +1233,244 @@ export default function OperationsDashboardClient({
             })}
           </div>
 
-          {/* 1. TAB: PROOFS */}
-          {activeTab === 'proofs' && (
-            <section aria-labelledby="proofs-heading" className="space-y-4">
-              <div className="flex items-center justify-between border-b border-neutral-800/80 pb-3">
-                <h3 id="proofs-heading" className="flex items-center gap-2 text-lg font-black text-white">
-                  <FileText className="size-5 text-[#d4af37]" />
-                  مراجعة إثباتات التحويل والدفع
-                </h3>
-                <span className="text-xs text-neutral-400">مراجعة يدوية وتدقيق الحساب</span>
+          {/* 1. MERGED TAB: BOOKINGS QUEUE (إثباتات الدفع + مراجعة الحجوزات + قائمة الإسناد) */}
+          {(activeTab === 'bookings_queue' || activeTab === 'proofs' || activeTab === 'review' || activeTab === 'unassigned') && (
+            <section aria-labelledby="bookings-queue-heading" className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-neutral-800/80 pb-3">
+                <div>
+                  <h3 id="bookings-queue-heading" className="flex items-center gap-2 text-lg font-black text-white">
+                    <CalendarDays className="size-5 text-[#d4af37]" />
+                    إدارة الحجوزات الواردة وإجراءاتها
+                  </h3>
+                  <p className="text-xs text-neutral-400 mt-1">
+                    إثباتات الدفع المعلقة، مراجعة واعتماد الحجوزات، وإسناد الفرق الميدانية في قسم موحد مع أزرار الإجراءات المباشرة.
+                  </p>
+                </div>
+                {/* Sub-filter Pills */}
+                <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-neutral-800 bg-[#121215] p-1">
+                  {[
+                    { id: 'ALL', label: 'الكل', count: pendingProofs.length + reviewBookings.length + unassignedBookings.length },
+                    { id: 'PROOFS', label: 'إثباتات الدفع', count: pendingProofs.length },
+                    { id: 'REVIEW', label: 'مراجعة التشغيل', count: reviewBookings.length },
+                    { id: 'UNASSIGNED', label: 'قائمة الإسناد', count: unassignedBookings.length },
+                  ].map((filter) => (
+                    <button
+                      key={filter.id}
+                      type="button"
+                      onClick={() => setBookingQueueSubFilter(filter.id as any)}
+                      className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all cursor-pointer ${
+                        bookingQueueSubFilter === filter.id
+                          ? 'bg-[#d4af37] text-neutral-950 font-black shadow-sm'
+                          : 'text-neutral-400 hover:text-white hover:bg-white/[0.04]'
+                      }`}
+                    >
+                      <span>{filter.label}</span>
+                      <span
+                        className={`rounded-full px-1.5 py-0.2 text-[10px] font-black ${
+                          bookingQueueSubFilter === filter.id
+                            ? 'bg-black/20 text-neutral-950'
+                            : 'bg-neutral-800 text-neutral-400'
+                        }`}
+                      >
+                        {filter.count}
+                      </span>
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              {pendingProofs.length === 0 ? (
+              {/* Check if all queues are empty */}
+              {pendingProofs.length === 0 && reviewBookings.length === 0 && unassignedBookings.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-neutral-800/80 bg-neutral-950/40 p-12 text-center text-neutral-400">
-                  <FileSearch className="mx-auto size-8 text-neutral-500 mb-3" />
-                  <p className="text-sm font-bold text-white">لا توجد إثباتات دفع معلّقة حاليًا</p>
-                  <p className="mt-1 text-xs text-neutral-500">تمت مراجعة واعتماد جميع التحويلات المستلمة.</p>
+                  <CheckCircle2 className="mx-auto size-8 text-emerald-500 mb-3" />
+                  <p className="text-sm font-bold text-white">لا توجد حجوزات واردة معلقة حالياً</p>
+                  <p className="mt-1 text-xs text-neutral-500">كافة الإثباتات والحجوزات تمت مراجعتها وتوزيعها على الفرق بنجاح.</p>
                 </div>
               ) : (
                 <div className="grid gap-4 md:grid-cols-2">
-                  {pendingProofs.map((proof) => (
-                    <article
-                      key={proof.id}
-                      className="flex flex-col justify-between rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-md transition-all hover:border-neutral-700"
-                    >
-                      <div>
-                        <div className="flex items-center justify-between gap-2 border-b border-neutral-800/60 pb-3">
-                          <div className="flex items-center gap-2">
-                            <span className="size-2 rounded-full bg-[#d4af37]" />
-                            <span dir="ltr" className="font-mono text-sm font-black text-white">
-                              {proof.booking.bookingNumber}
+                  {/* Proofs Cards */}
+                  {(bookingQueueSubFilter === 'ALL' || bookingQueueSubFilter === 'PROOFS') &&
+                    pendingProofs.map((proof) => (
+                      <article
+                        key={`proof-${proof.id}`}
+                        className="flex flex-col justify-between rounded-2xl border border-amber-500/30 bg-[#111114]/90 backdrop-blur-md p-5 shadow-md transition-all hover:border-amber-500/60"
+                      >
+                        <div>
+                          <div className="flex items-center justify-between gap-2 border-b border-neutral-800/60 pb-3">
+                            <div className="flex items-center gap-2">
+                              <span className="size-2 rounded-full bg-[#d4af37] animate-pulse" />
+                              <span dir="ltr" className="font-mono text-sm font-black text-white">
+                                {proof.booking.bookingNumber}
+                              </span>
+                            </div>
+                            <span className="rounded-full border border-amber-400/40 bg-amber-400/10 px-2.5 py-0.5 text-[11px] font-black text-amber-200">
+                              إثبات تحويل ({proof.paymentMethod.name})
                             </span>
                           </div>
-                          <span className="rounded-full border border-amber-300/30 bg-amber-300/10 px-2.5 py-0.5 text-[11px] font-bold text-amber-200">
-                            {proof.paymentMethod.name}
-                          </span>
-                        </div>
 
-                        <div className="mt-3 space-y-1.5 text-xs">
-                          <p className="text-sm font-bold text-white">{proof.booking.service.nameAr}</p>
-                          <p className="text-neutral-300 font-semibold">{proof.booking.customer.user.fullName}</p>
-                          <p className="text-neutral-400">
-                            اسم المحوّل: <strong className="text-neutral-200">{proof.senderName}</strong> ({proof.senderPhoneOrAccount})
-                          </p>
-                          {proof.referenceNumber ? (
+                          <div className="mt-3 space-y-1.5 text-xs">
+                            <p className="text-sm font-bold text-white">{proof.booking.service.nameAr}</p>
+                            <p className="text-neutral-300 font-semibold">{proof.booking.customer.user.fullName}</p>
                             <p className="text-neutral-400">
-                              رقم المرجع: <span dir="ltr" className="font-mono text-neutral-200">{proof.referenceNumber}</span>
+                              اسم المحوّل: <strong className="text-neutral-200">{proof.senderName}</strong> ({proof.senderPhoneOrAccount})
                             </p>
-                          ) : null}
-                          <div className="mt-2 flex items-center justify-between rounded-xl bg-neutral-950/60 p-2.5 border border-neutral-800/60">
-                            <span className="text-neutral-400">المبلغ المحول:</span>
-                            <span className="font-black text-base text-[#f3e4a8]">{formatCurrency(proof.amountSubmitted)}</span>
+                            {proof.referenceNumber ? (
+                              <p className="text-neutral-400">
+                                رقم المرجع: <span dir="ltr" className="font-mono text-neutral-200">{proof.referenceNumber}</span>
+                              </p>
+                            ) : null}
+                            <div className="mt-2 flex items-center justify-between rounded-xl bg-neutral-950/60 p-2.5 border border-neutral-800/60">
+                              <span className="text-neutral-400">المبلغ المحول:</span>
+                              <span className="font-black text-base text-[#f3e4a8]">{formatCurrency(proof.amountSubmitted)}</span>
+                            </div>
                           </div>
                         </div>
-                      </div>
 
-                      <div className="mt-4 flex items-center justify-between gap-3 border-t border-neutral-800/60 pt-3">
-                        <a
-                          href={`tel:${proof.booking.customer.user.phone}`}
-                          className="text-xs font-bold text-[#d4af37] hover:text-[#f3e4a8] flex items-center gap-1.5"
-                        >
-                          <Phone className="size-3.5" />
-                          <span>اتصال بالعميل</span>
-                        </a>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedProof(proof);
-                            setReviewNotes('');
-                            setFeedback(null);
-                          }}
-                          className={primaryButtonClass}
-                        >
-                          فتح المراجعة
-                        </button>
-                      </div>
-                    </article>
-                  ))}
+                        <div className="mt-4 flex items-center justify-between gap-3 border-t border-neutral-800/60 pt-3">
+                          <a
+                            href={`tel:${proof.booking.customer.user.phone}`}
+                            className="text-xs font-bold text-[#d4af37] hover:text-[#f3e4a8] flex items-center gap-1.5"
+                          >
+                            <Phone className="size-3.5" />
+                            <span>اتصال بالعميل</span>
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedProof(proof);
+                              setReviewNotes('');
+                              setFeedback(null);
+                            }}
+                            className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-[#d4af37] via-[#e5c45a] to-[#d4af37] px-4 py-2 text-xs font-black text-neutral-950 shadow-md hover:brightness-110 cursor-pointer transition-all"
+                          >
+                            <FileText className="size-3.5" />
+                            <span>مراجعة إثبات التحويل</span>
+                          </button>
+                        </div>
+                      </article>
+                    ))}
+
+                  {/* Review Cards */}
+                  {(bookingQueueSubFilter === 'ALL' || bookingQueueSubFilter === 'REVIEW') &&
+                    reviewBookings.map((booking) => (
+                      <article
+                        key={`review-${booking.id}`}
+                        className="flex flex-col justify-between rounded-2xl border border-sky-500/30 bg-[#111114]/90 backdrop-blur-md p-5 shadow-md transition-all hover:border-sky-500/60"
+                      >
+                        <div>
+                          <div className="flex items-center justify-between gap-2 border-b border-neutral-800/60 pb-3">
+                            <div className="flex items-center gap-2">
+                              <span className="size-2 rounded-full bg-sky-400" />
+                              <span dir="ltr" className="font-mono text-sm font-black text-white">
+                                {booking.bookingNumber}
+                              </span>
+                            </div>
+                            <span className="rounded-full border border-sky-300/30 bg-sky-300/10 px-2.5 py-0.5 text-[11px] font-bold text-sky-200">
+                              بانتظار مراجعة التشغيل
+                            </span>
+                          </div>
+
+                          <div className="mt-3 space-y-2 text-xs">
+                            <p className="text-sm font-bold text-white">{booking.service.nameAr}</p>
+                            <p className="text-neutral-300 font-semibold">{booking.customer.user.fullName}</p>
+                            <p className="text-neutral-400">
+                              السيارة: <strong className="text-neutral-200">{booking.vehicle.make} {booking.vehicle.model}</strong> · {booking.coverageArea.compound}
+                            </p>
+                            <p className="text-neutral-400">
+                              الموعد: <strong className="text-white">{formatDateTime(booking.startAt)}</strong>
+                            </p>
+                            <div className="flex items-center justify-between rounded-xl bg-neutral-950/60 p-2.5 border border-neutral-800/60">
+                              <span className="text-neutral-400">المبلغ المتبقي:</span>
+                              <span className="font-black text-sm text-[#f3e4a8]">{formatCurrency(booking.amountDue)}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 flex items-center justify-between gap-3 border-t border-neutral-800/60 pt-3">
+                          <a
+                            href={`tel:${booking.customer.user.phone}`}
+                            className="text-xs font-bold text-[#d4af37] hover:text-[#f3e4a8] flex items-center gap-1.5"
+                          >
+                            <Phone className="size-3.5" />
+                            <span>اتصال بالعميل</span>
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedReview(booking);
+                              setReviewNotes('');
+                              setFeedback(null);
+                            }}
+                            className="inline-flex items-center gap-1.5 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-xs font-bold text-amber-300 hover:bg-amber-500/20 shadow-md cursor-pointer transition-all"
+                          >
+                            <ShieldCheck className="size-3.5" />
+                            <span>مراجعة وقبول الحجز</span>
+                          </button>
+                        </div>
+                      </article>
+                    ))}
+
+                  {/* Unassigned Cards */}
+                  {(bookingQueueSubFilter === 'ALL' || bookingQueueSubFilter === 'UNASSIGNED') &&
+                    unassignedBookings.map((booking) => (
+                      <article
+                        key={`unassigned-${booking.id}`}
+                        className="flex flex-col justify-between rounded-2xl border border-rose-500/30 bg-[#111114]/90 backdrop-blur-md p-5 shadow-md transition-all hover:border-rose-500/60"
+                      >
+                        <div>
+                          <div className="flex items-center justify-between gap-2 border-b border-neutral-800/60 pb-3">
+                            <div className="flex items-center gap-2">
+                              <span className="size-2 rounded-full bg-rose-400" />
+                              <span dir="ltr" className="font-mono text-sm font-black text-white">
+                                {booking.bookingNumber}
+                              </span>
+                            </div>
+                            <span className="rounded-full border border-rose-300/30 bg-rose-300/10 px-2.5 py-0.5 text-[11px] font-bold text-rose-200">
+                              مقبول - بانتظار الإسناد
+                            </span>
+                          </div>
+
+                          <div className="mt-3 space-y-2 text-xs">
+                            <p className="text-sm font-bold text-white">{booking.service.nameAr}</p>
+                            {booking.customer ? (
+                              <p className="text-neutral-300 font-semibold">{booking.customer.user.fullName}</p>
+                            ) : null}
+                            <p className="text-neutral-400">
+                              المنطقة: <strong className="text-neutral-200">{booking.coverageArea.compound}</strong> · {booking.branch.nameAr}
+                            </p>
+                            <p className="text-neutral-400">
+                              الموعد: <strong className="text-white">{formatDateTime(booking.startAt)}</strong>
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 flex items-center justify-between gap-3 border-t border-neutral-800/60 pt-3">
+                          {booking.customer ? (
+                            <a
+                              href={`tel:${booking.customer.user.phone}`}
+                              className="text-xs font-bold text-[#d4af37] hover:text-[#f3e4a8] flex items-center gap-1.5"
+                            >
+                              <Phone className="size-3.5" />
+                              <span>اتصال بالعميل</span>
+                            </a>
+                          ) : <span />}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedBooking(booking);
+                              setAssignmentReason('');
+                              setFeedback(null);
+                            }}
+                            className="inline-flex items-center gap-1.5 rounded-xl border border-sky-500/40 bg-sky-500/10 px-4 py-2 text-xs font-bold text-sky-300 hover:bg-sky-500/20 shadow-md cursor-pointer transition-all"
+                          >
+                            <Users className="size-3.5" />
+                            <span>إسناد فريق عمل</span>
+                          </button>
+                        </div>
+                      </article>
+                    ))}
                 </div>
               )}
-              <OperationsQueuePagination queueKey="proofs" pagination={pagination.proofs} dashboardTab="proofs" />
             </section>
           )}
 
@@ -1289,165 +1495,133 @@ export default function OperationsDashboardClient({
             </section>
           )}
 
-          {/* 2. TAB: REVIEW */}
-          {activeTab === 'review' && (
-            <section aria-labelledby="review-heading" className="space-y-4">
-              <div className="flex items-center justify-between border-b border-neutral-800/80 pb-3">
-                <h3 id="review-heading" className="flex items-center gap-2 text-lg font-black text-white">
-                  <ShieldCheck className="size-5 text-[#d4af37]" />
-                  مراجعة الحجوزات تشغيليًا وقبولها
-                </h3>
-                <span className="text-xs text-neutral-400">تأكيد الموعد وإحالته للإسناد</span>
+          {/* TAB: PAST DUE / EXPIRED APPOINTMENTS (المواعيد المنتهية / الفائتة) */}
+          {activeTab === 'past_due' && (
+            <section aria-labelledby="past-due-heading" className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-neutral-800/80 pb-3">
+                <div>
+                  <h3 id="past-due-heading" className="flex items-center gap-2 text-lg font-black text-rose-400">
+                    <History className="size-5" />
+                    المواعيد المنقضية والفائتة
+                  </h3>
+                  <p className="text-xs text-neutral-400 mt-1">
+                    حجوزات انتهى وقت موعدها في الماضي ولم تكتمل أو تعتمد؛ معزولة هنا لعدم تشتيت التشغيل اليومي ولتنسيق موعد جديد مع العميل.
+                  </p>
+                </div>
+                <span className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-1.5 text-xs font-bold text-rose-300">
+                  {formatNumber(pastDueBookings.length)} موعد منقضي
+                </span>
               </div>
 
-              {reviewBookings.length === 0 ? (
+              {pastDueBookings.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-neutral-800/80 bg-neutral-950/40 p-12 text-center text-neutral-400">
-                  <FileSearch className="mx-auto size-8 text-neutral-500 mb-3" />
-                  <p className="text-sm font-bold text-white">لا توجد حجوزات بانتظار القرار</p>
-                  <p className="mt-1 text-xs text-neutral-500">تم اعتماد أو توزيع كافة الطلبات الواردة.</p>
+                  <CheckCircle2 className="mx-auto size-8 text-emerald-500 mb-3" />
+                  <p className="text-sm font-bold text-white">لا توجد مواعيد منتهية أو معلقة من الماضي</p>
+                  <p className="mt-1 text-xs text-neutral-500">كافة المواعيد السابقة تم إكمالها أو إدارتها بالكامل.</p>
                 </div>
               ) : (
                 <div className="grid gap-4 md:grid-cols-2">
-                  {reviewBookings.map((booking) => (
+                  {pastDueBookings.map((booking) => (
                     <article
                       key={booking.id}
-                      className="flex flex-col justify-between rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-md transition-all hover:border-neutral-700"
+                      className="flex flex-col justify-between rounded-2xl border border-rose-500/30 bg-[#141215]/90 backdrop-blur-md p-5 shadow-md transition-all hover:border-rose-500/50"
                     >
                       <div>
                         <div className="flex items-center justify-between gap-2 border-b border-neutral-800/60 pb-3">
                           <div className="flex items-center gap-2">
-                            <span className="size-2 rounded-full bg-sky-400" />
+                            <span className="size-2 rounded-full bg-rose-500 animate-pulse" />
                             <span dir="ltr" className="font-mono text-sm font-black text-white">
                               {booking.bookingNumber}
                             </span>
                           </div>
-                          <span className="rounded-full border border-sky-300/30 bg-sky-300/10 px-2.5 py-0.5 text-[11px] font-bold text-sky-200">
-                            {booking.branch.nameAr}
+                          <span className="rounded-full border border-rose-500/40 bg-rose-500/15 px-2.5 py-0.5 text-[11px] font-black text-rose-300">
+                            انقضى الموعد
                           </span>
                         </div>
 
-                        <div className="mt-3 space-y-2 text-xs">
-                          <p className="text-sm font-bold text-white">{booking.service.nameAr}</p>
-                          <p className="text-neutral-300 font-semibold">{booking.customer.user.fullName}</p>
-                          <p className="text-neutral-400">
-                            السيارة: <strong className="text-neutral-200">{booking.vehicle.make} {booking.vehicle.model}</strong> · {booking.coverageArea.compound}
-                          </p>
-                          <p className="text-neutral-400">
-                            الموعد: <strong className="text-white">{formatDateTime(booking.startAt)}</strong>
-                          </p>
-                          <div className="flex items-center justify-between rounded-xl bg-neutral-950/60 p-2.5 border border-neutral-800/60">
-                            <span className="text-neutral-400">المتبقي:</span>
-                            <span className="font-black text-sm text-[#f3e4a8]">{formatCurrency(booking.amountDue)}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="mt-4 flex items-center justify-between gap-3 border-t border-neutral-800/60 pt-3">
-                        <a
-                          href={`tel:${booking.customer.user.phone}`}
-                          className="text-xs font-bold text-[#d4af37] hover:text-[#f3e4a8] flex items-center gap-1.5"
-                        >
-                          <Phone className="size-3.5" />
-                          <span>اتصال بالعميل</span>
-                        </a>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedReview(booking);
-                            setReviewNotes('');
-                            setFeedback(null);
-                          }}
-                          className={primaryButtonClass}
-                        >
-                          اتخاذ القرار
-                        </button>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              )}
-              <OperationsQueuePagination queueKey="review" pagination={pagination.review} dashboardTab="review" />
-            </section>
-          )}
-
-          {/* 3. TAB: UNASSIGNED */}
-          {activeTab === 'unassigned' && (
-            <section aria-labelledby="unassigned-heading" className="space-y-4">
-              <div className="flex items-center justify-between border-b border-neutral-800/80 pb-3">
-                <h3 id="unassigned-heading" className="flex items-center gap-2 text-lg font-black text-white">
-                  <Users className="size-5 text-[#d4af37]" />
-                  قائمة الإسناد والتوزيع اليدوي
-                </h3>
-                <span className="text-xs text-neutral-400">حجوزات مقبولة بانتظار تحديد الفريق المنفذ</span>
-              </div>
-
-              {unassignedBookings.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-neutral-800/80 bg-neutral-950/40 p-12 text-center text-neutral-400">
-                  <FileSearch className="mx-auto size-8 text-neutral-500 mb-3" />
-                  <p className="text-sm font-bold text-white">كل الحجوزات المقبولة مسندة للفرق</p>
-                  <p className="mt-1 text-xs text-neutral-500">لا توجد حجوزات معلقة بدون فريق منفذ.</p>
-                </div>
-              ) : (
-                <div className="grid gap-4 md:grid-cols-2">
-                  {unassignedBookings.map((booking) => (
-                    <article
-                      key={booking.id}
-                      className="flex flex-col justify-between rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-5 shadow-md transition-all hover:border-neutral-700"
-                    >
-                      <div>
-                        <div className="flex items-center justify-between gap-2 border-b border-neutral-800/60 pb-3">
-                          <div className="flex items-center gap-2">
-                            <span className="size-2 rounded-full bg-rose-400" />
-                            <span dir="ltr" className="font-mono text-sm font-black text-white">
-                              {booking.bookingNumber}
-                            </span>
-                          </div>
-                          <span className="rounded-full border border-rose-300/30 bg-rose-300/10 px-2.5 py-0.5 text-[11px] font-bold text-rose-200">
-                            {booking.branch.nameAr}
-                          </span>
-                        </div>
-
-                        <div className="mt-3 space-y-2 text-xs">
-                          <p className="text-sm font-bold text-white">{booking.service.nameAr}</p>
+                        <div className="mt-3 space-y-1.5 text-xs">
+                          <p className="text-sm font-bold text-white">{booking.service?.nameAr ?? 'خدمة عناية'}</p>
                           {booking.customer ? (
                             <p className="text-neutral-300 font-semibold">{booking.customer.user.fullName}</p>
                           ) : null}
                           <p className="text-neutral-400">
-                            المنطقة: <strong className="text-neutral-200">{booking.coverageArea.compound}</strong>
+                            الموعد الأصلي: <strong className="text-rose-300">{formatDateTime(booking.startAt)}</strong>
                           </p>
-                          <p className="text-neutral-400">
-                            الموعد المحدد: <strong className="text-white">{formatDateTime(booking.startAt)}</strong>
-                          </p>
+                          {booking.vehicle ? (
+                            <p className="text-neutral-400">
+                              السيارة: {booking.vehicle.make} {booking.vehicle.model}
+                            </p>
+                          ) : null}
+                          <div className="mt-2 flex items-center justify-between rounded-xl bg-black/40 p-2.5 border border-neutral-800/60">
+                            <span className="text-neutral-400">الحالة التشغيلية:</span>
+                            <span className="font-bold text-neutral-200">
+                              {booking.paymentProofs && booking.paymentProofs.length > 0
+                                ? 'يوجد إثبات تحويل معلّق'
+                                : 'بانتظار تنسيق موعد بديل مع العميل'}
+                            </span>
+                          </div>
                         </div>
                       </div>
 
-                      <div className="mt-4 flex items-center justify-between gap-3 border-t border-neutral-800/60 pt-3">
+                      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-neutral-800/60 pt-3">
                         {booking.customer ? (
-                          <a
-                            href={`tel:${booking.customer.user.phone}`}
-                            className="text-xs font-bold text-[#d4af37] hover:text-[#f3e4a8] flex items-center gap-1.5"
-                          >
-                            <Phone className="size-3.5" />
-                            <span>اتصال بالعميل</span>
-                          </a>
+                          <div className="flex items-center gap-2">
+                            <a
+                              href={`tel:${booking.customer.user.phone}`}
+                              className="text-xs font-bold text-[#d4af37] hover:text-[#f3e4a8] flex items-center gap-1.5"
+                            >
+                              <Phone className="size-3.5" />
+                              <span>اتصال</span>
+                            </a>
+                            <a
+                              href={`https://wa.me/${booking.customer.user.phone.replace(/[^0-9]/g, '')}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs font-bold text-emerald-400 hover:text-emerald-300 flex items-center gap-1"
+                            >
+                              <span>واتساب</span>
+                            </a>
+                          </div>
                         ) : <span />}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedBooking(booking);
-                            setAssignmentReason('');
-                            setFeedback(null);
-                          }}
-                          className={primaryButtonClass}
-                        >
-                          إسناد فريق
-                        </button>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedRescheduleBooking({
+                                id: booking.id,
+                                bookingNumber: booking.bookingNumber,
+                                startAt: booking.startAt,
+                              });
+                              setRescheduleDate('');
+                              setRescheduleTime('');
+                              setRescheduleReason('تنسيق موعد جديد بديل للموعد الفائت مع العميل');
+                            }}
+                            className="inline-flex items-center gap-1.5 rounded-xl bg-sky-500 px-3.5 py-2 text-xs font-black text-neutral-950 hover:bg-sky-400 shadow-md transition-all cursor-pointer"
+                          >
+                            <CalendarClock className="size-3.5" />
+                            <span>تنسيق موعد جديد</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedCancelBooking({
+                                id: booking.id,
+                                bookingNumber: booking.bookingNumber,
+                                customerName: booking.customer?.user.fullName,
+                              });
+                            }}
+                            className="inline-flex items-center gap-1 rounded-xl border border-rose-500/30 bg-rose-500/10 px-2.5 py-2 text-xs font-bold text-rose-300 hover:bg-rose-500/20 transition-all cursor-pointer"
+                            title="إلغاء الحجز"
+                          >
+                            <Ban className="size-3.5" />
+                          </button>
+                        </div>
                       </div>
                     </article>
                   ))}
                 </div>
               )}
-              <OperationsQueuePagination queueKey="unassigned" pagination={pagination.unassigned} dashboardTab="unassigned" />
             </section>
           )}
 
@@ -1834,15 +2008,38 @@ export default function OperationsDashboardClient({
               </div>
             ) : null}
             {feedback && (
-              <div
-                role="status"
-                className={`rounded-2xl border p-4 text-xs font-bold ${
-                  feedback.tone === 'error'
-                    ? 'border-rose-500/40 bg-rose-500/10 text-rose-200'
-                    : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200'
-                }`}
-              >
-                {feedback.message}
+              <div className="space-y-2">
+                <div
+                  role="status"
+                  className={`rounded-2xl border p-4 text-xs font-bold ${
+                    feedback.tone === 'error'
+                      ? 'border-rose-500/40 bg-rose-500/10 text-rose-200'
+                      : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200'
+                  }`}
+                >
+                  {feedback.message}
+                </div>
+                {feedback.tone === 'error' && (feedback.message.includes('الموعد') || feedback.message.includes('موعدًا')) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const proofBooking = selectedProof.booking;
+                      setSelectedRescheduleBooking({
+                        id: proofBooking.id,
+                        bookingNumber: proofBooking.bookingNumber,
+                        startAt: proofBooking.startAt ?? new Date(),
+                      });
+                      setSelectedProof(null);
+                      setRescheduleDate('');
+                      setRescheduleTime('');
+                      setRescheduleReason('تنسيق موعد جديد مع العميل لاعتماد إثبات التحويل');
+                    }}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-sky-500 px-4 py-2.5 text-xs font-bold text-neutral-950 hover:bg-sky-400 transition-all cursor-pointer shadow-md"
+                  >
+                    <CalendarClock className="size-4" />
+                    <span>تنسيق وتحديد موعد جديد للحجز الآن</span>
+                  </button>
+                )}
               </div>
             )}
             <div>

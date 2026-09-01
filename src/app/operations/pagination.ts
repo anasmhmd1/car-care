@@ -4,10 +4,12 @@ export const OPERATIONS_CASE_QUEUE_PAGE_SIZE = 20;
 const MAX_OPERATIONS_QUEUE_PAGE = 10_000;
 
 export type OperationsDashboardQueueKey =
+  | 'bookings_queue'
   | 'proofs'
   | 'review'
   | 'unassigned'
   | 'bookings'
+  | 'past_due'
   | 'terminal';
 
 export type OperationsCaseQueueKey =

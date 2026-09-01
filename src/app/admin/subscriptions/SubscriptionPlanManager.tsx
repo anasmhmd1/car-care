@@ -295,32 +295,25 @@ export default function SubscriptionPlanManager({
                   <Edit3 className="size-4" aria-hidden="true" />
                   تعديل الخطة
                 </button>
-                {plan.active ? (
-                  <button
-                    type="button"
-                    onClick={() => { setFeedback(null); setSafetyAction({ plan, mode: 'DEACTIVATE' }); }}
-                    disabled={isPending}
-                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-amber-500/25 bg-amber-500/[0.08] px-4 text-xs font-bold text-amber-200 transition hover:bg-amber-500/[0.13] focus:outline-none focus:ring-2 focus:ring-amber-400 disabled:opacity-45"
-                  >
-                    <Archive className="size-4" aria-hidden="true" />
-                    تعطيل البيع
-                  </button>
-                ) : null}
-                {!plan.active && plan.subscriptionCount === 0 ? (
-                  <button
-                    type="button"
-                    onClick={() => { setFeedback(null); setSafetyAction({ plan, mode: 'DELETE_UNLINKED' }); }}
-                    disabled={isPending}
-                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-red-500/25 bg-red-500/[0.08] px-4 text-xs font-bold text-red-200 transition hover:bg-red-500/[0.13] focus:outline-none focus:ring-2 focus:ring-red-400 disabled:opacity-45"
-                  >
-                    <Trash2 className="size-4" aria-hidden="true" />
-                    حذف نهائي
-                  </button>
-                ) : null}
-                {!plan.active && plan.subscriptionCount > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFeedback(null);
+                    setSafetyAction({
+                      plan,
+                      mode: plan.subscriptionCount === 0 ? 'DELETE_UNLINKED' : 'DEACTIVATE',
+                    });
+                  }}
+                  disabled={isPending}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 text-xs font-bold text-rose-300 transition hover:bg-rose-500/20 focus:outline-none focus:ring-2 focus:ring-rose-400 disabled:opacity-45"
+                >
+                  <Trash2 className="size-4 text-rose-400" aria-hidden="true" />
+                  حذف الخطة
+                </button>
+                {plan.subscriptionCount > 0 ? (
                   <span className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-white/10 px-3 text-[11px] text-white/40">
                     <LockKeyhole className="size-3.5" aria-hidden="true" />
-                    محفوظة لارتباطها باشتراكات
+                    مرتبطة باشتراكات (تُعطل كأرشيف)
                   </span>
                 ) : null}
               </div>
@@ -525,18 +518,18 @@ export default function SubscriptionPlanManager({
               {safetyAction.mode === 'DELETE_UNLINKED' ? (
                 <label className="block text-xs font-bold text-white/70">
                   اكتب اسم الخطة للتأكيد: <span className="text-red-300">{safetyAction.plan.nameAr}</span>
-                  <input name="confirmation" required autoComplete="off" autoFocus className={inputClass} />
+                  <input name="confirmation" defaultValue={safetyAction.plan.nameAr} required autoComplete="off" className={inputClass} />
                 </label>
               ) : null}
               <label className="block text-xs font-bold text-white/70">
                 سبب الإجراء
-                <textarea name="reason" required minLength={3} maxLength={500} rows={4} autoFocus={safetyAction.mode === 'DEACTIVATE'} className={`${inputClass} py-3 leading-6`} />
+                <textarea name="reason" defaultValue="طلب حذف بواسطة المالك" required minLength={3} maxLength={500} rows={3} className={`${inputClass} py-3 leading-6`} />
               </label>
               <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
                 <button type="button" onClick={() => setSafetyAction(null)} disabled={isPending} className={secondaryButtonClass}>تراجع</button>
                 <button type="submit" disabled={isPending} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-red-500 px-5 text-xs font-black text-white transition hover:bg-red-400 focus:outline-none focus:ring-2 focus:ring-red-300 disabled:cursor-wait disabled:opacity-50">
                   {safetyAction.mode === 'DEACTIVATE' ? <Archive className="size-4" aria-hidden="true" /> : <Trash2 className="size-4" aria-hidden="true" />}
-                  {isPending ? 'جارٍ التنفيذ…' : safetyAction.mode === 'DEACTIVATE' ? 'تعطيل الخطة' : 'حذف نهائي موثق'}
+                  {isPending ? 'جارٍ التنفيذ…' : safetyAction.mode === 'DEACTIVATE' ? 'تعطيل وأرشفة الخطة' : 'تأكيد حذف الخطة'}
                 </button>
               </div>
             </form>

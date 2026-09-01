@@ -881,9 +881,42 @@ export async function updateServiceAction(formData: FormData) {
 
 export async function deleteServiceAction(formData: FormData) {
   const owner = await requireRole([UserRole.OWNER, UserRole.SYSTEM_SUPER_ADMIN]);
-  const serviceId = formData.get('serviceId') as string;
+  const serviceId = (formData.get('serviceId') as string || '').trim();
 
   if (!serviceId) return { error: 'معرف الخدمة مطلوب' };
+
+  const [bookingCount, subscriptionBalanceCount] = await Promise.all([
+    db.booking.count({ where: { serviceId } }),
+    db.customerSubscriptionServiceBalance.count({ where: { serviceId } }),
+  ]);
+
+  if (bookingCount > 0 || subscriptionBalanceCount > 0) {
+    await db.service.update({
+      where: { id: serviceId },
+      data: {
+        active: false,
+        bookableOnline: false,
+        subscriptionEligible: false,
+      },
+    });
+
+    await logAudit({
+      actorUserId: owner.id,
+      actorRole: owner.role,
+      action: 'DEACTIVATE_SERVICE_ARCHIVE',
+      entityType: 'Service',
+      entityId: serviceId,
+    });
+
+    revalidatePath('/admin');
+    revalidatePath('/admin/site');
+    revalidatePath('/');
+    revalidatePath('/services');
+    return {
+      success: true,
+      message: 'تم تعطيل الخدمة وحفظها في الأرشيف لارتباطها بسجلات حجوزات/اشتراكات سابقة حمايةً للبيانات المالية.',
+    };
+  }
 
   await db.service.delete({ where: { id: serviceId } });
 
@@ -896,9 +929,10 @@ export async function deleteServiceAction(formData: FormData) {
   });
 
   revalidatePath('/admin');
+  revalidatePath('/admin/site');
   revalidatePath('/');
   revalidatePath('/services');
-  return { success: true, message: 'تم حذف الخدمة بنجاح' };
+  return { success: true, message: 'تم حذف الخدمة نهائيًا بنجاح.' };
 }
 
 export async function updateBrandLandingAction(formData: FormData) {
