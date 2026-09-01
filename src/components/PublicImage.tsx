@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 const fallbackImage = '/images/service-care.svg';
 
@@ -34,6 +34,13 @@ export default function PublicImage({
 }: PublicImageProps) {
   const [resolvedSource, setResolvedSource] = useState(() => getInitialSource(src));
 
+  useEffect(() => {
+    setResolvedSource(getInitialSource(src));
+  }, [src]);
+
+  const isInternalMedia = typeof resolvedSource === 'string' && resolvedSource.startsWith('/api/');
+  const shouldBeUnoptimized = unoptimized ?? isInternalMedia;
+
   return (
     <Image
       src={resolvedSource}
@@ -42,7 +49,7 @@ export default function PublicImage({
       sizes={sizes}
       priority={priority}
       quality={quality}
-      unoptimized={unoptimized}
+      unoptimized={shouldBeUnoptimized}
       className={className}
       onError={() => {
         if (resolvedSource !== fallbackImage) {

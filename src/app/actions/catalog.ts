@@ -68,7 +68,7 @@ function slugify(text: string): string {
 
 const serviceProductSchema = z.object({
   serviceId: databaseIdSchema.optional(),
-  cancellationPolicyId: databaseIdSchema.optional(),
+  cancellationPolicyId: databaseIdSchema.nullish(),
   nameAr: z.string().trim().min(2).max(120),
   nameEn: z.string().trim().max(120).optional(),
   slug: z.string().trim().toLowerCase().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'الرابط المختصر يقبل حروفًا إنجليزية صغيرة وأرقامًا وشرطات فقط.'),
@@ -179,7 +179,7 @@ export async function saveServiceProductAction(formData: FormData) {
 
   const parsed = serviceProductSchema.safeParse({
     serviceId: formData.get('serviceId') || undefined,
-    cancellationPolicyId: formData.get('cancellationPolicyId'),
+    cancellationPolicyId: formData.get('cancellationPolicyId') || undefined,
     nameAr: formData.get('nameAr'),
     nameEn: rawNameEn || undefined,
     slug: resolvedSlug,
@@ -193,12 +193,12 @@ export async function saveServiceProductAction(formData: FormData) {
     preparationInstructions: formData.get('preparationInstructions') || undefined,
     basePrice: formData.get('basePrice'),
     priceType: 'FIXED',
-    durationMinutes: formData.get('durationMinutes'),
+    durationMinutes: formData.get('durationMinutes') || undefined,
     slotCount: formData.get('slotCount'),
-    requiredTeamSize: formData.get('requiredTeamSize'),
+    requiredTeamSize: formData.get('requiredTeamSize') || 2,
     requiresDeposit: bool(formData.get('requiresDeposit')),
-    depositType: formData.get('depositType'),
-    depositValue: formData.get('depositValue'),
+    depositType: formData.get('depositType') || 'FIXED',
+    depositValue: formData.get('depositValue') || 0,
     requiresFullPrepayment: bool(formData.get('requiresFullPrepayment')),
     active: bool(formData.get('active')),
     bookableOnline: bool(formData.get('bookableOnline')),

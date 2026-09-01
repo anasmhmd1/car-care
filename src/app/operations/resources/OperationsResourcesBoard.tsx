@@ -440,7 +440,7 @@ function RequirementEditor({ service, materials, requirement, onResult }: {
           الكمية المطلوبة ({currentOption.shortLabelAr})
           <input
             type="number"
-            step={currentOption.step}
+            step="any"
             min="0.0001"
             max="1000000"
             required

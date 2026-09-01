@@ -237,9 +237,11 @@ export default function CollectionsManager({
                 <div className="flex items-center gap-4">
                   <div className="w-16 h-16 rounded-2xl overflow-hidden border border-[#cea355]/30 bg-black shrink-0 relative">
                     <PublicImage
+                      key={col.image}
                       src={col.image}
                       alt={col.titleAr}
                       sizes="64px"
+                      unoptimized
                       className="w-full h-full object-cover"
                     />
                   </div>
@@ -377,9 +379,11 @@ export default function CollectionsManager({
                           <div className="relative rounded-2xl overflow-hidden border p-1 text-right border-[#cea355] bg-[#cea355]/10 shadow-md ring-2 ring-[#cea355]/30">
                             <div className="h-16 w-full rounded-xl overflow-hidden bg-black relative">
                               <PublicImage
+                                key={col.image}
                                 src={col.image}
                                 alt="صورة مرفوعة مخصصة"
                                 sizes="120px"
+                                unoptimized
                                 className="w-full h-full object-cover"
                               />
                               <div className="absolute top-1 left-1 w-5 h-5 rounded-full gold-gradient flex items-center justify-center text-white shadow">

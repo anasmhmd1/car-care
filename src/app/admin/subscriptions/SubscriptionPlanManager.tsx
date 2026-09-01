@@ -429,9 +429,9 @@ export default function SubscriptionPlanManager({
                   <p className="mb-3 text-[11px] leading-5 text-white/35">اختر خدمة واحدة على الأقل. الخدمة المتوقفة لا يمكن نشرها داخل خطة نشطة.</p>
                   <label className="mb-3 flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-[#d4af37]/20 bg-[#d4af37]/[0.05] px-3 text-xs font-bold text-[#efe2a7]">
                     <input type="checkbox" checked={useServiceQuotas} disabled={termsLocked} onChange={(event) => setUseServiceQuotas(event.target.checked)} className="size-4 accent-[#d4af37] disabled:opacity-45" />
-                    توزيع الزيارات على كل خدمة بشكل مستقل
+                    تحديد أقصى عدد زيارات لكل خدمة بشكل مستقل
                   </label>
-                  {useServiceQuotas ? <p className="mb-3 text-[11px] leading-5 text-white/40">اكتب رصيد كل خدمة؛ مجموع الأرصدة يجب أن يساوي عدد زيارات الباقة. عطّل الخيار لباقة برصيد مشترك بين الخدمات.</p> : null}
+                  {useServiceQuotas ? <p className="mb-3 text-[11px] leading-5 text-white/40">اكتب الحد الأقصى المسموح به للعميل من كل خدمة (مجموع الحدود يجب ألا يقل عن زيارات الباقة). لا يمكن للعميل تجاوز إجمالي زيارات الباقة. عطّل الخيار لباقة برصيد مشترك وحر بين الخدمات.</p> : null}
                   <div className="grid max-h-56 gap-2 overflow-y-auto pe-1 sm:grid-cols-2">
                     {services.map((service) => (
                       <div key={service.id} className="flex min-h-11 items-center gap-3 rounded-xl border border-white/[0.07] bg-white/[0.025] px-3 text-xs text-white/70">

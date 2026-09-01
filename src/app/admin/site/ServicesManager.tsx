@@ -124,7 +124,7 @@ function ServiceMaterialRequirementField({
           الكمية المستهلكة ({currentOption.shortLabelAr})
           <input
             type="number"
-            step={currentOption.step}
+            step="any"
             min="0.0001"
             max="1000000"
             required
@@ -367,7 +367,10 @@ function ServiceEditor({
     data.set('galleryImages', JSON.stringify(galleryImages));
     data.set('variants', JSON.stringify([]));
     data.set('addonIds', JSON.stringify([]));
-    data.set('branchOverrides', JSON.stringify(branchOverrides));
+    data.set('branchOverrides', JSON.stringify(branchOverrides.map((item) => ({
+      ...item,
+      priceOverride: null,
+    }))));
     data.set('materialRequirements', JSON.stringify(materialRequirements));
     data.set('includedItems', JSON.stringify([]));
     data.set('excludedItems', JSON.stringify([]));
@@ -785,21 +788,11 @@ function ServiceEditor({
                     {branch.nameAr}
                   </label>
                   {override ? (
-                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                      <label className="text-[11px] text-neutral-300">
-                        سعر مخصص للفرع
-                        <input
-                          type="number"
-                          min="0"
-                          value={override.priceOverride ?? ''}
-                          onChange={(event) =>
-                            updateBranch(branch.id, { priceOverride: numberOrNull(event.target.value) })
-                          }
-                          className={inputClass}
-                        />
-                      </label>
-                      <label className="text-[11px] text-neutral-300">
-                        مدة مخصصة للفرع
+                    <div className="mt-3 space-y-3">
+                      <div>
+                        <label className="block text-[11px] text-neutral-300 mb-1">
+                          مدة مخصصة للفرع
+                        </label>
                         <select
                           value={override.durationOverrideMinutes ?? ''}
                           onChange={(event) =>
@@ -814,23 +807,25 @@ function ServiceEditor({
                             </option>
                           ))}
                         </select>
-                      </label>
-                      <label className="flex items-center gap-2 text-[11px] text-neutral-300 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={override.active}
-                          onChange={(event) => updateBranch(branch.id, { active: event.target.checked })}
-                        />
-                        نشطة في هذا الفرع
-                      </label>
-                      <label className="flex items-center gap-2 text-[11px] text-neutral-300 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={override.bookableOnline}
-                          onChange={(event) => updateBranch(branch.id, { bookableOnline: event.target.checked })}
-                        />
-                        متاحة للحجز الإلكتروني
-                      </label>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-4 pt-0.5">
+                        <label className="flex items-center gap-2 text-[11px] text-neutral-300 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={override.active}
+                            onChange={(event) => updateBranch(branch.id, { active: event.target.checked })}
+                          />
+                          نشطة في هذا الفرع
+                        </label>
+                        <label className="flex items-center gap-2 text-[11px] text-neutral-300 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={override.bookableOnline}
+                            onChange={(event) => updateBranch(branch.id, { bookableOnline: event.target.checked })}
+                          />
+                          متاحة للحجز الإلكتروني
+                        </label>
+                      </div>
                     </div>
                   ) : null}
                 </div>

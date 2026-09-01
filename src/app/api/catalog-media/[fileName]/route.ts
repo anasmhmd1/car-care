@@ -17,14 +17,23 @@ export async function GET(
     return NextResponse.json({ error: 'مسار الصورة غير صالح.' }, { status: 400 });
   }
   const exactUrl = `/api/catalog-media/${fileName}`;
-  const services = await db.service.findMany({
-    where: { active: true },
-    select: { coverImage: true, galleryImages: true },
-  });
-  const referenced = services.some((service) =>
+  const [services, brand] = await Promise.all([
+    db.service.findMany({
+      where: { active: true },
+      select: { coverImage: true, galleryImages: true },
+    }),
+    db.brandSettings.findFirst({
+      select: { homepageContent: true },
+    }),
+  ]);
+  const referencedInServices = services.some((service) =>
     service.coverImage === exactUrl ||
     (isStringArray(service.galleryImages) && service.galleryImages.includes(exactUrl)),
   );
+  const brandContentStr = brand?.homepageContent ? JSON.stringify(brand.homepageContent) : '';
+  const referencedInBrand = brandContentStr.includes(fileName);
+  const referenced = referencedInServices || referencedInBrand;
+
   if (!referenced) {
     const actor = await getCurrentUser();
     if (!actor || (actor.role !== UserRole.OWNER && actor.role !== UserRole.SYSTEM_SUPER_ADMIN)) {

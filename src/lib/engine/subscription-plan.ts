@@ -38,6 +38,10 @@ function rulesForDatabase(
 }
 
 async function lockPlanCatalog(tx: Prisma.TransactionClient): Promise<void> {
+  if (typeof tx.$executeRaw === 'function') {
+    await tx.$executeRaw(PLAN_LOCK);
+    return;
+  }
   await tx.$queryRaw(PLAN_LOCK);
 }
 

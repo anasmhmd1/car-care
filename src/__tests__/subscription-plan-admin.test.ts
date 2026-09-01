@@ -82,7 +82,7 @@ describe('subscription plan validation', () => {
     }).success).toBe(false);
   });
 
-  it('supports a per-service visit distribution only when it exactly matches the plan total', () => {
+  it('supports per-service visit quotas when total quotas meet or exceed the plan total', () => {
     const distributed = createSubscriptionPlanSchema.parse({
       ...validPlanInput,
       serviceIds: [SERVICE_ID, SECOND_SERVICE_ID],
@@ -96,6 +96,17 @@ describe('subscription plan validation', () => {
       { serviceId: SECOND_SERVICE_ID, visitQuota: 1 },
     ]);
 
+    // Total quota exceeds plan visitCount (3 + 3 = 6 > 4) - valid as individual caps
+    expect(createSubscriptionPlanSchema.safeParse({
+      ...validPlanInput,
+      serviceIds: [SERVICE_ID, SECOND_SERVICE_ID],
+      serviceQuotas: [
+        { serviceId: SERVICE_ID, visitQuota: '3' },
+        { serviceId: SECOND_SERVICE_ID, visitQuota: '3' },
+      ],
+    }).success).toBe(true);
+
+    // Total quota less than plan visitCount (2 + 1 = 3 < 4) - invalid
     expect(createSubscriptionPlanSchema.safeParse({
       ...validPlanInput,
       serviceIds: [SERVICE_ID, SECOND_SERVICE_ID],

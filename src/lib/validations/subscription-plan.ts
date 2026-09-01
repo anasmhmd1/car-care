@@ -168,11 +168,11 @@ function validateServiceQuotas(
     return;
   }
   const quotaTotal = input.serviceQuotas.reduce((total, item) => total + item.visitQuota, 0);
-  if (quotaTotal !== input.visitCount) {
+  if (quotaTotal < input.visitCount) {
     context.addIssue({
       code: z.ZodIssueCode.custom,
       path: ['visitCount'],
-      message: 'مجموع أرصدة الخدمات يجب أن يساوي إجمالي زيارات الباقة.',
+      message: 'مجموع أقصى زيارات للخدمات يجب ألا يقل عن إجمالي زيارات الباقة.',
     });
   }
 }

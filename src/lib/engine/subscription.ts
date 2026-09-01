@@ -338,9 +338,9 @@ export async function purchaseCustomerSubscription(
   if (hasDedicatedServiceBalances) {
     const hasMissingQuota = plan.services.some(({ visitQuota }) => visitQuota == null);
     const quotaTotal = plan.services.reduce((total, item) => total + (item.visitQuota ?? 0), 0);
-    if (hasMissingQuota || quotaTotal !== plan.visitCount) {
+    if (hasMissingQuota || quotaTotal < plan.visitCount) {
       throw new SubscriptionEngineError(
-        'توزيع أرصدة خدمات الباقة غير متسق؛ راجع إعدادات الباقة قبل البيع.',
+        'توزيع أرصدة خدمات الباقة غير متسق؛ مجموع أقصى زيارات للخدمات يجب ألا يقل عن إجمالي زيارات الباقة.',
         'INVALID_SERVICE_QUOTAS',
       );
     }
