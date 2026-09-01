@@ -1,46 +1,56 @@
 import { describe, expect, it } from 'vitest';
 import { BRAND_LOGO, getServiceGalleryImages, getServiceRealImage } from '@/lib/service-images';
 
-describe('Service Image Consistency (صور الخدمات الحقيقية وشعار البراند الرسمي)', () => {
-  it('defaults to official brand logo when no custom photo is uploaded', () => {
+describe('Service Image Consistency (صور الخدمات — تطابق بين لوحة الأونر وواجهة العميل)', () => {
+  it('shows SVG service illustrations exactly as stored — same as admin sees', () => {
     const exteriorReal = getServiceRealImage('bareeq-essential-exterior', '/images/services/exterior-care.svg');
-    expect(exteriorReal).toBe(BRAND_LOGO);
+    expect(exteriorReal).toBe('/images/services/exterior-care.svg');
 
-    const noCoverReal = getServiceRealImage('bareeq-intensive-interior', null);
-    expect(noCoverReal).toBe(BRAND_LOGO);
+    const completeReal = getServiceRealImage('bareeq-complete-care', '/images/services/complete-care.svg');
+    expect(completeReal).toBe('/images/services/complete-care.svg');
+  });
 
-    const emptyCoverReal = getServiceRealImage('bareeq-engine-bay-care', '');
-    expect(emptyCoverReal).toBe(BRAND_LOGO);
+  it('defaults to official brand logo when NO image exists at all', () => {
+    expect(getServiceRealImage('test', null)).toBe(BRAND_LOGO);
+    expect(getServiceRealImage('test', '')).toBe(BRAND_LOGO);
+    expect(getServiceRealImage('test', undefined)).toBe(BRAND_LOGO);
   });
 
   it('preserves custom uploaded photos and HTTPS media uploaded by the Owner', () => {
     const customUpload = '/api/catalog-media/service-custom-image-123.jpg';
-    const resolved = getServiceRealImage('bareeq-essential-exterior', customUpload);
-    expect(resolved).toBe(customUpload);
+    expect(getServiceRealImage('test', customUpload)).toBe(customUpload);
 
     const httpsImage = 'https://images.unsplash.com/photo-car-wash-123.jpg';
-    const resolvedHttps = getServiceRealImage('bareeq-essential-exterior', httpsImage);
-    expect(resolvedHttps).toBe(httpsImage);
+    expect(getServiceRealImage('test', httpsImage)).toBe(httpsImage);
   });
 
-  it('returns only the uploaded photo in gallery without injecting random cars', () => {
-    const customUpload = '/api/catalog-media/custom-cover.webp';
-    const gallery = getServiceGalleryImages('bareeq-essential-exterior', customUpload, []);
-
-    // Should ONLY contain the uploaded cover, exactly 1 image
-    expect(gallery).toEqual([customUpload]);
+  it('returns cover + gallery images as stored without injecting random cars', () => {
+    const gallery = getServiceGalleryImages(
+      'bareeq-complete-care',
+      '/images/services/complete-care.svg',
+      ['/images/services/exterior-care.svg', '/images/services/interior-care.svg'],
+    );
+    expect(gallery).toEqual([
+      '/images/services/complete-care.svg',
+      '/images/services/exterior-care.svg',
+      '/images/services/interior-care.svg',
+    ]);
   });
 
-  it('returns uploaded cover and uploaded gallery without fake fallback cars', () => {
-    const customUpload = '/api/catalog-media/custom-cover.webp';
-    const customSlide = '/api/catalog-media/custom-slide.webp';
-    const gallery = getServiceGalleryImages('bareeq-essential-exterior', customUpload, [customSlide]);
-
-    expect(gallery).toEqual([customUpload, customSlide]);
+  it('never auto-injects old fallback car images into galleries', () => {
+    const gallery = getServiceGalleryImages(
+      'bareeq-essential-exterior',
+      '/api/catalog-media/custom.webp',
+      ['/images/bareeq_hero_car.png', '/images/bareeq_reference_hero.png'],
+    );
+    // The injected fallback cars must be filtered out
+    expect(gallery).toEqual(['/api/catalog-media/custom.webp']);
+    expect(gallery).not.toContain('/images/bareeq_hero_car.png');
+    expect(gallery).not.toContain('/images/bareeq_reference_hero.png');
   });
 
-  it('defaults gallery to brand logo if no custom photos exist', () => {
-    const gallery = getServiceGalleryImages('bareeq-essential-exterior', null, []);
-    expect(gallery).toEqual([BRAND_LOGO]);
+  it('defaults gallery to brand logo if no images exist', () => {
+    expect(getServiceGalleryImages('test', null, [])).toEqual([BRAND_LOGO]);
+    expect(getServiceGalleryImages('test', null, null)).toEqual([BRAND_LOGO]);
   });
 });
