@@ -434,7 +434,26 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
 
   const filteredBookingWhere: Prisma.BookingWhereInput = {
     deletedAt: null,
-    ...(bookingStatus ? { bookingStatus } : {}),
+    ...(bookingStatus
+      ? bookingStatus === BookingStatus.AWAITING_ASSIGNMENT
+        ? {
+            OR: [
+              { bookingStatus: BookingStatus.AWAITING_ASSIGNMENT },
+              {
+                bookingStatus: {
+                  in: [BookingStatus.ACCEPTED, BookingStatus.AWAITING_ASSIGNMENT, BookingStatus.ADMIN_REVIEW_REQUIRED],
+                },
+                assignedTeamId: null,
+              },
+            ],
+          }
+        : bookingStatus === BookingStatus.ACCEPTED
+          ? {
+              bookingStatus: BookingStatus.ACCEPTED,
+              assignedTeamId: { not: null },
+            }
+          : { bookingStatus }
+      : {}),
     ...(bookingQuery
       ? {
           OR: [
@@ -1178,6 +1197,16 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
       : null,
   }));
 
+  const statusCounts: Record<string, number> = {};
+  for (const group of allStatusGroups) {
+    statusCounts[group.bookingStatus] = group._count._all;
+  }
+  statusCounts[BookingStatus.AWAITING_ASSIGNMENT] = unassignedBookingCount;
+  statusCounts[BookingStatus.ACCEPTED] = Math.max(
+    0,
+    (statusCounts[BookingStatus.ACCEPTED] ?? 0) - unassignedBookingCount,
+  );
+
   return (
     <OwnerCommandCenter
       owner={{
@@ -1191,6 +1220,8 @@ export default async function OwnerDashboardPage({ searchParams }: OwnerDashboar
       overviewTab={overviewTab}
       monthlyRevenue={monthlyRevenueData}
       metrics={metrics}
+      statusCounts={statusCounts}
+      totalAllBookingsCount={totalAllCount}
       filters={{ bookingQuery, bookingStatus: bookingStatus ?? '' }}
       customerQuery={customerQuery}
       pendingProofs={pendingProofsRaw.map((proof) => ({

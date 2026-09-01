@@ -377,6 +377,8 @@ export interface OwnerCommandCenterProps {
   currentSection: OwnerSection;
   overviewTab?: OverviewTab;
   metrics: DashboardMetricsDto;
+  statusCounts?: Record<string, number>;
+  totalAllBookingsCount?: number;
   filters: OwnerFiltersDto;
   customerQuery: string;
   pendingProofs?: PaymentProofDto[];
@@ -1383,17 +1385,88 @@ function OverviewSection({
 function BookingsSection({
   bookings,
   filters,
+  statusCounts = {},
+  totalAllCount = 0,
 }: {
   bookings: BookingSummaryDto[];
   filters: OwnerFiltersDto;
+  statusCounts?: Record<string, number>;
+  totalAllCount?: number;
 }) {
+  const operationsReviewCount = statusCounts['AWAITING_OPERATIONS_REVIEW'] ?? 0;
+  const unassignedCount = statusCounts['AWAITING_ASSIGNMENT'] ?? 0;
+  const totalPendingNotifications = operationsReviewCount + unassignedCount;
+
   return (
     <div className="space-y-6">
       <SectionHeader eyebrow="الحجوزات" title="متابعة دورة الحجز" description="استعراض ومتابعة كافة الحجوزات، مواعيدها، فروعها وحالات الدفع بنظرة إشرافية شاملة." />
-      <form action="/admin" method="get" className="grid gap-3 rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-4 sm:grid-cols-[1fr_220px_auto_auto] shadow-md">
+
+      {/* Quick Status Notification Bar for the 7 actions */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-3.5 sm:p-4 shadow-md">
+        <div className="flex items-center gap-2">
+          <span className="flex size-2 rounded-full bg-rose-500 animate-pulse" />
+          <span className="text-xs sm:text-sm font-bold text-neutral-300">
+            حجوزات تتطلب تدخلاً عاجلاً ({totalPendingNotifications} إشعارات):
+          </span>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href="/admin?section=bookings&status=AWAITING_OPERATIONS_REVIEW"
+            className={`inline-flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-bold transition-all border ${
+              filters.bookingStatus === 'AWAITING_OPERATIONS_REVIEW'
+                ? 'border-amber-500 bg-amber-500/20 text-amber-200 shadow-sm'
+                : 'border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20'
+            }`}
+          >
+            <span>بانتظار مراجعة التشغيل</span>
+            <span className="rounded-full bg-amber-500/30 border border-amber-500/50 px-2 py-0.5 text-[10px] font-black text-white">
+              {operationsReviewCount}
+            </span>
+          </Link>
+
+          <Link
+            href="/admin?section=bookings&status=AWAITING_ASSIGNMENT"
+            className={`inline-flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-bold transition-all border ${
+              filters.bookingStatus === 'AWAITING_ASSIGNMENT'
+                ? 'border-rose-500 bg-rose-500/20 text-rose-200 shadow-sm'
+                : 'border-rose-500/30 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20'
+            }`}
+          >
+            <span>بانتظار إسناد فريق</span>
+            <span className="rounded-full bg-rose-500/30 border border-rose-500/50 px-2 py-0.5 text-[10px] font-black text-white">
+              {unassignedCount}
+            </span>
+          </Link>
+        </div>
+      </div>
+
+      <form action="/admin" method="get" className="grid gap-3 rounded-2xl border border-neutral-800/80 bg-[#111114]/90 backdrop-blur-md p-4 sm:grid-cols-[1fr_260px_auto_auto] shadow-md">
         <input type="hidden" name="section" value="bookings" />
         <div><label htmlFor="booking-query" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">بحث الحجز أو العميل</label><div className="relative"><Search aria-hidden="true" className="pointer-events-none absolute right-3 top-3 size-4 text-neutral-500" /><input id="booking-query" name="q" defaultValue={filters.bookingQuery} autoComplete="off" placeholder="رقم الحجز أو اسم/هاتف العميل…" className={`${inputClass} pr-10`} /></div></div>
-        <div><label htmlFor="booking-status-filter" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">حالة الحجز</label><select id="booking-status-filter" name="status" defaultValue={filters.bookingStatus} className={inputClass}><option value="" className="bg-[#111]">كل الحالات</option>{Object.entries(bookingStatusLabels).map(([value, label]) => <option key={value} value={value} className="bg-[#111]">{label}</option>)}</select></div>
+        <div>
+          <label htmlFor="booking-status-filter" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-neutral-400">
+            حالة الحجز
+          </label>
+          <select id="booking-status-filter" name="status" defaultValue={filters.bookingStatus} className={inputClass}>
+            <option value="" className="bg-[#111]">
+              كل الحالات {totalAllCount > 0 ? `(${totalAllCount})` : ''}
+            </option>
+            {Object.entries(bookingStatusLabels).map(([value, label]) => {
+              const count = statusCounts[value] ?? 0;
+              let suffix = `(${count})`;
+              if (value === 'AWAITING_OPERATIONS_REVIEW' && count > 0) {
+                suffix = `(${count} إشعار 🔔)`;
+              } else if (value === 'AWAITING_ASSIGNMENT' && count > 0) {
+                suffix = `(${count} إشعار 🔔)`;
+              }
+              return (
+                <option key={value} value={value} className="bg-[#111]">
+                  {label} {suffix}
+                </option>
+              );
+            })}
+          </select>
+        </div>
         <button type="submit" className={`${primaryButtonClass} self-end`}>تطبيق الفلاتر</button>
         <Link href="/admin?section=bookings" className={`${secondaryButtonClass} self-end`}>إعادة ضبط</Link>
       </form>
@@ -1685,6 +1758,8 @@ export default function OwnerCommandCenter(props: OwnerCommandCenterProps) {
     currentSection,
     overviewTab = 'pulse',
     metrics,
+    statusCounts = {},
+    totalAllBookingsCount = 0,
     filters,
     customerQuery,
     operationsReviewBookings,
@@ -1776,7 +1851,14 @@ export default function OwnerCommandCenter(props: OwnerCommandCenterProps) {
   let sectionContent: ReactNode;
   switch (currentSection) {
     case 'bookings':
-      sectionContent = <BookingsSection bookings={bookings} filters={filters} />;
+      sectionContent = (
+        <BookingsSection
+          bookings={bookings}
+          filters={filters}
+          statusCounts={statusCounts}
+          totalAllCount={totalAllBookingsCount}
+        />
+      );
       break;
     case 'subscriptions':
       sectionContent = (
