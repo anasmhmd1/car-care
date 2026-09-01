@@ -15,6 +15,7 @@ import {
   Calendar,
   CalendarClock,
   CalendarDays,
+  CheckCheck,
   CheckCircle2,
   ClipboardCheck,
   Download,
@@ -57,7 +58,10 @@ import {
   transferBookingTeamAction,
 } from '@/app/actions/operations';
 import { advancePostServiceAction } from '@/app/actions/quality';
-import { reopenTerminalBookingAction } from '@/app/actions/booking-administration';
+import {
+  managerOverrideCloseBookingAction,
+  reopenTerminalBookingAction,
+} from '@/app/actions/booking-administration';
 import OperationsQueuePagination from './OperationsQueuePagination';
 import {
   operationsQueuePageParam,
@@ -338,6 +342,8 @@ export default function OperationsDashboardClient({
   const [selectedBooking, setSelectedBooking] = useState<UnassignedBooking | null>(null);
   const [selectedSettlement, setSelectedSettlement] = useState<ActiveBooking | null>(null);
   const [selectedClose, setSelectedClose] = useState<ActiveBooking | null>(null);
+  const [selectedCompleteBooking, setSelectedCompleteBooking] = useState<ActiveBooking | null>(null);
+  const [completeReason, setCompleteReason] = useState('');
   const [selectedReopen, setSelectedReopen] = useState<TerminalBooking | null>(null);
   const [selectedCancelBooking, setSelectedCancelBooking] = useState<{ id: string; bookingNumber: string; customerName?: string } | null>(null);
   const [cancelReason, setCancelReason] = useState('');
@@ -429,6 +435,7 @@ export default function OperationsDashboardClient({
       selectedBooking ||
       selectedSettlement ||
       selectedClose ||
+      selectedCompleteBooking ||
       selectedReopen ||
       selectedCancelBooking ||
       selectedRescheduleBooking ||
@@ -443,6 +450,7 @@ export default function OperationsDashboardClient({
       setSelectedBooking(null);
       setSelectedSettlement(null);
       setSelectedClose(null);
+      setSelectedCompleteBooking(null);
       setSelectedReopen(null);
       setSelectedCancelBooking(null);
       setSelectedRescheduleBooking(null);
@@ -464,6 +472,7 @@ export default function OperationsDashboardClient({
     selectedReview,
     selectedSettlement,
     selectedCancelBooking,
+    selectedCompleteBooking,
     selectedRescheduleBooking,
     selectedTransferBooking,
     selectedLockBranch,
@@ -682,6 +691,24 @@ export default function OperationsDashboardClient({
       'تم إغلاق الحجز بعد التحقق من تسوية الرصيد.',
     );
     if (completed) setSelectedClose(null);
+  }
+
+  async function handleCompleteBookingDirectly() {
+    if (!selectedCompleteBooking) return;
+    const formData = new FormData();
+    formData.set('bookingId', selectedCompleteBooking.id);
+    formData.set(
+      'reason',
+      completeReason.trim() || 'إتمام وتسليم الحجز مباشرة كإجراء إداري من مدير التشغيل',
+    );
+    const completed = await finishAction(
+      () => managerOverrideCloseBookingAction(formData),
+      `تم إتمام وتسليم الحجز #${selectedCompleteBooking.bookingNumber} بنجاح.`,
+    );
+    if (completed) {
+      setSelectedCompleteBooking(null);
+      setCompleteReason('');
+    }
   }
 
   async function handleReopenTerminalBooking() {
@@ -1564,6 +1591,21 @@ export default function OperationsDashboardClient({
                           </button>
                         ) : null}
 
+                        {booking.amountDue === 0 && (booking.canManagerOverrideClose || booking.canCloseBooking) && booking.bookingStatus !== 'CLOSED' ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedCompleteBooking(booking);
+                              setCompleteReason('');
+                              setFeedback(null);
+                            }}
+                            className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-500/50 bg-emerald-500/15 px-3.5 py-2 text-xs font-bold text-emerald-300 hover:bg-emerald-500/25 active:scale-[0.98] transition-all shadow-sm"
+                          >
+                            <CheckCheck className="size-4 text-emerald-400" />
+                            <span>إتمام الحجز</span>
+                          </button>
+                        ) : null}
+
                         {booking.canCloseBooking && booking.bookingStatus === 'DELIVERED' && booking.amountDue === 0 ? (
                           <button
                             type="button"
@@ -2228,6 +2270,112 @@ export default function OperationsDashboardClient({
               </button>
               <button type="button" disabled={isSubmitting || reopenReason.trim().length < 3} onClick={handleReopenTerminalBooking} className="rounded-xl bg-amber-500 px-4 py-2.5 text-xs sm:text-sm font-black text-neutral-950 hover:bg-amber-400 disabled:opacity-50">
                 تأكيد إعادة الفتح
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 11. Modal: Direct Completion by Operations Manager */}
+      {selectedCompleteBooking && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/85 backdrop-blur-sm p-4" role="presentation">
+          <div role="dialog" aria-modal="true" className="w-full max-w-lg space-y-5 rounded-3xl border border-emerald-500/40 bg-[#141414] p-5 sm:p-8 shadow-2xl">
+            <div className="flex items-center justify-between gap-4 border-b border-neutral-800/80 pb-4">
+              <h2 className="text-lg font-black flex items-center gap-2 text-emerald-400">
+                <CheckCheck className="size-6 text-emerald-400" />
+                تأكيد إتمام وتسليم الحجز
+              </h2>
+              <button
+                type="button"
+                disabled={isSubmitting}
+                onClick={() => setSelectedCompleteBooking(null)}
+                className="rounded-xl p-2 text-neutral-400 hover:bg-neutral-800"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+
+            <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-xs sm:text-sm leading-6 text-emerald-200">
+              <p className="font-bold mb-1 text-emerald-100">
+                هل أنت متأكد من إتمام الحجز وتسليمه مباشرة دون انتظار الفريق الميداني؟
+              </p>
+              <p className="text-xs text-emerald-300/80">
+                سيتم تحويل الحجز مباشرة إلى مكتمل ومسلم وإغلاقه في السجلات الإدارية وخصم المواد المستهلكة المعتمدة للخدمة.
+              </p>
+            </div>
+
+            <dl className="grid grid-cols-2 gap-3 rounded-2xl border border-neutral-800 bg-neutral-950/60 p-4 text-xs">
+              <div>
+                <dt className="text-neutral-500 text-[11px]">رقم الحجز</dt>
+                <dd dir="ltr" className="mt-1 font-mono font-bold text-white text-left">
+                  {selectedCompleteBooking.bookingNumber}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-neutral-500 text-[11px]">العميل</dt>
+                <dd className="mt-1 font-bold text-neutral-200 truncate">
+                  {selectedCompleteBooking.customer.user.fullName}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-neutral-500 text-[11px]">الخدمة</dt>
+                <dd className="mt-1 font-semibold text-neutral-300 truncate">
+                  {selectedCompleteBooking.service.nameAr}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-neutral-500 text-[11px]">الفريق المسند</dt>
+                <dd className="mt-1 font-semibold text-[#d4af37]">
+                  {selectedCompleteBooking.assignedTeam?.name ?? 'غير مسند'}
+                </dd>
+              </div>
+            </dl>
+
+            {feedback && (
+              <div
+                role="status"
+                className={`rounded-2xl border p-4 text-xs font-bold ${
+                  feedback.tone === 'error'
+                    ? 'border-rose-500/40 bg-rose-500/10 text-rose-200'
+                    : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200'
+                }`}
+              >
+                {feedback.message}
+              </div>
+            )}
+
+            <div>
+              <label htmlFor="complete-reason-input" className="mb-2 block text-xs font-bold text-neutral-300">
+                ملاحظة أو سبب الإتمام المباشر (اختياري)
+              </label>
+              <textarea
+                id="complete-reason-input"
+                maxLength={500}
+                value={completeReason}
+                onChange={(e) => setCompleteReason(e.target.value)}
+                rows={2}
+                className={inputClass}
+                placeholder="إتمام وتسليم الحجز مباشرة كإجراء إداري من مدير التشغيل..."
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 pt-2">
+              <button
+                type="button"
+                disabled={isSubmitting}
+                onClick={() => setSelectedCompleteBooking(null)}
+                className={secondaryButtonClass}
+              >
+                تراجع
+              </button>
+              <button
+                type="button"
+                disabled={isSubmitting}
+                onClick={handleCompleteBookingDirectly}
+                className="rounded-xl bg-emerald-500 px-4 py-2.5 text-xs sm:text-sm font-black text-neutral-950 hover:bg-emerald-400 active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                <CheckCheck className="size-4" />
+                <span>تأكيد الإتمام</span>
               </button>
             </div>
           </div>

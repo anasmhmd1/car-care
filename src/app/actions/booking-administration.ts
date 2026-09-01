@@ -47,7 +47,8 @@ export async function managerOverrideCloseBookingAction(formData: FormData) {
     UserRole.OWNER,
   ]);
   const bookingId = String(formData.get('bookingId') ?? '');
-  const reason = String(formData.get('reason') ?? '').trim();
+  const rawReason = String(formData.get('reason') ?? '').trim();
+  const reason = rawReason || 'إتمام وتسليم الحجز مباشرة كإجراء إداري من مدير التشغيل';
   if (!databaseIdSchema.safeParse(bookingId).success || reason.length < 3 || reason.length > 1000) {
     return { error: 'معرف الحجز وسبب الاستثناء الإداري مطلوبان.' };
   }

@@ -6,8 +6,14 @@ import {
 import { transitionBookingStatus } from './transition';
 
 export const MANAGER_OVERRIDE_CLOSE_SOURCE_STATUSES = [
+  BookingStatus.ASSIGNED,
+  BookingStatus.TEAM_ACKNOWLEDGED,
+  BookingStatus.ON_THE_WAY,
+  BookingStatus.ARRIVED,
   BookingStatus.IN_SERVICE,
   BookingStatus.QUALITY_REVIEW,
+  BookingStatus.SERVICE_COMPLETED,
+  BookingStatus.DELIVERED,
 ] as const;
 
 export const TERMINAL_REOPEN_SOURCE_STATUSES = [
@@ -105,7 +111,7 @@ function throwManagerOverrideValidation(code: Exclude<AdministrationValidation, 
   const messages: Record<typeof code, string> = {
     ROLE_FORBIDDEN: 'الاستثناء الإداري متاح لمدير التشغيل أو المالك فقط.',
     REASON_REQUIRED: 'يجب تسجيل سبب واضح للاستثناء الإداري.',
-    INVALID_SOURCE_STATUS: 'يمكن استخدام الاستثناء فقط بعد بدء الخدمة وقبل اعتماد الجودة.',
+    INVALID_SOURCE_STATUS: 'يمكن استخدام الاستثناء فقط للحجوزات النشطة والمسندة لفريق.',
     TEAM_NOT_ASSIGNED: 'لا يمكن إغلاق الحجز دون فريق مسند.',
     OUTSTANDING_BALANCE: 'لا يمكن إغلاق الحجز مع وجود مبلغ مستحق.',
   };
@@ -170,6 +176,19 @@ export async function closeBookingWithManagerOverride(
   });
   if (!validation.allowed) throwManagerOverrideValidation(validation.code);
 
+  const LIFECYCLE_SEQUENCE: BookingStatus[] = [
+    BookingStatus.ASSIGNED,
+    BookingStatus.TEAM_ACKNOWLEDGED,
+    BookingStatus.ON_THE_WAY,
+    BookingStatus.ARRIVED,
+    BookingStatus.IN_SERVICE,
+    BookingStatus.QUALITY_REVIEW,
+    BookingStatus.SERVICE_COMPLETED,
+    BookingStatus.DELIVERED,
+    BookingStatus.CLOSED,
+  ];
+
+  const startIndex = LIFECYCLE_SEQUENCE.indexOf(booking.bookingStatus);
   const path: BookingStatus[] = [booking.bookingStatus];
   const bypassedGuards = new Set<string>();
   const metadata = {
@@ -178,51 +197,22 @@ export async function closeBookingWithManagerOverride(
     requestedFromStatus: booking.bookingStatus,
   } satisfies Prisma.InputJsonObject;
 
-  if (booking.bookingStatus === BookingStatus.IN_SERVICE) {
-    const qualityReviewTransition = await transitionBookingStatus(tx, {
-      bookingId: booking.id,
-      toStatus: BookingStatus.QUALITY_REVIEW,
-      actorUserId: input.actorUserId,
-      actorRole: input.actorRole,
-      reason,
-      metadata,
-      managerOverride: true,
-    });
-    qualityReviewTransition.bypassedGuards.forEach((guard) => bypassedGuards.add(guard));
-    path.push(BookingStatus.QUALITY_REVIEW);
+  if (startIndex !== -1) {
+    for (let i = startIndex + 1; i < LIFECYCLE_SEQUENCE.length; i++) {
+      const nextStatus = LIFECYCLE_SEQUENCE[i];
+      const transition = await transitionBookingStatus(tx, {
+        bookingId: booking.id,
+        toStatus: nextStatus,
+        actorUserId: input.actorUserId,
+        actorRole: input.actorRole,
+        reason,
+        metadata,
+        managerOverride: true,
+      });
+      transition.bypassedGuards.forEach((guard) => bypassedGuards.add(guard));
+      path.push(nextStatus);
+    }
   }
-
-  const completionTransition = await transitionBookingStatus(tx, {
-    bookingId: booking.id,
-    toStatus: BookingStatus.SERVICE_COMPLETED,
-    actorUserId: input.actorUserId,
-    actorRole: input.actorRole,
-    reason,
-    metadata,
-    managerOverride: true,
-  });
-  completionTransition.bypassedGuards.forEach((guard) => bypassedGuards.add(guard));
-  path.push(BookingStatus.SERVICE_COMPLETED);
-
-  await transitionBookingStatus(tx, {
-    bookingId: booking.id,
-    toStatus: BookingStatus.DELIVERED,
-    actorUserId: input.actorUserId,
-    actorRole: input.actorRole,
-    reason,
-    metadata,
-  });
-  path.push(BookingStatus.DELIVERED);
-
-  await transitionBookingStatus(tx, {
-    bookingId: booking.id,
-    toStatus: BookingStatus.CLOSED,
-    actorUserId: input.actorUserId,
-    actorRole: input.actorRole,
-    reason,
-    metadata,
-  });
-  path.push(BookingStatus.CLOSED);
 
   await tx.auditLog.create({
     data: {

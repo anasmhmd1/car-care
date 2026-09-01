@@ -98,7 +98,7 @@ describe('booking administrative exceptions', () => {
     )).toMatchObject({ allowed: false, code: 'OUTSTANDING_BALANCE' });
   });
 
-  it('requires a non-blank manager override reason and an in-service source', () => {
+  it('requires a non-blank manager override reason and an active operational source status', () => {
     expect(validateManagerOverrideCloseRequest({
       actorRole: UserRole.OPERATIONS_MANAGER,
       fromStatus: BookingStatus.IN_SERVICE,
@@ -109,8 +109,16 @@ describe('booking administrative exceptions', () => {
 
     expect(validateManagerOverrideCloseRequest({
       actorRole: UserRole.OPERATIONS_MANAGER,
-      fromStatus: BookingStatus.ARRIVED,
-      reason: 'لم تبدأ الخدمة بعد',
+      fromStatus: BookingStatus.ASSIGNED,
+      reason: 'إتمام إداري مباشر من مرحلة الإسناد',
+      assignedTeamId: 'team-a',
+      amountDue: 0,
+    })).toEqual({ allowed: true });
+
+    expect(validateManagerOverrideCloseRequest({
+      actorRole: UserRole.OPERATIONS_MANAGER,
+      fromStatus: BookingStatus.REQUEST_SUBMITTED,
+      reason: 'طلب غير معتمد بعد',
       assignedTeamId: 'team-a',
       amountDue: 0,
     })).toEqual({ allowed: false, code: 'INVALID_SOURCE_STATUS' });
