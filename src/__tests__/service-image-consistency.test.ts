@@ -1,19 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { getServiceGalleryImages, getServiceRealImage } from '@/lib/service-images';
+import { BRAND_LOGO, getServiceGalleryImages, getServiceRealImage } from '@/lib/service-images';
 
-describe('Service Image Consistency (تطابق وتوحيد صور الخدمات بين الكتالوج والصفحة الداخلية)', () => {
-  it('maps SVG and generic placeholder cover images to high quality realistic photos', () => {
+describe('Service Image Consistency (صور الخدمات الحقيقية وشعار البراند الرسمي)', () => {
+  it('defaults to official brand logo when no custom photo is uploaded', () => {
     const exteriorReal = getServiceRealImage('bareeq-essential-exterior', '/images/services/exterior-care.svg');
-    expect(exteriorReal).toBe('/images/bareeq_exterior_care.png');
+    expect(exteriorReal).toBe(BRAND_LOGO);
 
-    const interiorReal = getServiceRealImage('bareeq-intensive-interior', '/images/services/interior-care.svg');
-    expect(interiorReal).toBe('/images/bareeq_interior_care.png');
+    const noCoverReal = getServiceRealImage('bareeq-intensive-interior', null);
+    expect(noCoverReal).toBe(BRAND_LOGO);
 
-    const engineReal = getServiceRealImage('bareeq-engine-bay-care', '/images/services/engine-care.svg');
-    expect(engineReal).toBe('/images/bareeq_engine_care.png');
-
-    const fullCareReal = getServiceRealImage('bareeq-complete-full-care', '/images/services/complete-care.svg');
-    expect(fullCareReal).toBe('/images/bareeq_hero_car.png');
+    const emptyCoverReal = getServiceRealImage('bareeq-engine-bay-care', '');
+    expect(emptyCoverReal).toBe(BRAND_LOGO);
   });
 
   it('preserves custom uploaded photos and HTTPS media uploaded by the Owner', () => {
@@ -26,16 +23,24 @@ describe('Service Image Consistency (تطابق وتوحيد صور الخدما
     expect(resolvedHttps).toBe(httpsImage);
   });
 
-  it('generates consistent realistic gallery images without SVG placeholders', () => {
-    const gallery = getServiceGalleryImages('bareeq-essential-exterior', '/images/services/exterior-care.svg', [
-      '/images/services/exterior-care.svg',
-      '/images/services/complete-care.svg',
-    ]);
+  it('returns only the uploaded photo in gallery without injecting random cars', () => {
+    const customUpload = '/api/catalog-media/custom-cover.webp';
+    const gallery = getServiceGalleryImages('bareeq-essential-exterior', customUpload, []);
 
-    expect(gallery.length).toBeGreaterThanOrEqual(2);
-    for (const img of gallery) {
-      expect(img.endsWith('.svg')).toBe(false);
-      expect(img.startsWith('/images/')).toBe(true);
-    }
+    // Should ONLY contain the uploaded cover, exactly 1 image
+    expect(gallery).toEqual([customUpload]);
+  });
+
+  it('returns uploaded cover and uploaded gallery without fake fallback cars', () => {
+    const customUpload = '/api/catalog-media/custom-cover.webp';
+    const customSlide = '/api/catalog-media/custom-slide.webp';
+    const gallery = getServiceGalleryImages('bareeq-essential-exterior', customUpload, [customSlide]);
+
+    expect(gallery).toEqual([customUpload, customSlide]);
+  });
+
+  it('defaults gallery to brand logo if no custom photos exist', () => {
+    const gallery = getServiceGalleryImages('bareeq-essential-exterior', null, []);
+    expect(gallery).toEqual([BRAND_LOGO]);
   });
 });

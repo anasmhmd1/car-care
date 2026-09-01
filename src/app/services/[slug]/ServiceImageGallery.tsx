@@ -14,7 +14,8 @@ export default function ServiceImageGallery({ images, serviceName }: ServiceImag
 
   const cleanImages = images.filter((img) => typeof img === 'string' && img.length > 0);
   const total = cleanImages.length || 1;
-  const currentImage = cleanImages[currentIndex] || cleanImages[0] || '/images/bareeq_exterior_care.png';
+  const currentImage = cleanImages[currentIndex] || cleanImages[0] || '/images/bareeq_official_logo.png';
+  const isLogo = currentImage.includes('logo');
 
   const nextImage = useCallback(() => {
     setCurrentIndex((prev) => (prev + 1) % total);
@@ -26,6 +27,7 @@ export default function ServiceImageGallery({ images, serviceName }: ServiceImag
 
   // Keyboard navigation
   useEffect(() => {
+    if (total <= 1) return;
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === 'ArrowRight') {
         // In RTL, right arrow goes to previous/next appropriately
@@ -36,10 +38,14 @@ export default function ServiceImageGallery({ images, serviceName }: ServiceImag
     }
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [nextImage, prevImage]);
+  }, [nextImage, prevImage, total]);
 
   return (
-    <div className="relative aspect-[16/9] sm:aspect-[21/9] w-full overflow-hidden rounded-3xl border border-white/10 bg-[#121210] shadow-2xl group select-none">
+    <div
+      className={`relative aspect-[16/9] sm:aspect-[21/9] w-full overflow-hidden rounded-3xl border border-white/10 ${
+        isLogo ? 'bg-gradient-to-b from-[#141412] to-[#080808] flex items-center justify-center' : 'bg-[#121210]'
+      } shadow-2xl group select-none`}
+    >
       {/* Current Image */}
       <PublicImage
         key={currentImage}
@@ -47,11 +53,17 @@ export default function ServiceImageGallery({ images, serviceName }: ServiceImag
         alt={`${serviceName} — صورة ${currentIndex + 1}`}
         sizes="(min-width: 1024px) 1000px, 100vw"
         priority
-        className="w-full h-full object-cover transition-opacity duration-300"
+        className={
+          isLogo
+            ? 'max-h-44 sm:max-h-60 w-auto object-contain p-8 drop-shadow-[0_4px_30px_rgba(206,163,85,0.35)] transition-opacity duration-300'
+            : 'w-full h-full object-cover transition-opacity duration-300'
+        }
       />
 
-      {/* Subtle Gradient Overlays for controls readability */}
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20" />
+      {/* Subtle Gradient Overlays for controls readability (only for photos) */}
+      {!isLogo && (
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20" />
+      )}
 
       {/* Navigation Arrows (Shown when more than 1 image) */}
       {total > 1 && (

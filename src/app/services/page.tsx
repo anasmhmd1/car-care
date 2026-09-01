@@ -204,12 +204,16 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
                       className="rounded-3xl bg-[#121212] border border-[#cea355]/25 hover:border-[#cea355] transition-all glass-card-hover flex flex-col justify-between overflow-hidden group"
                     >
                       <div>
-                        <div className="relative h-60 overflow-hidden bg-[#0d0d0d]">
+                        <div className={`relative h-60 overflow-hidden ${realImg.includes('logo') ? 'bg-gradient-to-b from-[#141412] to-[#080808] flex items-center justify-center' : 'bg-[#0d0d0d]'}`}>
                           <PublicImage
                             src={realImg}
                             alt={service.nameAr}
                             sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
-                            className="w-full h-full object-cover group-hover:scale-108 transition-transform duration-700"
+                            className={
+                              realImg.includes('logo')
+                                ? 'max-h-32 w-auto object-contain p-6 drop-shadow-[0_4px_20px_rgba(206,163,85,0.25)] group-hover:scale-105 transition-transform duration-500'
+                                : 'w-full h-full object-cover group-hover:scale-108 transition-transform duration-700'
+                            }
                           />
                           <div className="absolute top-4 right-4 bg-black/85 backdrop-blur-md px-3.5 py-1.5 rounded-full text-xs font-bold text-[#edce8b] border border-[#cea355]/40 flex items-center gap-1.5 shadow-lg">
                             <Clock className="w-3.5 h-3.5 text-[#d4af37]" />
