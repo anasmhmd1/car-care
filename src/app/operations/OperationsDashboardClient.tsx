@@ -78,6 +78,7 @@ type Tab =
   | 'quality'
   | 'cases'
   | 'past_due'
+  | 'completed'
   | 'terminal'
   | 'proofs'
   | 'review'
@@ -215,6 +216,21 @@ interface TerminalBooking {
   customer: { user: UserSummary };
 }
 
+interface CompletedBooking {
+  id: string;
+  bookingNumber: string;
+  bookingStatus: string;
+  paymentStatus: string;
+  startAt: DateValue;
+  updatedAt: DateValue;
+  amountPaid: number;
+  amountDue: number;
+  service?: { nameAr: string } | null;
+  branch?: { nameAr: string } | null;
+  assignedTeam?: { name: string } | null;
+  customer?: { user: UserSummary } | null;
+}
+
 interface Props {
   manager: ManagerSummary;
   branches?: BranchSummary[];
@@ -225,6 +241,7 @@ interface Props {
   teams: TeamSummary[];
   activeBookings: ActiveBooking[];
   terminalBookings: TerminalBooking[];
+  completedBookings: CompletedBooking[];
   managedSubscriptions?: ManagedSubscription[];
   activeBookingQuery: string;
   terminalBookingQuery: string;
@@ -347,6 +364,7 @@ export default function OperationsDashboardClient({
   teams,
   activeBookings,
   terminalBookings,
+  completedBookings,
   managedSubscriptions = [],
   activeBookingQuery,
   terminalBookingQuery,
@@ -1200,6 +1218,7 @@ export default function OperationsDashboardClient({
               { id: 'quality', label: 'مراجعة واعتماد الجودة', count: qualityBookingsCount, icon: ShieldCheck },
               { id: 'cases', label: 'الحالات والشكاوى', count: openCasesCount, icon: ShieldAlert },
               { id: 'past_due', label: 'المواعيد المنتهية / الفائتة', count: pastDueBookings.length, icon: History },
+              { id: 'completed', label: 'الحجوزات المكتملة', count: (completedBookings || []).length, icon: CheckCheck },
               ...(manager.role === 'OWNER'
                 ? [{ id: 'terminal', label: 'الحجوزات الطرفية', count: terminalBookings.length, icon: AlertTriangle }]
                 : []),
@@ -1625,6 +1644,114 @@ export default function OperationsDashboardClient({
                   ))}
                 </div>
               )}
+            </section>
+          )}
+
+          {/* TAB: COMPLETED BOOKINGS (الحجوزات المكتملة) */}
+          {activeTab === 'completed' && (
+            <section aria-labelledby="completed-heading" className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-neutral-800/80 pb-3">
+                <div>
+                  <h3 id="completed-heading" className="flex items-center gap-2 text-lg font-black text-emerald-400">
+                    <CheckCheck className="size-5 text-emerald-400" />
+                    الحجوزات المكتملة
+                  </h3>
+                  <p className="text-xs text-neutral-400 mt-1">
+                    أرشيف الحجوزات التي تم تنفيذها وتسليمها أو إغلاقها بالكامل.
+                  </p>
+                </div>
+                <span className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-bold text-emerald-300">
+                  {formatNumber((completedBookings || []).length)} حجز مكتمل
+                </span>
+              </div>
+
+              {(completedBookings || []).length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-neutral-800/80 bg-neutral-950/40 p-12 text-center text-neutral-400">
+                  <CheckCircle2 className="mx-auto size-8 text-neutral-600 mb-3" />
+                  <p className="text-sm font-bold text-white">لا توجد حجوزات مكتملة ضمن الفلتر المحدد</p>
+                  <p className="mt-1 text-xs text-neutral-500">الحجوزات المنتهية والمغلقة ستظهر هنا عند اكتمالها.</p>
+                </div>
+              ) : (
+                <div className="grid gap-4 md:grid-cols-2">
+                  {(completedBookings || []).map((booking) => (
+                    <article
+                      key={booking.id}
+                      className="flex flex-col justify-between rounded-2xl border border-emerald-500/20 bg-[#111412]/90 backdrop-blur-md p-5 shadow-md transition-all hover:border-emerald-500/40"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between gap-2 border-b border-neutral-800/60 pb-3">
+                          <div className="flex items-center gap-2">
+                            <span className="size-2 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400" />
+                            <span dir="ltr" className="font-mono text-sm font-black text-white">
+                              {booking.bookingNumber}
+                            </span>
+                          </div>
+                          <StatusBadge
+                            status={booking.bookingStatus}
+                            label={
+                              booking.bookingStatus === 'SERVICE_COMPLETED'
+                                ? 'تم تنفيذ الخدمة'
+                                : booking.bookingStatus === 'DELIVERED'
+                                ? 'تم التسليم'
+                                : 'مكتمل ومغلق'
+                            }
+                          />
+                        </div>
+
+                        <div className="mt-3 space-y-1.5 text-xs">
+                          <p className="text-sm font-bold text-white">{booking.service?.nameAr ?? 'خدمة عناية'}</p>
+                          <p className="text-neutral-300 font-semibold">
+                            {booking.customer?.user?.fullName ?? 'عميل'} · <span className="text-neutral-400 font-normal">{booking.branch?.nameAr}</span>
+                          </p>
+                          <p className="text-neutral-400">
+                            تاريخ الموعد: <strong className="text-neutral-200">{formatDateTime(booking.startAt)}</strong>
+                          </p>
+                          {booking.assignedTeam ? (
+                            <p className="text-neutral-400">
+                              الفريق المنفذ: <strong className="text-[#edce8b]">{booking.assignedTeam.name}</strong>
+                            </p>
+                          ) : null}
+                          <div className="mt-2 flex items-center justify-between rounded-xl bg-black/40 p-2.5 border border-neutral-800/60">
+                            <span className="text-neutral-400">الحالة المالية:</span>
+                            <div className="flex items-center gap-2 text-xs">
+                              <span className="text-emerald-300 font-bold">المدفوع: {formatCurrency(booking.amountPaid)}</span>
+                              {booking.amountDue > 0 ? (
+                                <span className="text-amber-300 font-bold">المتبقي: {formatCurrency(booking.amountDue)}</span>
+                              ) : (
+                                <span className="text-neutral-400 font-semibold">(خالص)</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {booking.customer?.user?.phone ? (
+                        <div className="mt-4 flex items-center justify-between border-t border-neutral-800/60 pt-3 text-xs">
+                          <span className="text-neutral-500 font-mono" dir="ltr">{booking.customer.user.phone}</span>
+                          <div className="flex items-center gap-3">
+                            <a
+                              href={`tel:${booking.customer.user.phone}`}
+                              className="font-bold text-[#d4af37] hover:text-[#f3e4a8] flex items-center gap-1"
+                            >
+                              <Phone className="size-3.5" />
+                              <span>اتصال</span>
+                            </a>
+                            <a
+                              href={`https://wa.me/${booking.customer.user.phone.replace(/[^0-9]/g, '')}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-bold text-emerald-400 hover:text-emerald-300 flex items-center gap-1"
+                            >
+                              <span>واتساب</span>
+                            </a>
+                          </div>
+                        </div>
+                      ) : null}
+                    </article>
+                  ))}
+                </div>
+              )}
+              <OperationsQueuePagination queueKey="completed" pagination={pagination.completed} dashboardTab="completed" />
             </section>
           )}
 

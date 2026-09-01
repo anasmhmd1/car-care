@@ -10,6 +10,7 @@ export type OperationsDashboardQueueKey =
   | 'unassigned'
   | 'bookings'
   | 'past_due'
+  | 'completed'
   | 'terminal';
 
 export type OperationsCaseQueueKey =

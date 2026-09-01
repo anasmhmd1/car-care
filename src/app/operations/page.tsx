@@ -77,7 +77,7 @@ function parseDashboardTab(
   value: string | string[] | undefined,
 ): OperationsDashboardQueueKey | undefined {
   const tab = searchValue(value);
-  return ['proofs', 'review', 'unassigned', 'bookings', 'terminal', 'bookings_queue', 'past_due'].includes(tab)
+  return ['proofs', 'review', 'unassigned', 'bookings', 'terminal', 'bookings_queue', 'past_due', 'completed'].includes(tab)
     ? tab as OperationsDashboardQueueKey
     : undefined;
 }
@@ -218,6 +218,10 @@ export default async function OperationsDashboardPage({ searchParams }: Operatio
     ),
     bookings: operationsQueueWindow(
       query[operationsQueuePageParam('bookings')],
+      OPERATIONS_PRIMARY_QUEUE_PAGE_SIZE,
+    ),
+    completed: operationsQueueWindow(
+      query[operationsQueuePageParam('completed')],
       OPERATIONS_PRIMARY_QUEUE_PAGE_SIZE,
     ),
     terminal: operationsQueueWindow(
@@ -465,6 +469,41 @@ export default async function OperationsDashboardPage({ searchParams }: Operatio
         take: queueWindows.terminal.take,
       })
     : [];
+  const completedBookingsPromise = db.booking.findMany({
+    where: {
+      AND: [
+        bookingBranchWhere,
+        ...(dateBounds ? [bookingDateWhere] : []),
+        {
+          deletedAt: null,
+          bookingStatus: {
+            in: [
+              BookingStatus.SERVICE_COMPLETED,
+              BookingStatus.DELIVERED,
+              BookingStatus.CLOSED,
+            ],
+          },
+        },
+      ],
+    },
+    select: {
+      id: true,
+      bookingNumber: true,
+      bookingStatus: true,
+      paymentStatus: true,
+      startAt: true,
+      updatedAt: true,
+      amountPaid: true,
+      amountDue: true,
+      branch: { select: { nameAr: true } },
+      service: { select: { nameAr: true } },
+      assignedTeam: { select: { name: true } },
+      customer: { select: { user: { select: operationsCustomerUserSelect } } },
+    },
+    orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }],
+    skip: queueWindows.completed.skip,
+    take: queueWindows.completed.take,
+  });
   const cancellationRequestsPromise = db.cancellationRequest.findMany({
     where: {
       OR: [
@@ -734,6 +773,7 @@ export default async function OperationsDashboardPage({ searchParams }: Operatio
     unassignedBookingRows,
     activeBookingRows,
     terminalBookingRows,
+    completedBookingRows,
     cancellationRequestRows,
     rescheduleRequestRows,
     qualityBookingRows,
@@ -748,6 +788,7 @@ export default async function OperationsDashboardPage({ searchParams }: Operatio
     unassignedBookingsPromise,
     activeBookingsPromise,
     terminalBookingsPromise,
+    completedBookingsPromise,
     cancellationRequestsPromise,
     rescheduleRequestsPromise,
     qualityBookingsPromise,
@@ -779,6 +820,11 @@ export default async function OperationsDashboardPage({ searchParams }: Operatio
   const { records: terminalBookings, pagination: terminalBookingsPagination } = pageOperationsQueue(
     terminalBookingRows,
     queueWindows.terminal,
+    OPERATIONS_PRIMARY_QUEUE_PAGE_SIZE,
+  );
+  const { records: completedBookings, pagination: completedBookingsPagination } = pageOperationsQueue(
+    completedBookingRows,
+    queueWindows.completed,
     OPERATIONS_PRIMARY_QUEUE_PAGE_SIZE,
   );
   const { records: cancellationRequests, pagination: cancellationRequestsPagination } = pageOperationsQueue(
@@ -956,6 +1002,7 @@ export default async function OperationsDashboardPage({ searchParams }: Operatio
     unassigned: unassignedBookingsPagination,
     bookings: activeBookingsPagination,
     past_due: { page: 1, hasNextPage: false, hasPreviousPage: false },
+    completed: completedBookingsPagination,
     terminal: terminalBookingsPagination,
   };
   const caseQueuePagination = {
@@ -1103,6 +1150,7 @@ export default async function OperationsDashboardPage({ searchParams }: Operatio
       teams={sanitizeClientData(assignableTeams)}
       activeBookings={sanitizeClientData(clientActiveBookings)}
       terminalBookings={sanitizeClientData(terminalBookings)}
+      completedBookings={sanitizeClientData(completedBookings)}
       managedSubscriptions={sanitizeClientData(clientManagedSubscriptions)}
       activeBookingQuery={activeBookingQuery}
       terminalBookingQuery={terminalBookingQuery}
