@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   BookingStatus,
   ChecklistStage,
-  FileType,
 } from '@prisma/client';
 import {
   isValidStatusTransition,
@@ -11,8 +10,6 @@ import {
 } from '@/lib/engine/state-machine';
 import {
   canEditChecklistStage,
-  canUploadExecutionFile,
-  isExecutionFileType,
 } from '@/lib/engine/evidence-stage';
 import { formatMaterialQuantityWithUnit } from '@/lib/inventory/units';
 import { phoneHref, whatsappHref } from '@/lib/contact-links';
@@ -68,7 +65,7 @@ describe('Field Employee / Technician (موظف وفني التنفيذ) Complet
   });
 
   // =========================================================================
-  // 2. Evidence Stage Windows & Checklist Gating (حراسة مراحل الفحص ورفع الصور)
+  // 2. Checklist Stage Windows & Checklist Gating (حراسة مراحل الفحص)
   // =========================================================================
   describe('2. Checklist Stage Windows & Evidence Stage Gates', () => {
     it('restricts TEAM_PREPARATION checklist only to pre-service stages', () => {
@@ -93,22 +90,6 @@ describe('Field Employee / Technician (موظف وفني التنفيذ) Complet
       expect(canEditChecklistStage(BookingStatus.QUALITY_REVIEW, ChecklistStage.SERVICE_EXECUTION)).toBe(false);
     });
 
-    it('enforces upload file type rules according to current field stage', () => {
-      // On Arrival: Before photos and Existing Damage photos are allowed
-      expect(canUploadExecutionFile(BookingStatus.ARRIVED, FileType.BEFORE_SERVICE)).toBe(true);
-      expect(canUploadExecutionFile(BookingStatus.ARRIVED, FileType.EXISTING_DAMAGE)).toBe(true);
-      expect(canUploadExecutionFile(BookingStatus.ARRIVED, FileType.AFTER_SERVICE)).toBe(false);
-
-      // In Service: During service and After photos are allowed
-      expect(canUploadExecutionFile(BookingStatus.IN_SERVICE, FileType.DURING_SERVICE)).toBe(true);
-      expect(canUploadExecutionFile(BookingStatus.IN_SERVICE, FileType.AFTER_SERVICE)).toBe(true);
-      expect(canUploadExecutionFile(BookingStatus.IN_SERVICE, FileType.BEFORE_SERVICE)).toBe(false);
-
-      // Payment proof is not an execution file type
-      expect(isExecutionFileType(FileType.PAYMENT_PROOF)).toBe(false);
-      expect(isExecutionFileType(FileType.BEFORE_SERVICE)).toBe(true);
-      expect(isExecutionFileType(FileType.AFTER_SERVICE)).toBe(true);
-    });
   });
 
   // =========================================================================

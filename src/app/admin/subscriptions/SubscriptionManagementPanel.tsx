@@ -2,7 +2,8 @@
 
 import { useRef, useState, useTransition, type MouseEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { Download, ExternalLink, Eye, Trash2, X } from 'lucide-react';
+import Image from 'next/image';
+import { Download, Eye, Trash2, X } from 'lucide-react';
 import {
   activateSubscriptionAction,
   adjustSubscriptionVisitsAction,
@@ -335,6 +336,7 @@ export default function SubscriptionManagementPanel({
                 <button
                   type="button"
                   onClick={() => setReceiptModal(null)}
+                  aria-label="إغلاق معاينة إيصال التحويل"
                   className="rounded-full p-2 text-neutral-400 hover:bg-neutral-800 hover:text-white transition-colors"
                 >
                   <X className="size-5" />
@@ -342,9 +344,12 @@ export default function SubscriptionManagementPanel({
               </div>
 
               <div className="my-4 flex flex-col items-center justify-center overflow-auto rounded-2xl bg-black/60 border border-neutral-800/80 p-2 min-h-[300px]">
-                <img
+                <Image
                   src={receiptModal.url}
                   alt="إيصال التحويل"
+                  width={1200}
+                  height={900}
+                  unoptimized
                   className="max-h-[55vh] w-auto max-w-full object-contain rounded-xl shadow-lg"
                   onError={(e) => {
                     (e.target as HTMLElement).style.display = 'none';
@@ -536,9 +541,12 @@ export default function SubscriptionManagementPanel({
                         });
                       }}
                     >
-                      <img
+                      <Image
                         src={subscription.paymentProof.proofFileUrl}
                         alt="إيصال الاشتراك"
+                        width={800}
+                        height={600}
+                        unoptimized
                         className="max-h-44 w-auto object-contain rounded hover:scale-105 transition-transform"
                         onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
                       />
@@ -688,6 +696,7 @@ export default function SubscriptionManagementPanel({
             <button
               type="button"
               onClick={() => setReceiptModal(null)}
+              aria-label="إغلاق معاينة إيصال التحويل"
               className="rounded-full p-2 text-neutral-400 hover:bg-neutral-800 hover:text-white transition-colors"
             >
               <X className="size-5" />
@@ -695,9 +704,12 @@ export default function SubscriptionManagementPanel({
           </div>
 
           <div className="my-4 flex flex-col items-center justify-center overflow-auto rounded-2xl bg-black/60 border border-neutral-800/80 p-2 min-h-[300px]">
-            <img
+            <Image
               src={receiptModal.url}
               alt="إيصال التحويل"
+              width={1200}
+              height={900}
+              unoptimized
               className="max-h-[55vh] w-auto max-w-full object-contain rounded-xl shadow-lg"
               onError={(e) => {
                 (e.target as HTMLElement).style.display = 'none';

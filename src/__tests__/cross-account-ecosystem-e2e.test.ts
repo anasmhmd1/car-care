@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   BookingStatus,
   ChecklistStage,
-  FileType,
   PaymentStatus,
   PermissionEffect,
   UserRole,
@@ -16,8 +15,6 @@ import {
 } from '@/lib/engine/state-machine';
 import {
   canEditChecklistStage,
-  canUploadExecutionFile,
-  isExecutionFileType,
 } from '@/lib/engine/evidence-stage';
 import {
   canRoleReceivePermission,
@@ -800,38 +797,6 @@ describe('🔒 GO-LIVE CLOSURE: Cross-Account Ecosystem Comprehensive E2E', () =
       });
     });
 
-    describe('File Upload Type Windows', () => {
-      it('BEFORE_SERVICE and EXISTING_DAMAGE: only ARRIVED', () => {
-        expect(canUploadExecutionFile(BookingStatus.ARRIVED, FileType.BEFORE_SERVICE)).toBe(true);
-        expect(canUploadExecutionFile(BookingStatus.ARRIVED, FileType.EXISTING_DAMAGE)).toBe(true);
-        expect(canUploadExecutionFile(BookingStatus.IN_SERVICE, FileType.BEFORE_SERVICE)).toBe(false);
-        expect(canUploadExecutionFile(BookingStatus.QUALITY_REVIEW, FileType.BEFORE_SERVICE)).toBe(false);
-      });
-
-      it('DURING_SERVICE and AFTER_SERVICE: only IN_SERVICE', () => {
-        expect(canUploadExecutionFile(BookingStatus.IN_SERVICE, FileType.DURING_SERVICE)).toBe(true);
-        expect(canUploadExecutionFile(BookingStatus.IN_SERVICE, FileType.AFTER_SERVICE)).toBe(true);
-        expect(canUploadExecutionFile(BookingStatus.ARRIVED, FileType.AFTER_SERVICE)).toBe(false);
-        expect(canUploadExecutionFile(BookingStatus.ARRIVED, FileType.DURING_SERVICE)).toBe(false);
-      });
-
-      it('PAYMENT_PROOF is not an execution file type', () => {
-        expect(isExecutionFileType(FileType.PAYMENT_PROOF)).toBe(false);
-      });
-
-      it('all execution file types are recognized', () => {
-        expect(isExecutionFileType(FileType.BEFORE_SERVICE)).toBe(true);
-        expect(isExecutionFileType(FileType.EXISTING_DAMAGE)).toBe(true);
-        expect(isExecutionFileType(FileType.DURING_SERVICE)).toBe(true);
-        expect(isExecutionFileType(FileType.AFTER_SERVICE)).toBe(true);
-      });
-
-      it('non-execution file types are not recognized', () => {
-        expect(isExecutionFileType(FileType.REFUND_PROOF)).toBe(false);
-        expect(isExecutionFileType(FileType.CANCELLATION_EVIDENCE)).toBe(false);
-        expect(isExecutionFileType(FileType.COMPLAINT_EVIDENCE)).toBe(false);
-      });
-    });
   });
 
   // ===========================================================================

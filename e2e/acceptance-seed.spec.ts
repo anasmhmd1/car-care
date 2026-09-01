@@ -1,7 +1,6 @@
 import { expect, test } from '@playwright/test';
 import {
   BookingStatus,
-  FileType,
   PaymentStatus,
   SubscriptionStatus,
   UserRole,
@@ -82,10 +81,6 @@ test.describe('Seed-backed acceptance evidence', () => {
     expect(booking!.checklistInstances.length).toBeGreaterThanOrEqual(4);
     expect(booking!.checklistInstances.every((instance) => Boolean(instance.completedAt))).toBe(true);
     expect(booking!.checklistInstances.flatMap((instance) => instance.results).every((result) => result.isChecked)).toBe(true);
-    expect(booking!.files.filter((file) => file.fileType === FileType.BEFORE_SERVICE).length)
-      .toBeGreaterThanOrEqual(booking!.service.minimumBeforePhotos);
-    expect(booking!.files.filter((file) => file.fileType === FileType.AFTER_SERVICE).length)
-      .toBeGreaterThanOrEqual(booking!.service.minimumAfterPhotos);
     expect(booking!.qualityReview).toMatchObject({ approved: true, returnedToTeam: false });
   });
 

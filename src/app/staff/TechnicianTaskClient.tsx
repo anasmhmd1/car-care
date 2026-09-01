@@ -50,7 +50,6 @@ interface ChecklistItem {
   labelAr: string;
   descriptionAr: string | null;
   required: boolean;
-  requiresPhoto: boolean;
   requiresNote: boolean;
   displayOrder: number;
 }
@@ -142,15 +141,6 @@ const WORKFLOW_STEPS: WorkflowStepConfig[] = [
   { stepNumber: 5, from: 'IN_SERVICE', to: 'QUALITY_REVIEW', label: 'إرسال لمراجعة واعتماد الجودة', shortLabel: 'إرسال للجودة', helper: 'يتطلب إكمال بنود التشيك ليست الإلزامية' },
   { stepNumber: 6, from: 'SERVICE_COMPLETED', to: 'DELIVERED', label: 'تأكيد تسليم الخدمة النهائي', shortLabel: 'تسليم للعميل', helper: 'استخدمه بعد اعتماد الجودة وتسليم العميل' },
 ];
-
-const STAGE_LABELS: Record<string, string> = {
-  BOOKING_REVIEW: 'مراجعة الحجز والإسناد',
-  TEAM_PREPARATION: 'تحضير الفريق وتجهيز المواد',
-  ARRIVAL_INSPECTION: 'فحص الوصول وتوثيق الحالة',
-  SERVICE_EXECUTION: 'قائمة مهام وتشيك ليست التنفيذ للموظفين',
-  CLOSING: 'الإغلاق والتسليم الميداني',
-  QUALITY_REVIEW: 'مراجعة واعتماد الجودة',
-};
 
 const STATUS_AR_LABELS: Record<string, { label: string; tone: string }> = {
   ASSIGNED: { label: 'مسندة للفريق', tone: 'border-amber-500/40 bg-amber-500/10 text-amber-300' },
@@ -735,7 +725,7 @@ export default function TechnicianTaskClient({
                     >
                       <legend className="px-2 text-xs font-black text-[#f3e4a8] flex items-center gap-2">
                         <span className={`size-2 rounded-full ${stageEditable ? 'bg-[#cea355]' : 'bg-neutral-500'}`} />
-                        {STAGE_LABELS[template.stage] ?? template.name}
+                        {template.name}
                         {!stageEditable && <span className="text-[10px] font-normal text-neutral-400">(مغلقة في هذه المرحلة)</span>}
                       </legend>
 

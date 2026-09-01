@@ -50,6 +50,8 @@ describe('Bareeq engine', () => {
       expect(isValidStatusTransition(BookingStatus.ASSIGNED, BookingStatus.ASSIGNED)).toBe(false);
       expect(isValidStatusTransition(BookingStatus.ASSIGNED, BookingStatus.ON_THE_WAY)).toBe(false);
       expect(isValidStatusTransition(BookingStatus.IN_SERVICE, BookingStatus.SERVICE_COMPLETED)).toBe(false);
+      expect(isValidStatusTransition(BookingStatus.IN_SERVICE, BookingStatus.DELIVERED)).toBe(false);
+      expect(isValidStatusTransition(BookingStatus.QUALITY_REVIEW, BookingStatus.DELIVERED)).toBe(false);
     });
 
     it('returns readable customer-facing Arabic labels', () => {
@@ -103,6 +105,7 @@ describe('Bareeq engine', () => {
         ...baseEvidence,
         completedChecklistStages: [ChecklistStage.TEAM_PREPARATION, ChecklistStage.ARRIVAL_INSPECTION],
       }).allowed).toBe(true);
+
     });
 
     it('requires quality approval and a settled balance for final states', () => {
@@ -115,6 +118,16 @@ describe('Bareeq engine', () => {
         hasAssignedTeam: true,
         amountDue: 100,
       })).toMatchObject({ allowed: false, code: 'OUTSTANDING_BALANCE' });
+
+      expect(validateStatusTransition(BookingStatus.IN_SERVICE, BookingStatus.QUALITY_REVIEW, {
+        hasAssignedTeam: true,
+        completedChecklistStages: [
+          ChecklistStage.TEAM_PREPARATION,
+          ChecklistStage.ARRIVAL_INSPECTION,
+          ChecklistStage.SERVICE_EXECUTION,
+          ChecklistStage.CLOSING,
+        ],
+      }).allowed).toBe(true);
     });
   });
 

@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import {
   AlertTriangle,
   ArrowLeftRight,
@@ -18,7 +19,6 @@ import {
   ClipboardCheck,
   Download,
   ExternalLink,
-  Eye,
   FileSearch,
   FileText,
   Globe,
@@ -1698,7 +1698,7 @@ export default function OperationsDashboardClient({
           <div role="dialog" aria-modal="true" className="my-8 w-full max-w-2xl space-y-5 rounded-3xl border border-[#d4af37]/40 bg-[#141414] p-5 sm:p-8 shadow-2xl">
             <div className="flex items-center justify-between gap-4 border-b border-neutral-800/80 pb-4">
               <h2 className="text-xl font-black text-white">مراجعة إثبات التحويل #{selectedProof.booking.bookingNumber}</h2>
-              <button type="button" disabled={isSubmitting} onClick={() => setSelectedProof(null)} className="rounded-xl p-2 text-neutral-400 hover:bg-neutral-800">
+              <button type="button" aria-label="إغلاق مراجعة إثبات التحويل" disabled={isSubmitting} onClick={() => setSelectedProof(null)} className="rounded-xl p-2 text-neutral-400 hover:bg-neutral-800">
                 <X className="size-5" />
               </button>
             </div>
@@ -1777,9 +1777,12 @@ export default function OperationsDashboardClient({
                   </div>
                 </div>
                 <div className="max-h-64 overflow-auto rounded-xl border border-neutral-800 bg-black/60 flex items-center justify-center p-2">
-                  <img
+                  <Image
                     src={selectedProof.proofFileUrl}
                     alt="إيصال الدفع"
+                    width={800}
+                    height={600}
+                    unoptimized
                     className="max-h-60 w-auto max-w-full object-contain rounded-lg shadow-md"
                     onError={(e) => {
                       (e.target as HTMLElement).style.display = 'none';
@@ -1821,7 +1824,7 @@ export default function OperationsDashboardClient({
           <div role="dialog" aria-modal="true" className="w-full max-w-lg space-y-5 rounded-3xl border border-[#d4af37]/40 bg-[#141414] p-5 sm:p-8 shadow-2xl">
             <div className="flex items-center justify-between gap-4 border-b border-neutral-800/80 pb-4">
               <h2 className="text-xl font-black text-white">اعتماد أو رفض الحجز #{selectedReview.bookingNumber}</h2>
-              <button type="button" disabled={isSubmitting} onClick={() => setSelectedReview(null)} className="rounded-xl p-2 text-neutral-400 hover:bg-neutral-800"><X className="size-5" /></button>
+              <button type="button" aria-label="إغلاق مراجعة الحجز" disabled={isSubmitting} onClick={() => setSelectedReview(null)} className="rounded-xl p-2 text-neutral-400 hover:bg-neutral-800"><X className="size-5" /></button>
             </div>
             <div className="rounded-2xl bg-[#080808] p-4 text-xs sm:text-sm text-neutral-300 space-y-1 border border-neutral-800/60">
               <p><strong className="text-white">{selectedReview.service.nameAr}</strong> · {selectedReview.customer.user.fullName}</p>
@@ -1858,7 +1861,7 @@ export default function OperationsDashboardClient({
           <div role="dialog" aria-modal="true" className="w-full max-w-lg space-y-5 rounded-3xl border border-[#d4af37]/40 bg-[#141414] p-5 sm:p-8 shadow-2xl">
             <div className="flex items-center justify-between gap-4 border-b border-neutral-800/80 pb-4">
               <h2 className="text-xl font-black text-white">إسناد فريق للحجز #{selectedBooking.bookingNumber}</h2>
-              <button type="button" disabled={isSubmitting} onClick={() => setSelectedBooking(null)} className="rounded-xl p-2 text-neutral-400 hover:bg-neutral-800"><X className="size-5" /></button>
+              <button type="button" aria-label="إغلاق إسناد الفريق" disabled={isSubmitting} onClick={() => setSelectedBooking(null)} className="rounded-xl p-2 text-neutral-400 hover:bg-neutral-800"><X className="size-5" /></button>
             </div>
             {feedback && (
               <div
@@ -1905,7 +1908,7 @@ export default function OperationsDashboardClient({
           <div role="dialog" aria-modal="true" className="w-full max-w-lg space-y-5 rounded-3xl border border-[#d4af37]/40 bg-[#141414] p-5 sm:p-8 shadow-2xl">
             <div className="flex items-center justify-between gap-4 border-b border-neutral-800/80 pb-4">
               <h2 className="text-xl font-black text-white">تسجيل تحصيل الرصيد #{selectedSettlement.bookingNumber}</h2>
-              <button type="button" disabled={isSubmitting} onClick={() => setSelectedSettlement(null)} className="rounded-xl p-2 text-neutral-400 hover:bg-neutral-800"><X className="size-5" /></button>
+              <button type="button" aria-label="إغلاق تسجيل التحصيل" disabled={isSubmitting} onClick={() => setSelectedSettlement(null)} className="rounded-xl p-2 text-neutral-400 hover:bg-neutral-800"><X className="size-5" /></button>
             </div>
             <div className="rounded-2xl bg-[#080808] p-4 text-xs sm:text-sm border border-neutral-800/60 space-y-1">
               <p className="text-neutral-400">الرصيد المستحق:</p>

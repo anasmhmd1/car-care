@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { ChecklistStage, UserRole } from '@prisma/client';
+import { UserRole } from '@prisma/client';
 import { requireRole } from '@/lib/auth/session';
 import { db } from '@/lib/db';
 import { expireActiveSubscriptions } from '@/lib/engine/subscription-expiration';
@@ -51,10 +51,6 @@ export default async function AdminSiteContentPage({ searchParams }: AdminSiteCo
       orderBy: [{ active: 'desc' }, { createdAt: 'asc' }],
       include: {
         branchServices: { orderBy: { branchId: 'asc' } },
-        checklistTemplates: {
-          where: { stage: ChecklistStage.SERVICE_EXECUTION },
-          include: { items: { orderBy: { displayOrder: 'asc' } } },
-        },
         materialRequirements: {
           orderBy: { materialId: 'asc' },
           select: {
@@ -151,8 +147,6 @@ export default async function AdminSiteContentPage({ searchParams }: AdminSiteCo
     active: service.active,
     bookableOnline: service.bookableOnline,
     subscriptionEligible: service.subscriptionEligible,
-    minimumBeforePhotos: service.minimumBeforePhotos,
-    minimumAfterPhotos: service.minimumAfterPhotos,
     branchOverrides: service.branchServices.map((override): BranchOverrideDto => ({
       branchId: override.branchId,
       active: override.active,
@@ -165,15 +159,6 @@ export default async function AdminSiteContentPage({ searchParams }: AdminSiteCo
       quantity: requirement.quantity,
       required: requirement.required,
       notes: requirement.notes,
-    })),
-    checklistItems: (service.checklistTemplates[0]?.items ?? []).map((item) => ({
-      id: item.id,
-      labelAr: item.labelAr,
-      descriptionAr: item.descriptionAr,
-      required: item.required,
-      requiresPhoto: item.requiresPhoto,
-      requiresNote: item.requiresNote,
-      active: item.active,
     })),
   }));
 

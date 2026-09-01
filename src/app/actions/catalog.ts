@@ -1,6 +1,6 @@
 'use server';
 
-import { ChecklistStage, Prisma, UserRole, VehicleSize } from '@prisma/client';
+import { Prisma, UserRole, VehicleSize } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { requireRole } from '@/lib/auth/session';
@@ -66,16 +66,6 @@ function slugify(text: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
-const checklistItemInputSchema = z.object({
-  id: databaseIdSchema.optional(),
-  labelAr: z.string().trim().min(2).max(200),
-  descriptionAr: z.string().trim().max(500).optional().nullable(),
-  required: z.boolean().default(true),
-  requiresPhoto: z.boolean().default(false),
-  requiresNote: z.boolean().default(false),
-  active: z.boolean().default(true),
-});
-
 const serviceProductSchema = z.object({
   serviceId: databaseIdSchema.optional(),
   cancellationPolicyId: databaseIdSchema.optional(),
@@ -102,13 +92,10 @@ const serviceProductSchema = z.object({
   active: z.boolean(),
   bookableOnline: z.boolean(),
   subscriptionEligible: z.boolean(),
-  minimumBeforePhotos: z.coerce.number().int().min(0).max(20),
-  minimumAfterPhotos: z.coerce.number().int().min(0).max(20),
   variants: z.array(variantSchema).max(Object.values(VehicleSize).length).default([]),
   addonIds: z.array(databaseIdSchema).max(50).default([]),
   branchOverrides: z.array(branchOverrideSchema).max(100).default([]),
   materialRequirements: catalogMaterialRequirementsSchema,
-  checklistItems: z.array(checklistItemInputSchema).default([]),
 }).superRefine((value, context) => {
   if (value.depositType === 'PERCENTAGE' && value.depositValue > 100) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ['depositValue'], message: 'نسبة العربون لا تتجاوز 100%.' });
@@ -216,13 +203,10 @@ export async function saveServiceProductAction(formData: FormData) {
     active: bool(formData.get('active')),
     bookableOnline: bool(formData.get('bookableOnline')),
     subscriptionEligible: bool(formData.get('subscriptionEligible')),
-    minimumBeforePhotos: formData.get('minimumBeforePhotos'),
-    minimumAfterPhotos: formData.get('minimumAfterPhotos'),
     variants: jsonArray(formData.get('variants')),
     addonIds: jsonArray(formData.get('addonIds')),
     branchOverrides: jsonArray(formData.get('branchOverrides')),
     materialRequirements: materialRequirementsPayload.data,
-    checklistItems: jsonArray(formData.get('checklistItems')),
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? 'بيانات الخدمة غير مكتملة.' };
@@ -324,8 +308,6 @@ export async function saveServiceProductAction(formData: FormData) {
         active: parsed.data.active,
         bookableOnline: parsed.data.bookableOnline,
         subscriptionEligible: parsed.data.subscriptionEligible,
-        minimumBeforePhotos: parsed.data.minimumBeforePhotos,
-        minimumAfterPhotos: parsed.data.minimumAfterPhotos,
       } satisfies Prisma.ServiceUncheckedCreateInput;
 
       const service = parsed.data.serviceId
@@ -370,53 +352,6 @@ export async function saveServiceProductAction(formData: FormData) {
         });
       }
 
-      if (parsed.data.checklistItems.length > 0) {
-        const template = await tx.checklistTemplate.upsert({
-          where: {
-            serviceId_stage: {
-              serviceId: service.id,
-              stage: ChecklistStage.SERVICE_EXECUTION,
-            },
-          },
-          update: {
-            name: `قائمة تنفيذ ${service.nameAr}`,
-          },
-          create: {
-            serviceId: service.id,
-            stage: ChecklistStage.SERVICE_EXECUTION,
-            name: `قائمة تنفيذ ${service.nameAr}`,
-          },
-        });
-
-        const suppliedItemIds = parsed.data.checklistItems.flatMap((item) => (item.id ? [item.id] : []));
-        await tx.checklistTemplateItem.deleteMany({
-          where: {
-            templateId: template.id,
-            ...(suppliedItemIds.length ? { id: { notIn: suppliedItemIds } } : {}),
-          },
-        });
-
-        for (let i = 0; i < parsed.data.checklistItems.length; i++) {
-          const item = parsed.data.checklistItems[i];
-          if (!item.labelAr?.trim()) continue;
-          const data = {
-            labelAr: item.labelAr.trim(),
-            descriptionAr: item.descriptionAr?.trim() || null,
-            required: item.required ?? true,
-            requiresPhoto: item.requiresPhoto ?? false,
-            requiresNote: item.requiresNote ?? false,
-            displayOrder: i + 1,
-            active: item.active ?? true,
-          };
-          if (item.id) {
-            await tx.checklistTemplateItem.update({ where: { id: item.id }, data });
-          } else {
-            await tx.checklistTemplateItem.create({
-              data: { templateId: template.id, ...data },
-            });
-          }
-        }
-      }
       await tx.auditLog.create({
         data: {
           actorUserId: actor.id,
@@ -719,4 +654,3 @@ export async function toggleServiceBookableOnlineAction(formData: FormData) {
     return { error: catalogError(error) };
   }
 }
-

@@ -1,9 +1,7 @@
-import { BookingStatus, ChecklistStage, FileType } from '@prisma/client';
+import { BookingStatus, ChecklistStage } from '@prisma/client';
 import { describe, expect, it } from 'vitest';
 import {
   canEditChecklistStage,
-  canUploadExecutionFile,
-  isExecutionFileType,
 } from '@/lib/engine/evidence-stage';
 
 describe('execution evidence stage gates', () => {
@@ -22,15 +20,5 @@ describe('execution evidence stage gates', () => {
     expect(canEditChecklistStage(BookingStatus.IN_SERVICE, ChecklistStage.CLOSING)).toBe(true);
     expect(canEditChecklistStage(BookingStatus.QUALITY_REVIEW, ChecklistStage.CLOSING)).toBe(false);
     expect(canEditChecklistStage(BookingStatus.ARRIVED, ChecklistStage.BOOKING_REVIEW)).toBe(false);
-  });
-
-  it('accepts before evidence only on arrival and during/after evidence only in service', () => {
-    expect(canUploadExecutionFile(BookingStatus.ARRIVED, FileType.BEFORE_SERVICE)).toBe(true);
-    expect(canUploadExecutionFile(BookingStatus.ARRIVED, FileType.EXISTING_DAMAGE)).toBe(true);
-    expect(canUploadExecutionFile(BookingStatus.IN_SERVICE, FileType.BEFORE_SERVICE)).toBe(false);
-    expect(canUploadExecutionFile(BookingStatus.IN_SERVICE, FileType.DURING_SERVICE)).toBe(true);
-    expect(canUploadExecutionFile(BookingStatus.IN_SERVICE, FileType.AFTER_SERVICE)).toBe(true);
-    expect(canUploadExecutionFile(BookingStatus.ARRIVED, FileType.AFTER_SERVICE)).toBe(false);
-    expect(isExecutionFileType(FileType.PAYMENT_PROOF)).toBe(false);
   });
 });

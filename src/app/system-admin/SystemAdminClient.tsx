@@ -238,6 +238,7 @@ export default function SystemAdminClient({
           </div>
 
           <button
+            type="button"
             onClick={() => setShowNewOwnerModal(true)}
             className="px-5 py-2.5 rounded-xl bg-[#080808] border border-[#c9a227]/40 text-[#e5c45a] font-bold text-xs flex items-center gap-2 hover:bg-[#c9a227]/10"
           >
@@ -263,6 +264,7 @@ export default function SystemAdminClient({
                 </div>
 
                 <button
+                  type="button"
                   onClick={() => handleToggleActive(o.id)}
                   disabled={isSubmitting}
                   className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
@@ -309,6 +311,7 @@ export default function SystemAdminClient({
 
                 {req.status === 'PENDING' || req.status === 'NEEDS_INFORMATION' ? (
                   <button
+                    type="button"
                     onClick={() => openReviewModal(req)}
                     className="px-5 py-2.5 rounded-xl gold-gradient text-[#080808] font-bold text-xs shadow-md shrink-0"
                   >
@@ -501,6 +504,7 @@ export default function SystemAdminClient({
 
             <div className="flex flex-wrap items-center justify-end gap-3 pt-4 border-t border-neutral-800">
               <button
+                type="button"
                 onClick={closeReviewModal}
                 disabled={isSubmitting}
                 className="px-5 py-2.5 rounded-xl bg-neutral-800 text-neutral-300 text-xs font-bold hover:bg-neutral-700"
@@ -508,6 +512,7 @@ export default function SystemAdminClient({
                 إلغاء
               </button>
               <button
+                type="button"
                 onClick={() => handleReview('NEEDS_INFORMATION')}
                 disabled={isSubmitting}
                 className="px-5 py-2.5 rounded-xl bg-amber-500/15 border border-amber-500/50 text-amber-200 text-xs font-bold hover:bg-amber-500/25"
@@ -515,6 +520,7 @@ export default function SystemAdminClient({
                 طلب معلومات
               </button>
               <button
+                type="button"
                 onClick={() => handleReview('REJECT')}
                 disabled={isSubmitting}
                 className="px-5 py-2.5 rounded-xl bg-red-500/20 border border-red-500 text-red-400 text-xs font-bold hover:bg-red-500/30 flex items-center gap-1.5"
@@ -523,6 +529,7 @@ export default function SystemAdminClient({
                 <span>رفض الطلب</span>
               </button>
               <button
+                type="button"
                 onClick={() => handleReview('APPROVE')}
                 disabled={isSubmitting}
                 className="px-6 py-2.5 rounded-xl bg-emerald-500 text-black text-xs font-bold hover:brightness-110 flex items-center gap-1.5 shadow-lg"

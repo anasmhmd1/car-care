@@ -10,8 +10,6 @@ import {
   VehicleSize,
 } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
-import { unlink } from 'node:fs/promises';
-import path from 'node:path';
 import { localDateTimeToUtc } from '../src/lib/engine/time';
 import {
   authenticateContext,
@@ -21,16 +19,9 @@ import {
   createAcceptanceUser,
   probeAcceptanceDatabase,
   sessionPrerequisite,
-  VALID_PNG_BUFFER,
 } from './support/acceptance';
 
 test.describe.configure({ mode: 'serial' });
-
-const tinyPng = {
-  name: 'evidence.png',
-  mimeType: 'image/png',
-  buffer: VALID_PNG_BUFFER,
-};
 
 test.describe('Full booking lifecycle browser acceptance', () => {
   const prisma = createAcceptancePrisma();
@@ -116,8 +107,6 @@ test.describe('Full booking lifecycle browser acceptance', () => {
         requiresDeposit: true,
         depositType: 'FIXED',
         depositValue: 300,
-        minimumBeforePhotos: 1,
-        minimumAfterPhotos: 1,
         active: true,
         bookableOnline: true,
         variants: { create: { vehicleSize: VehicleSize.SEDAN, price: 1_000, durationMinutes: 60 } },
@@ -225,8 +214,6 @@ test.describe('Full booking lifecycle browser acceptance', () => {
       data: { assignmentMode: AssignmentMode.MANUAL },
     });
     const contexts: BrowserContext[] = [];
-    const uploadedFilePaths: string[] = [];
-
     try {
       const managerContext = await browser.newContext();
       contexts.push(managerContext);
@@ -300,16 +287,7 @@ test.describe('Full booking lifecycle browser acceptance', () => {
         await control.click();
       }
 
-      const beforePhotoInput = technicianPage
-        .locator('label')
-        .filter({ hasText: 'صور قبل الخدمة' })
-        .locator('input[type="file"]');
-      await beforePhotoInput.setInputFiles(tinyPng);
-      await expect.poll(async () => prisma!.bookingFile.count({
-        where: { bookingId: booking.id, fileType: 'BEFORE_SERVICE' },
-      })).toBe(1);
-
-      await technicianPage.getByRole('button', { name: 'بدء تنفيذ الخدمة والتشيك ليست' }).click();
+      await technicianPage.getByRole('button', { name: 'بدء تنفيذ الخدمة' }).click();
       await expect.poll(async () => prisma!.booking.findUnique({
         where: { id: booking.id }, select: { bookingStatus: true },
       })).toEqual({ bookingStatus: BookingStatus.IN_SERVICE });
@@ -324,16 +302,7 @@ test.describe('Full booking lifecycle browser acceptance', () => {
         await control.click();
       }
 
-      const afterPhotoInput = technicianPage
-        .locator('label')
-        .filter({ hasText: 'صور بعد الخدمة' })
-        .locator('input[type="file"]');
-      await afterPhotoInput.setInputFiles(tinyPng);
-      await expect.poll(async () => prisma!.bookingFile.count({
-        where: { bookingId: booking.id, fileType: 'AFTER_SERVICE' },
-      })).toBe(1);
-
-      await technicianPage.getByRole('button', { name: 'إرسال لمراجعة واعتماد الجودة' }).click();
+      await technicianPage.getByRole('button', { name: 'إرسال لمراجعة الجودة' }).click();
       await expect.poll(async () => prisma!.booking.findUnique({
         where: { id: booking.id }, select: { bookingStatus: true },
       })).toEqual({ bookingStatus: BookingStatus.QUALITY_REVIEW });
@@ -383,25 +352,8 @@ test.describe('Full booking lifecycle browser acceptance', () => {
       expect(await prisma!.qualityReview.findUnique({ where: { bookingId: booking.id } }))
         .toMatchObject({ approved: true, returnedToTeam: false });
 
-      const files = await prisma!.bookingFile.findMany({
-        where: { bookingId: booking.id }, select: { fileUrl: true },
-      });
-      for (const file of files) {
-        if (file.fileUrl.startsWith('/api/files/')) {
-          uploadedFilePaths.push(file.fileUrl.replace('/api/files/', ''));
-        }
-      }
     } finally {
       await Promise.all(contexts.map((context) => context.close()));
-      const files = await prisma!.bookingFile.findMany({
-        where: { bookingId: booking.id }, select: { fileUrl: true },
-      });
-      for (const file of files) {
-        if (file.fileUrl.startsWith('/api/files/')) {
-          const relativePath = file.fileUrl.replace('/api/files/', '');
-          if (!uploadedFilePaths.includes(relativePath)) uploadedFilePaths.push(relativePath);
-        }
-      }
       await prisma!.branch.update({
         where: { id: method!.branchId }, data: { assignmentMode: originalAssignmentMode },
       });
@@ -415,10 +367,6 @@ test.describe('Full booking lifecycle browser acceptance', () => {
       await prisma!.team.delete({ where: { id: team.id } });
       await prisma!.service.delete({ where: { id: service.id } });
       await cleanupAcceptanceUsers(prisma!, [customerUser.id, manager.id, technician.id]);
-      const uploadRoot = process.env.UPLOAD_DIR || path.join(process.cwd(), 'data', 'uploads');
-      for (const relativePath of uploadedFilePaths) {
-        await unlink(path.join(uploadRoot, relativePath)).catch(() => undefined);
-      }
     }
   });
 });

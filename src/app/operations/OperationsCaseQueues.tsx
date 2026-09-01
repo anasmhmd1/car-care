@@ -701,19 +701,7 @@ export default function OperationsCaseQueues({
                     }
 
                     return stagesList.map(({ stage, instance, template }) => {
-                      const stageLabel = template?.name || ({
-                        BOOKING_REVIEW: 'مراجعة الحجز والإسناد',
-                        TEAM_PREPARATION: 'تحضير الفريق وتجهيز المواد',
-                        ARRIVAL_INSPECTION: 'فحص الوصول وتوثيق الحالة',
-                        SERVICE_EXECUTION: 'قائمة مهام وتشيك ليست التنفيذ للموظفين',
-                        CLOSING: 'الإغلاق والتسليم الميداني',
-                        QUALITY_REVIEW: 'مراجعة واعتماد الجودة',
-                        ARRIVAL: 'فحص الوصول',
-                        BEFORE_SERVICE: 'الفحص المبدئي',
-                        IN_SERVICE: 'قائمة مهام وتشيك ليست التنفيذ للموظفين',
-                        AFTER_SERVICE: 'فحص ما بعد الخدمة',
-                        DELIVERY: 'الإغلاق والتسليم',
-                      }[stage] || stage);
+                      const stageLabel = template?.name || 'قائمة فحص مسجلة';
 
                       const isStageDone = !!instance?.completedAt;
                       const templateItems = template?.items ?? [];

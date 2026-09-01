@@ -197,8 +197,6 @@ export interface CatalogServiceDto {
   active: boolean;
   bookableOnline: boolean;
   subscriptionEligible: boolean;
-  minimumBeforePhotos: number;
-  minimumAfterPhotos: number;
   branchOverrides: BranchOverrideDto[];
   materialRequirements: CatalogMaterialRequirementDto[];
 }
@@ -548,8 +546,6 @@ function ProductEditor({
               className={inputClass}
             />
           </label>
-          <input type="hidden" name="minimumBeforePhotos" value="0" />
-          <input type="hidden" name="minimumAfterPhotos" value="0" />
         </div>
         <div className="mt-5 flex flex-wrap gap-3 text-xs font-bold text-white/75">
           <label className="flex min-h-10 items-center gap-2 rounded-xl border border-white/10 px-3">

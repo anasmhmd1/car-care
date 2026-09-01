@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import {
   BookingStatus,
-  FileType,
   ProofStatus,
   UserRole,
 } from '@prisma/client';
@@ -237,7 +236,6 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
                         labelAr: true,
                         descriptionAr: true,
                         required: true,
-                        requiresPhoto: true,
                         requiresNote: true,
                         displayOrder: true,
                       },
@@ -257,18 +255,10 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
             },
             checklistInstances: {
               select: {
+                stage: true,
+                completedAt: true,
                 results: { select: { itemId: true, isChecked: true, note: true } },
               },
-            },
-            files: {
-              select: {
-                id: true,
-                fileType: true,
-                fileUrl: true,
-                mimeType: true,
-                createdAt: true,
-              },
-              orderBy: { createdAt: 'desc' },
             },
             notes: {
               select: {
@@ -529,14 +519,6 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
               service: { select: { nameAr: true } },
               assignedTeam: { select: { name: true } },
               customer: { select: { user: { select: { fullName: true } } } },
-              files: {
-                where: {
-                  fileType: {
-                    in: [FileType.BEFORE_SERVICE, FileType.AFTER_SERVICE, FileType.EXISTING_DAMAGE],
-                  },
-                },
-                select: { id: true, fileType: true, fileUrl: true, mimeType: true },
-              },
             },
           })
         : Promise.resolve([]),

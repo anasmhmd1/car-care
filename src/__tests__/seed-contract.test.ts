@@ -19,12 +19,12 @@ describe('development seed contract', () => {
     expect(seedSource).not.toMatch(/console\.(log|error)\([^)]*(password|secret).*process\.env/i);
   });
 
-  it('stores seeded operational evidence behind the authenticated file route', () => {
+  it('stores only non-execution evidence behind the authenticated file route', () => {
     expect(seedSource).toContain('ensureSeedPrivateSvg');
     expect(seedSource).toContain("'seed-payment-proofs'");
-    expect(seedSource).toContain("'seed-before'");
-    expect(seedSource).toContain("'seed-after'");
     expect(seedSource).toContain('proofFileId: proofBookingFile.id');
+    expect(seedSource).not.toContain("'seed-before'");
+    expect(seedSource).not.toContain("'seed-after'");
     expect(seedSource).not.toMatch(/LOCAL_IMAGE\s*\+\s*['"]\?seed=/);
   });
 

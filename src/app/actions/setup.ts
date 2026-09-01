@@ -106,6 +106,13 @@ const teamSchema = z.object({
       message: 'قائد الفريق يجب أن يكون ضمن أعضاء الفريق.',
     });
   }
+  if (value.baseZoneId && !value.zoneIds.includes(value.baseZoneId)) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['baseZoneId'],
+      message: 'الزون الأساسي يجب أن يكون ضمن نطاق تغطية الفريق.',
+    });
+  }
   for (const [field, values] of [
     ['memberIds', value.memberIds],
     ['zoneIds', value.zoneIds],
@@ -250,7 +257,6 @@ const checklistItemSchema = z.object({
   labelAr: z.string().trim().min(2, 'نص بند القائمة مطلوب.').max(500),
   descriptionAr: z.string().trim().max(1_000).optional(),
   required: z.boolean(),
-  requiresPhoto: z.boolean(),
   requiresNote: z.boolean(),
   displayOrder: z.coerce.number().int().min(0).max(1_000),
   active: z.boolean(),
@@ -2167,7 +2173,7 @@ export async function deletePaymentMethodAction(formData: FormData): Promise<Set
 }
 
 export async function saveChecklistTemplateAction(formData: FormData): Promise<SetupActionResult> {
-  const actor = await setupActor();
+  await setupActor();
   const rawServiceIds = formData.get('serviceIds');
   const serviceIdsParsed = rawServiceIds ? jsonField(rawServiceIds) : undefined;
   const parsed = checklistSchema.safeParse({
@@ -2231,7 +2237,6 @@ export async function saveChecklistTemplateAction(formData: FormData): Promise<S
               labelAr: item.labelAr,
               descriptionAr: item.descriptionAr || null,
               required: item.required,
-              requiresPhoto: item.requiresPhoto,
               requiresNote: item.requiresNote,
               displayOrder: item.displayOrder,
               active: item.active,

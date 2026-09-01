@@ -181,16 +181,6 @@ export interface CatalogMaterialDto {
   active: boolean;
 }
 
-export interface ChecklistTemplateItemDto {
-  id?: string;
-  labelAr: string;
-  descriptionAr?: string | null;
-  required: boolean;
-  requiresPhoto: boolean;
-  requiresNote: boolean;
-  active?: boolean;
-}
-
 export interface SiteServiceDto {
   id: string;
   cancellationPolicyId: string;
@@ -217,11 +207,8 @@ export interface SiteServiceDto {
   active: boolean;
   bookableOnline: boolean;
   subscriptionEligible: boolean;
-  minimumBeforePhotos: number;
-  minimumAfterPhotos: number;
   branchOverrides: BranchOverrideDto[];
   materialRequirements: CatalogMaterialRequirementDto[];
-  checklistItems?: ChecklistTemplateItemDto[];
 }
 
 export interface ServicesManagerProps {
@@ -382,7 +369,6 @@ function ServiceEditor({
     data.set('addonIds', JSON.stringify([]));
     data.set('branchOverrides', JSON.stringify(branchOverrides));
     data.set('materialRequirements', JSON.stringify(materialRequirements));
-    data.set('checklistItems', JSON.stringify([]));
     data.set('includedItems', JSON.stringify([]));
     data.set('excludedItems', JSON.stringify([]));
     data.set('slotCount', String(slotCount));
@@ -425,7 +411,7 @@ function ServiceEditor({
               {service ? `تعديل خدمة: ${service.nameAr}` : 'إضافة خدمة جديدة للمنصة'}
             </h2>
             <p className="text-xs leading-5 text-neutral-400">
-              تعديل الاسم، السعر الثابت، المدة، الصور، قائمة مهام الموظفين، والمواد المستهلكة من المخزون.
+              تعديل بيانات الخدمة، صورها، والمواد المستهلكة من المخزون. قوائم الـChecklist تُدار من مركز إعداد التشغيل.
             </p>
           </div>
         </div>
@@ -666,8 +652,6 @@ function ServiceEditor({
             </span>
           </label>
           <input type="hidden" name="depositType" value="FIXED" />
-          <input type="hidden" name="minimumBeforePhotos" value="0" />
-          <input type="hidden" name="minimumAfterPhotos" value="0" />
         </div>
 
         <div className="mt-5 flex flex-wrap gap-3 text-xs font-bold text-neutral-200">
@@ -702,9 +686,9 @@ function ServiceEditor({
               <ListChecks className="size-4" />
             </div>
             <div>
-              <h3 className="text-sm font-black text-white">قوائم تنفيذ الخدمة للموظفين</h3>
+              <h3 className="text-sm font-black text-white">قوائم فحص الخدمة</h3>
               <p className="mt-0.5 text-xs text-neutral-400">
-                أنشئ وعدّل قوائم التنفيذ لكل مرحلة (تحضير الفريق، فحص الوصول، تنفيذ الخدمة، الإغلاق والتسليم) من مركز إعداد التشغيل.
+                أنشئ وعدّل قوائم كل مرحلة من مركز إعداد التشغيل؛ الموظف سيعرض نفس القوائم المحفوظة فقط.
               </p>
             </div>
           </div>

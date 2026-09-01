@@ -4,6 +4,7 @@ import type { FormEvent, ReactNode } from 'react';
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import {
   ArrowRight,
   BadgeDollarSign,
@@ -104,7 +105,6 @@ interface QualityBooking {
   service: { nameAr: string };
   assignedTeam: { name: string } | null;
   customer: { user: { fullName: string } };
-  files: Array<{ id: string; fileType: string; fileUrl: string; mimeType: string }>;
 }
 
 interface BalanceBooking {
@@ -403,9 +403,12 @@ export default function DelegatedOperationsBoard({
                           </button>
                         </div>
                         <div className="max-h-40 overflow-hidden rounded-lg border border-white/10 bg-black flex items-center justify-center p-1">
-                          <img
+                          <Image
                             src={proof.proofFileUrl}
                             alt="إيصال الدفع"
+                            width={800}
+                            height={600}
+                            unoptimized
                             className="max-h-36 w-auto object-contain rounded"
                             onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
                           />

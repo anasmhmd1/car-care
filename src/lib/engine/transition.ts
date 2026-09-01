@@ -1,7 +1,6 @@
 import {
   BookingStatus,
   ChecklistStage,
-  FileType,
   Prisma,
   UserRole,
 } from '@prisma/client';
@@ -30,7 +29,7 @@ export interface TransitionBookingInput {
   reason?: string | null;
   metadata?: Prisma.InputJsonValue;
   /**
-   * Bypasses only execution checklist/after-photo and quality-approval guards.
+   * Bypasses only execution checklist and quality-approval guards.
    * Role, reason, graph, assignment, payment, and closing-balance guards remain.
    */
   managerOverride?: boolean;
@@ -50,21 +49,16 @@ export async function transitionBookingStatus(
       service: {
         select: {
           nameAr: true,
-          minimumBeforePhotos: true,
-          minimumAfterPhotos: true,
           checklistTemplates: {
             select: {
               stage: true,
               items: {
                 where: { active: true, required: true },
-                select: { id: true, requiresPhoto: true, requiresNote: true },
+                select: { id: true, requiresNote: true },
               },
             },
           },
         },
-      },
-      files: {
-        select: { fileType: true, mimeType: true },
       },
       checklistInstances: {
         where: { completedAt: { not: null } },
@@ -72,7 +66,7 @@ export async function transitionBookingStatus(
           stage: true,
           completedAt: true,
           results: {
-            select: { itemId: true, isChecked: true, photoUrl: true, note: true },
+            select: { itemId: true, isChecked: true, note: true },
           },
         },
       },
@@ -101,12 +95,6 @@ export async function transitionBookingStatus(
     throw new BookingTransitionError('الحجز غير موجود.', 'BOOKING_NOT_FOUND');
   }
 
-  const beforePhotoCount = booking.files.filter(
-    (file) => file.fileType === FileType.BEFORE_SERVICE && file.mimeType.startsWith('image/'),
-  ).length;
-  const afterPhotoCount = booking.files.filter(
-    (file) => file.fileType === FileType.AFTER_SERVICE && file.mimeType.startsWith('image/'),
-  ).length;
   const completedChecklistStages = Object.values(ChecklistStage).filter((stage) => {
     const requiredItems = booking.service.checklistTemplates
       .filter((template) => template.stage === stage)
@@ -151,10 +139,6 @@ export async function transitionBookingStatus(
       booking.assignedTeam?.members.some((m) => m.userId === input.actorUserId)
     ),
     completedChecklistStages,
-    beforePhotoCount,
-    afterPhotoCount,
-    minimumBeforePhotos: booking.service.minimumBeforePhotos,
-    minimumAfterPhotos: booking.service.minimumAfterPhotos,
     qualityApproved: Boolean(booking.qualityReview?.approved && !booking.qualityReview.returnedToTeam),
     amountDue: booking.amountDue,
   });

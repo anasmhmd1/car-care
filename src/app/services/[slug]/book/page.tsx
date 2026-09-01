@@ -31,7 +31,18 @@ function firstSearchParam(value: string | string[] | undefined) {
 export default async function BookServicePage({ params, searchParams }: BookingPageProps) {
   const [{ slug }, query, user] = await Promise.all([params, searchParams, getCurrentUser().catch(() => null)]);
 
-  // If user is logged in as non-customer (e.g. employee or admin), redirect to services or allow testing
+  if (!user) {
+    const callbackQuery = new URLSearchParams();
+    for (const [key, value] of Object.entries(query)) {
+      for (const item of Array.isArray(value) ? value : [value]) {
+        if (item !== undefined) callbackQuery.append(key, item);
+      }
+    }
+    const callback = `/services/${slug}/book${callbackQuery.toString() ? `?${callbackQuery.toString()}` : ''}`;
+    redirect(`/login?callback=${encodeURIComponent(callback)}`);
+  }
+
+  // If user is logged in as non-customer (e.g. employee), redirect to services.
   if (user && user.role !== UserRole.CUSTOMER && user.role !== UserRole.OWNER && user.role !== UserRole.SYSTEM_SUPER_ADMIN) {
     redirect('/services');
   }

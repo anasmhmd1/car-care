@@ -30,8 +30,6 @@ describe('booking payment-hold expiration', () => {
       assignedTeamId: null,
       amountDue: 800,
       service: {
-        minimumBeforePhotos: 0,
-        minimumAfterPhotos: 0,
         checklistTemplates: [],
       },
       files: [],

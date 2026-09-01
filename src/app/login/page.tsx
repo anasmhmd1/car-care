@@ -11,9 +11,23 @@ import PasswordResetModal from './PasswordResetModal';
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<LoginPageContent callback={null} />}>
+    <Suspense fallback={<LoginPageFallback />}>
       <LoginPageWithCallback />
     </Suspense>
+  );
+}
+
+function LoginPageFallback() {
+  return (
+    <>
+      <SkipLink />
+      <main id="main-content" className="min-h-screen bg-[#060608] text-white flex items-center justify-center px-4 py-12">
+        <div role="status" aria-live="polite" aria-busy="true" className="w-full max-w-md rounded-3xl border border-[#cea355]/25 bg-neutral-900/80 p-9 text-center shadow-2xl">
+          <h1 className="text-2xl font-black">تسجيل الدخول</h1>
+          <p className="mt-3 text-sm text-neutral-400">جارٍ تحميل الصفحة…</p>
+        </div>
+      </main>
+    </>
   );
 }
 
@@ -184,4 +198,3 @@ function LoginPageContent({ callback }: { callback: string | null }) {
     </>
   );
 }
-

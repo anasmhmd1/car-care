@@ -15,7 +15,6 @@ import {
   MapPinned,
   Pencil,
   Plus,
-  Route,
   Save,
   Settings2,
   ShieldCheck,
@@ -49,7 +48,6 @@ import {
   deletePaymentMethodAction,
   deleteSetupAreaAction,
   deleteSetupTimeOffAction,
-  deleteSetupZoneAction,
   revokeSetupPermissionOverrideAction,
   saveBlackoutDateAction,
   saveBranchIdentityAction,
@@ -62,9 +60,7 @@ import {
   saveSetupPermissionOverrideAction,
   saveSetupTeamAction,
   saveSetupTimeOffAction,
-  saveSetupZoneAction,
   saveTeamWorkingHoursAction,
-  saveZoneTravelTimeAction,
   type SetupActionResult,
 } from '@/app/actions/setup';
 import {
@@ -229,7 +225,6 @@ export interface SetupChecklistItemDto {
   labelAr: string;
   descriptionAr: string | null;
   required: boolean;
-  requiresPhoto: boolean;
   requiresNote: boolean;
   displayOrder: number;
   active: boolean;
@@ -1272,15 +1267,11 @@ function OperationsManagerForm({
 
 function WorkforceSection({
   branch,
-  allBranches,
   employees,
-  permissions,
   tools,
 }: {
   branch: SetupBranchDto;
-  allBranches: SetupBranchDto[];
   employees: SetupEmployeeDto[];
-  permissions: SetupPermissionDto[];
   tools: SectionTools;
 }) {
   const [selectedId, setSelectedId] = useState<string>('new');
@@ -1754,6 +1745,7 @@ function TeamForm({
   const [zoneIds, setZoneIds] = useState<string[]>(team?.zoneIds ?? []);
   const [serviceIds, setServiceIds] = useState<string[]>(team?.serviceIds ?? []);
   const [leaderId, setLeaderId] = useState(team?.leaderId ?? '');
+  const [baseZoneId, setBaseZoneId] = useState(team?.baseZoneId ?? '');
   const availableEmployees = employees.filter((employee) =>
     employee.role === 'EMPLOYEE' &&
     employee.active &&
@@ -1763,6 +1755,7 @@ function TeamForm({
   function toggle(values: string[], value: string, enabled: boolean, setter: (next: string[]) => void) {
     setter(enabled ? [...new Set([...values, value])] : values.filter((item) => item !== value));
     if (!enabled && value === leaderId) setLeaderId('');
+    if (!enabled && value === baseZoneId) setBaseZoneId('');
   }
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -1771,6 +1764,7 @@ function TeamForm({
     data.set('zoneIds', JSON.stringify(zoneIds));
     data.set('serviceIds', JSON.stringify(serviceIds));
     data.set('leaderId', leaderId);
+    data.set('baseZoneId', baseZoneId);
     tools.execute(saveSetupTeamAction, data);
   }
 
@@ -1827,6 +1821,37 @@ function TeamForm({
                 .map((employee) => <option key={employee.id} value={employee.id}>{employee.fullName}</option>)}
             </select>
           </label>
+        </div>
+
+        <div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h3 className="text-sm font-black">نطاق تغطية الفريق</h3>
+              <p className="mt-1 text-xs text-white/38">حدد الزونات التي يستطيع الفريق استقبال حجوزاتها، واختر نقطة الانطلاق الأساسية.</p>
+            </div>
+            <span className="text-xs tabular-nums text-[#d4af37]">{zoneIds.length} محدد</span>
+          </div>
+          <label className="mt-3 block text-xs font-bold text-white/65">
+            الزون الأساسي
+            <select value={baseZoneId} onChange={(event) => setBaseZoneId(event.target.value)} className={inputClass}>
+              <option value="">بدون زون أساسي محدد</option>
+              {branch.zones.filter((zone) => zoneIds.includes(zone.id)).map((zone) => (
+                <option key={zone.id} value={zone.id}>{zone.name}</option>
+              ))}
+            </select>
+          </label>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {branch.zones.map((zone) => (
+              <ToggleChoice
+                key={zone.id}
+                checked={zoneIds.includes(zone.id)}
+                onChange={(checked) => toggle(zoneIds, zone.id, checked, setZoneIds)}
+                label={zone.name}
+                hint={`${zone.areas.length} منطقة تغطية`}
+              />
+            ))}
+          </div>
+          {!branch.zones.length ? <p className="mt-3 rounded-xl bg-amber-400/8 p-3 text-xs text-amber-200">أضف زون تغطية أولًا من قسم التغطية.</p> : null}
         </div>
 
         <div>
@@ -2371,6 +2396,19 @@ function ScheduleSection({ branch, employees, tools }: {
       </Panel>
 
       <BlackoutsPanel branch={branch} tools={tools} />
+
+      <TimeOffPanel
+        branch={branch}
+        subjectType="TEAM"
+        subjects={branch.teams.map((item) => ({ id: item.id, name: item.name, timeOff: item.timeOff }))}
+        tools={tools}
+      />
+      <TimeOffPanel
+        branch={branch}
+        subjectType="EMPLOYEE"
+        subjects={employees.map((item) => ({ id: item.id, name: item.fullName, timeOff: item.timeOff }))}
+        tools={tools}
+      />
     </>
   );
 }
@@ -3085,7 +3123,6 @@ interface EditableChecklistItem {
   labelAr: string;
   descriptionAr: string;
   required: boolean;
-  requiresPhoto: boolean;
   requiresNote: boolean;
   displayOrder: number;
   active: boolean;
@@ -3182,7 +3219,6 @@ function ChecklistEditor({
         labelAr: item.labelAr,
         descriptionAr: item.descriptionAr ?? '',
         required: item.required,
-        requiresPhoto: item.requiresPhoto,
         requiresNote: item.requiresNote,
         displayOrder: item.displayOrder,
         active: item.active,
@@ -3192,7 +3228,6 @@ function ChecklistEditor({
         labelAr: '',
         descriptionAr: '',
         required: true,
-        requiresPhoto: false,
         requiresNote: false,
         displayOrder: 1,
         active: true,
@@ -3213,7 +3248,6 @@ function ChecklistEditor({
         labelAr: '',
         descriptionAr: '',
         required: true,
-        requiresPhoto: false,
         requiresNote: false,
         displayOrder: current.length + 1,
         active: true,
@@ -3229,7 +3263,6 @@ function ChecklistEditor({
       labelAr: item.labelAr,
       descriptionAr: item.descriptionAr,
       required: item.required,
-      requiresPhoto: item.requiresPhoto,
       requiresNote: item.requiresNote,
       displayOrder: item.displayOrder,
       active: item.active,
@@ -3553,7 +3586,7 @@ export default function SetupCenter({ actor, branches, employees, permissions, s
         content = <OperationsManagementSection key={branch.id} branch={branch} allBranches={branches} employees={employees} permissions={permissions} tools={sectionTools} />;
         break;
       case 'workforce':
-        content = <WorkforceSection key={branch.id} branch={branch} allBranches={branches} employees={branchEmployees} permissions={permissions} tools={sectionTools} />;
+        content = <WorkforceSection key={branch.id} branch={branch} employees={branchEmployees} tools={sectionTools} />;
         break;
       case 'teams':
         content = <TeamsSection key={branch.id} branch={branch} employees={branchEmployees} services={services} tools={sectionTools} />;

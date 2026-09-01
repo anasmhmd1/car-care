@@ -218,7 +218,6 @@ export default async function SetupPage() {
               labelAr: true,
               descriptionAr: true,
               required: true,
-              requiresPhoto: true,
               requiresNote: true,
               displayOrder: true,
               active: true,

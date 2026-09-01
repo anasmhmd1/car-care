@@ -824,7 +824,7 @@ function HoursCard({
       cur += strideMinutes;
     }
     return slots;
-  }, [openTime, closeTime]);
+  }, [openTime, closeTime, strideMinutes]);
 
   const livePreview = useMemo(() => {
     if (disabled) return [];
@@ -859,7 +859,7 @@ function HoursCard({
       cur += strideMinutes;
     }
     return preview;
-  }, [disabled, openTime, closeTime, breakStart, breakEnd]);
+  }, [disabled, openTime, closeTime, breakStart, breakEnd, strideMinutes]);
 
   return (
     <form

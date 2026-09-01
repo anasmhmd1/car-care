@@ -19,43 +19,50 @@ export const ALLOWED_STATUS_TRANSITIONS: Record<BookingStatus, readonly BookingS
     BookingStatus.REJECTED,
     BookingStatus.CANCELLATION_REQUESTED,
     BookingStatus.EXPIRED,
+    BookingStatus.CANCELLED,
   ],
   AWAITING_PAYMENT_PROOF: [
     BookingStatus.PAYMENT_UNDER_REVIEW,
     BookingStatus.REJECTED,
     BookingStatus.CANCELLATION_REQUESTED,
     BookingStatus.EXPIRED,
+    BookingStatus.CANCELLED,
   ],
   PAYMENT_UNDER_REVIEW: [
     BookingStatus.PAYMENT_VERIFIED,
     BookingStatus.AWAITING_PAYMENT_PROOF,
     BookingStatus.REJECTED,
     BookingStatus.CANCELLATION_REQUESTED,
+    BookingStatus.CANCELLED,
   ],
-  PAYMENT_VERIFIED: [BookingStatus.AWAITING_OPERATIONS_REVIEW],
+  PAYMENT_VERIFIED: [BookingStatus.AWAITING_OPERATIONS_REVIEW, BookingStatus.CANCELLED],
   AWAITING_OPERATIONS_REVIEW: [
     BookingStatus.ACCEPTED,
     BookingStatus.REJECTED,
     BookingStatus.RESCHEDULE_REQUESTED,
     BookingStatus.CANCELLATION_REQUESTED,
+    BookingStatus.CANCELLED,
   ],
   ACCEPTED: [
     BookingStatus.AWAITING_ASSIGNMENT,
     BookingStatus.ASSIGNED,
     BookingStatus.RESCHEDULE_REQUESTED,
     BookingStatus.CANCELLATION_REQUESTED,
+    BookingStatus.CANCELLED,
   ],
   AWAITING_ASSIGNMENT: [
     BookingStatus.ASSIGNED,
     BookingStatus.ADMIN_REVIEW_REQUIRED,
     BookingStatus.RESCHEDULE_REQUESTED,
     BookingStatus.CANCELLATION_REQUESTED,
+    BookingStatus.CANCELLED,
   ],
   ASSIGNED: [
     BookingStatus.TEAM_ACKNOWLEDGED,
     BookingStatus.AWAITING_ASSIGNMENT,
     BookingStatus.RESCHEDULE_REQUESTED,
     BookingStatus.CANCELLATION_REQUESTED,
+    BookingStatus.CANCELLED,
   ],
   TEAM_ACKNOWLEDGED: [
     BookingStatus.ON_THE_WAY,
@@ -63,6 +70,7 @@ export const ALLOWED_STATUS_TRANSITIONS: Record<BookingStatus, readonly BookingS
     BookingStatus.EXECUTION_FAILED,
     BookingStatus.CUSTOMER_NO_SHOW,
     BookingStatus.ACCESS_DENIED,
+    BookingStatus.CANCELLED,
   ],
   ON_THE_WAY: [
     BookingStatus.ARRIVED,
@@ -71,6 +79,7 @@ export const ALLOWED_STATUS_TRANSITIONS: Record<BookingStatus, readonly BookingS
     BookingStatus.EXECUTION_FAILED,
     BookingStatus.CUSTOMER_NO_SHOW,
     BookingStatus.ACCESS_DENIED,
+    BookingStatus.CANCELLED,
   ],
   ARRIVED: [
     BookingStatus.IN_SERVICE,
@@ -78,16 +87,17 @@ export const ALLOWED_STATUS_TRANSITIONS: Record<BookingStatus, readonly BookingS
     BookingStatus.CUSTOMER_NO_SHOW,
     BookingStatus.ACCESS_DENIED,
     BookingStatus.EXECUTION_FAILED,
+    BookingStatus.CANCELLED,
   ],
   IN_SERVICE: [
-    BookingStatus.DELIVERED,
     BookingStatus.QUALITY_REVIEW,
     BookingStatus.ARRIVED,
     BookingStatus.EXECUTION_FAILED,
+    BookingStatus.CANCELLED,
   ],
-  QUALITY_REVIEW: [BookingStatus.DELIVERED, BookingStatus.SERVICE_COMPLETED, BookingStatus.IN_SERVICE],
-  SERVICE_COMPLETED: [BookingStatus.DELIVERED],
-  DELIVERED: [BookingStatus.CLOSED, BookingStatus.IN_SERVICE],
+  QUALITY_REVIEW: [BookingStatus.SERVICE_COMPLETED, BookingStatus.IN_SERVICE, BookingStatus.CANCELLED],
+  SERVICE_COMPLETED: [BookingStatus.DELIVERED, BookingStatus.CANCELLED],
+  DELIVERED: [BookingStatus.CLOSED, BookingStatus.IN_SERVICE, BookingStatus.CANCELLED],
   CLOSED: [],
   RESCHEDULE_REQUESTED: [
     BookingStatus.AWAITING_OPERATIONS_REVIEW,
@@ -96,6 +106,7 @@ export const ALLOWED_STATUS_TRANSITIONS: Record<BookingStatus, readonly BookingS
     BookingStatus.ASSIGNED,
     BookingStatus.ADMIN_REVIEW_REQUIRED,
     BookingStatus.CANCELLATION_REQUESTED,
+    BookingStatus.CANCELLED,
   ],
   CANCELLATION_REQUESTED: [
     BookingStatus.REQUEST_SUBMITTED,
@@ -116,16 +127,19 @@ export const ALLOWED_STATUS_TRANSITIONS: Record<BookingStatus, readonly BookingS
     BookingStatus.ADMIN_REVIEW_REQUIRED,
     BookingStatus.RESCHEDULE_REQUESTED,
     BookingStatus.CANCELLATION_REQUESTED,
+    BookingStatus.CANCELLED,
   ],
   CUSTOMER_NO_SHOW: [
     BookingStatus.ADMIN_REVIEW_REQUIRED,
     BookingStatus.RESCHEDULE_REQUESTED,
     BookingStatus.CANCELLATION_REQUESTED,
+    BookingStatus.CANCELLED,
   ],
   ACCESS_DENIED: [
     BookingStatus.ADMIN_REVIEW_REQUIRED,
     BookingStatus.RESCHEDULE_REQUESTED,
     BookingStatus.CANCELLATION_REQUESTED,
+    BookingStatus.CANCELLED,
   ],
   ADMIN_REVIEW_REQUIRED: [
     BookingStatus.ACCEPTED,
@@ -133,6 +147,7 @@ export const ALLOWED_STATUS_TRANSITIONS: Record<BookingStatus, readonly BookingS
     BookingStatus.ASSIGNED,
     BookingStatus.CANCELLATION_REQUESTED,
     BookingStatus.REJECTED,
+    BookingStatus.CANCELLED,
   ],
   EXPIRED: [],
 };
@@ -197,10 +212,6 @@ export interface TransitionEvidence {
   hasAssignedTeam?: boolean;
   actorBelongsToAssignedTeam?: boolean;
   completedChecklistStages?: readonly ChecklistStage[];
-  beforePhotoCount?: number;
-  afterPhotoCount?: number;
-  minimumBeforePhotos?: number;
-  minimumAfterPhotos?: number;
   qualityApproved?: boolean;
   amountDue?: number;
 }
@@ -215,8 +226,6 @@ export interface TransitionValidation {
     | 'TEAM_NOT_ASSIGNED'
     | 'TEAM_SCOPE_REQUIRED'
     | 'CHECKLIST_INCOMPLETE'
-    | 'BEFORE_PHOTOS_REQUIRED'
-    | 'AFTER_PHOTOS_REQUIRED'
     | 'QUALITY_APPROVAL_REQUIRED'
     | 'OUTSTANDING_BALANCE'
     | 'MANAGER_OVERRIDE_FORBIDDEN'
@@ -302,8 +311,12 @@ export function validateStatusTransition(
 
   const completedStages = new Set(evidence.completedChecklistStages ?? []);
   if (toStatus === BookingStatus.IN_SERVICE && !evidence.managerOverride) {
-    if (!completedStages.has(ChecklistStage.ARRIVAL_INSPECTION)) {
-      return { allowed: false, code: 'CHECKLIST_INCOMPLETE', message: 'أكمل قائمة فحص ومعاينة الوصول قبل بدء الخدمة.' };
+    const missingPreparationStage = [
+      ChecklistStage.TEAM_PREPARATION,
+      ChecklistStage.ARRIVAL_INSPECTION,
+    ].some((stage) => !completedStages.has(stage));
+    if (missingPreparationStage) {
+      return { allowed: false, code: 'CHECKLIST_INCOMPLETE', message: 'أكمل قوائم الاستلام والوصول قبل بدء الخدمة.' };
     }
   }
 

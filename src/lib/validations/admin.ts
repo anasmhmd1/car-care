@@ -26,8 +26,6 @@ export const serviceSchema = z.object({
   active: z.coerce.boolean().default(true),
   bookableOnline: z.coerce.boolean().default(true),
   subscriptionEligible: z.coerce.boolean().default(true),
-  minimumBeforePhotos: z.coerce.number().min(0).default(2),
-  minimumAfterPhotos: z.coerce.number().min(0).default(2),
 });
 
 export const serviceVariantSchema = z.object({
@@ -154,7 +152,6 @@ export const checklistItemSchema = z.object({
   labelAr: z.string().min(1, 'التسمية مطلوبة').max(500),
   descriptionAr: z.string().max(1000).optional().default(''),
   required: z.coerce.boolean().default(true),
-  requiresPhoto: z.coerce.boolean().default(false),
   requiresNote: z.coerce.boolean().default(false),
   displayOrder: z.coerce.number().min(0).default(0),
   active: z.coerce.boolean().default(true),

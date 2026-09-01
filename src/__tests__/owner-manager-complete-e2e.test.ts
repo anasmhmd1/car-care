@@ -50,8 +50,6 @@ describe('Owner / Admin (حساب المالك) Complete E2E & Logical Test Suit
         active: true,
         bookableOnline: true,
         subscriptionEligible: true,
-        minimumBeforePhotos: 3,
-        minimumAfterPhotos: 3,
       });
       expect(validService.success).toBe(true);
 
@@ -113,7 +111,6 @@ describe('Owner / Admin (حساب المالك) Complete E2E & Logical Test Suit
         labelAr: 'تنظيف فتحات التكييف والكونسول المركزي بجهاز البخار',
         descriptionAr: 'يجب التأكد من تجفيف المفاتيح وأزرار التحكم بدقة',
         required: true,
-        requiresPhoto: true,
         requiresNote: false,
         displayOrder: 1,
         active: true,

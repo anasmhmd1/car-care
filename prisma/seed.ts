@@ -892,7 +892,6 @@ async function main() {
       durationMinutes: 60,
       slotCount: 1,
       depositValue: 30,
-      minimumPhotos: 2,
       variantPrices: [350, 400, 450, 500],
       variantDurations: [60, 60, 60, 60],
     },
@@ -907,7 +906,6 @@ async function main() {
       durationMinutes: 60,
       slotCount: 1,
       depositValue: 30,
-      minimumPhotos: 2,
       variantPrices: [450, 500, 600, 700],
       variantDurations: [60, 60, 60, 60],
     },
@@ -922,7 +920,6 @@ async function main() {
       durationMinutes: 120,
       slotCount: 2,
       depositValue: 30,
-      minimumPhotos: 3,
       variantPrices: [700, 800, 950, 1100],
       variantDurations: [120, 120, 120, 120],
     },
@@ -937,7 +934,6 @@ async function main() {
       durationMinutes: 180,
       slotCount: 3,
       depositValue: 40,
-      minimumPhotos: 4,
       variantPrices: [1200, 1400, 1650, 1900],
       variantDurations: [180, 180, 180, 180],
     },
@@ -952,7 +948,6 @@ async function main() {
       durationMinutes: 120,
       slotCount: 2,
       depositValue: 30,
-      minimumPhotos: 3,
       variantPrices: [650, 750, 850, 950],
       variantDurations: [120, 120, 120, 120],
     },
@@ -967,7 +962,6 @@ async function main() {
       durationMinutes: 60,
       slotCount: 1,
       depositValue: 30,
-      minimumPhotos: 2,
       variantPrices: [400, 450, 500, 550],
       variantDurations: [60, 60, 60, 60],
     },
@@ -982,7 +976,6 @@ async function main() {
       durationMinutes: 60,
       slotCount: 1,
       depositValue: 30,
-      minimumPhotos: 3,
       variantPrices: [500, 550, 600, 650],
       variantDurations: [60, 60, 60, 60],
     },
@@ -999,8 +992,6 @@ async function main() {
     nameAr: string;
     basePrice: number;
     depositValue: number;
-    minimumBeforePhotos: number;
-    minimumAfterPhotos: number;
   }>();
 
   for (const definition of serviceDefinitions) {
@@ -1032,8 +1023,6 @@ async function main() {
       active: true,
       bookableOnline: true,
       subscriptionEligible: true,
-      minimumBeforePhotos: definition.minimumPhotos,
-      minimumAfterPhotos: definition.minimumPhotos,
     };
     const service = await prisma.service.upsert({
       where: { slug: definition.slug },
@@ -1277,35 +1266,34 @@ async function main() {
       stage: ChecklistStage.TEAM_PREPARATION,
       name: 'قائمة تحضير الفريق',
       items: [
-        { labelAr: 'مراجعة تفاصيل الحجز والخدمة المطلوبة', requiresPhoto: false },
-        { labelAr: 'التأكد من اكتمال المواد والأدوات', requiresPhoto: false },
+        { labelAr: 'مراجعة تفاصيل الحجز والخدمة المطلوبة' },
+        { labelAr: 'التأكد من اكتمال المواد والأدوات' },
       ],
     },
     {
       stage: ChecklistStage.ARRIVAL_INSPECTION,
       name: 'قائمة فحص الوصول واستلام السيارة',
       items: [
-        { labelAr: 'مطابقة العميل والسيارة ورقم اللوحة', requiresPhoto: false },
-        { labelAr: 'فحص وتوثيق الأضرار والخدوش السابقة', requiresPhoto: true },
-        { labelAr: 'التأكد من غلق النوافذ وفتحة السقف', requiresPhoto: false },
+        { labelAr: 'مطابقة العميل والسيارة ورقم اللوحة' },
+        { labelAr: 'فحص الأضرار والخدوش السابقة' },
+        { labelAr: 'التأكد من غلق النوافذ وفتحة السقف' },
       ],
     },
     {
       stage: ChecklistStage.SERVICE_EXECUTION,
       name: 'قائمة خطوات تنفيذ الخدمة',
       items: [
-        { labelAr: 'تطبيق المواد المخصصة للأسطح بأمان', requiresPhoto: false },
-        { labelAr: 'تنظيف الزوايا وحواف الأبواب والجنوط', requiresPhoto: false },
-        { labelAr: 'مراجعة خلو الموقع من آثار المواد', requiresPhoto: false },
+        { labelAr: 'تطبيق المواد المخصصة للأسطح بأمان' },
+        { labelAr: 'تنظيف الزوايا وحواف الأبواب والجنوط' },
+        { labelAr: 'مراجعة خلو الموقع من آثار المواد' },
       ],
     },
     {
       stage: ChecklistStage.CLOSING,
       name: 'قائمة الإغلاق وتسليم السيارة',
       items: [
-        { labelAr: 'التقاط صور ما بعد الخدمة', requiresPhoto: true },
-        { labelAr: 'التأكد من عدم ترك أدوات أو متعلقات', requiresPhoto: false },
-        { labelAr: 'تأكيد رضا العميل عن التسليم', requiresPhoto: false },
+        { labelAr: 'التأكد من عدم ترك أدوات أو متعلقات' },
+        { labelAr: 'تأكيد رضا العميل عن التسليم' },
       ],
     },
   ];
@@ -1313,7 +1301,6 @@ async function main() {
   const checklistItems = new Map<string, Array<{
     id: string;
     labelAr: string;
-    requiresPhoto: boolean;
   }>>();
 
   for (const [serviceKey, service] of services) {
@@ -1341,7 +1328,7 @@ async function main() {
       );
       const key = checklistKey(service.id, definition.stage);
       checklistTemplates.set(key, template);
-      const seededItems: Array<{ id: string; labelAr: string; requiresPhoto: boolean }> = [];
+      const seededItems: Array<{ id: string; labelAr: string }> = [];
       for (const [index, itemDefinition] of definition.items.entries()) {
         const item = await stableUpsert(
           'seed-checklist-item-' + serviceKey + '-' + definition.stage.toLowerCase() + '-' + (index + 1),
@@ -1354,7 +1341,6 @@ async function main() {
             update: {
               labelAr: itemDefinition.labelAr,
               required: true,
-              requiresPhoto: itemDefinition.requiresPhoto,
               requiresNote: false,
               displayOrder: index + 1,
               active: true,
@@ -1364,7 +1350,6 @@ async function main() {
               templateId: template.id,
               labelAr: itemDefinition.labelAr,
               required: true,
-              requiresPhoto: itemDefinition.requiresPhoto,
               requiresNote: false,
               displayOrder: index + 1,
               active: true,
@@ -2245,39 +2230,6 @@ async function main() {
           }),
         );
         for (const [index, item] of (checklistItems.get(template.id) ?? []).entries()) {
-          let photoUrl: string | null = null;
-          if (item.requiresPhoto) {
-            const checklistFileName = definition.key + '-' + stage.toLowerCase() + '-' + (index + 1) + '.svg';
-            const seededChecklistFile = await ensureSeedPrivateSvg(
-              'seed-checklists',
-              checklistFileName,
-              'Checklist evidence · ' + definition.bookingNumber,
-            );
-            const checklistFileType =
-              stage === ChecklistStage.CLOSING || stage === ChecklistStage.QUALITY_REVIEW
-                ? FileType.AFTER_SERVICE
-                : FileType.BEFORE_SERVICE;
-            await prisma.bookingFile.upsert({
-              where: { fileUrl: seededChecklistFile.fileUrl },
-              update: {
-                bookingId: booking.id,
-                fileType: checklistFileType,
-                mimeType: 'image/svg+xml',
-                sizeBytes: seededChecklistFile.sizeBytes,
-                uploadedByUserId: teamLeader.id,
-              },
-              create: {
-                id: 'seed-booking-file-checklist-' + definition.key + '-' + stage.toLowerCase() + '-' + (index + 1),
-                bookingId: booking.id,
-                fileType: checklistFileType,
-                fileUrl: seededChecklistFile.fileUrl,
-                mimeType: 'image/svg+xml',
-                sizeBytes: seededChecklistFile.sizeBytes,
-                uploadedByUserId: teamLeader.id,
-              },
-            });
-            photoUrl = seededChecklistFile.fileUrl;
-          }
           await stableUpsert(
             'seed-checklist-result-' + definition.key + '-' + stage.toLowerCase() + '-' + (index + 1),
             () => prisma.bookingChecklistItemResult.findFirst({
@@ -2289,7 +2241,6 @@ async function main() {
               update: {
                 itemLabel: item.labelAr,
                 isChecked: true,
-                photoUrl,
                 note: 'تم التحقق في بيانات العرض.',
                 checkedByUserId: teamLeader.id,
                 checkedAt: SEEDED_AT,
@@ -2300,7 +2251,6 @@ async function main() {
                 itemId: item.id,
                 itemLabel: item.labelAr,
                 isChecked: true,
-                photoUrl,
                 note: 'تم التحقق في بيانات العرض.',
                 checkedByUserId: teamLeader.id,
                 checkedAt: SEEDED_AT,
@@ -2310,63 +2260,6 @@ async function main() {
         }
       }
 
-      for (let index = 1; index <= service.minimumBeforePhotos; index += 1) {
-        const seededBeforeFile = await ensureSeedPrivateSvg(
-          'seed-before',
-          definition.key + '-' + index + '.svg',
-          'Before service · ' + definition.bookingNumber,
-        );
-        await prisma.bookingFile.upsert({
-          where: { id: 'seed-booking-file-' + definition.key + '-before-' + index },
-          update: {
-            bookingId: booking.id,
-            fileType: FileType.BEFORE_SERVICE,
-            fileUrl: seededBeforeFile.fileUrl,
-            mimeType: 'image/svg+xml',
-            sizeBytes: seededBeforeFile.sizeBytes,
-            uploadedByUserId: teamLeader.id,
-          },
-          create: {
-            id: 'seed-booking-file-' + definition.key + '-before-' + index,
-            bookingId: booking.id,
-            fileType: FileType.BEFORE_SERVICE,
-            fileUrl: seededBeforeFile.fileUrl,
-            mimeType: 'image/svg+xml',
-            sizeBytes: seededBeforeFile.sizeBytes,
-            uploadedByUserId: teamLeader.id,
-          },
-        });
-      }
-
-      if (definition.bookingStatus !== BookingStatus.IN_SERVICE) {
-        for (let index = 1; index <= service.minimumAfterPhotos; index += 1) {
-          const seededAfterFile = await ensureSeedPrivateSvg(
-            'seed-after',
-            definition.key + '-' + index + '.svg',
-            'After service · ' + definition.bookingNumber,
-          );
-          await prisma.bookingFile.upsert({
-            where: { id: 'seed-booking-file-' + definition.key + '-after-' + index },
-            update: {
-              bookingId: booking.id,
-              fileType: FileType.AFTER_SERVICE,
-              fileUrl: seededAfterFile.fileUrl,
-              mimeType: 'image/svg+xml',
-              sizeBytes: seededAfterFile.sizeBytes,
-              uploadedByUserId: teamLeader.id,
-            },
-            create: {
-              id: 'seed-booking-file-' + definition.key + '-after-' + index,
-              bookingId: booking.id,
-              fileType: FileType.AFTER_SERVICE,
-              fileUrl: seededAfterFile.fileUrl,
-              mimeType: 'image/svg+xml',
-              sizeBytes: seededAfterFile.sizeBytes,
-              uploadedByUserId: teamLeader.id,
-            },
-          });
-        }
-      }
     }
 
     if (definition.bookingStatus === BookingStatus.CLOSED) {

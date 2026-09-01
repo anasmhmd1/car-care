@@ -648,8 +648,6 @@ model Service {
   active                  Boolean  @default(true)
   bookableOnline          Boolean  @default(true)
   subscriptionEligible    Boolean  @default(true)
-  minimumBeforePhotos     Int      @default(2)
-  minimumAfterPhotos      Int      @default(2)
   cancellationPolicyId    String
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
@@ -896,7 +894,6 @@ model ChecklistTemplateItem {
   labelAr       String
   descriptionAr String?
   required      Boolean           @default(true)
-  requiresPhoto Boolean           @default(false)
   requiresNote  Boolean           @default(false)
   displayOrder  Int               @default(0)
   active        Boolean           @default(true)
@@ -1226,7 +1223,6 @@ model BookingChecklistItemResult {
   itemId          String
   itemLabel       String
   isChecked       Boolean   @default(false)
-  photoUrl        String?
   note            String?
   checkedByUserId String?
   checkedAt       DateTime?

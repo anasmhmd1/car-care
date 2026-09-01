@@ -3,7 +3,6 @@
 import {
   BookingStatus,
   ChecklistStage,
-  FileType,
   Prisma,
   UserRole,
 } from '@prisma/client';
@@ -24,7 +23,6 @@ import {
 } from '@/lib/engine/transition';
 import {
   canEditChecklistStage,
-  canUploadExecutionFile,
 } from '@/lib/engine/evidence-stage';
 import { databaseIdSchema } from '@/lib/validations/database-id';
 
@@ -32,11 +30,6 @@ const technicianStatusSchema = z.object({
   bookingId: databaseIdSchema,
   targetStatus: z.nativeEnum(BookingStatus),
   reason: z.string().trim().max(500).optional().default(''),
-});
-
-const technicianPhotoSchema = z.object({
-  bookingId: databaseIdSchema,
-  bookingFileId: databaseIdSchema,
 });
 
 const technicianNoteSchema = z.object({
@@ -50,7 +43,6 @@ const checklistResultSchema = z.object({
   itemId: z.string().min(1).max(200),
   isChecked: z.enum(['true', 'false']).transform((value) => value === 'true'),
   note: z.string().trim().max(1000).optional().default(''),
-  photoFileId: databaseIdSchema.optional(),
 });
 
 const EMPLOYEE_TARGET_STATUSES = new Set<BookingStatus>([
@@ -64,13 +56,6 @@ const EMPLOYEE_TARGET_STATUSES = new Set<BookingStatus>([
   BookingStatus.EXECUTION_FAILED,
   BookingStatus.CUSTOMER_NO_SHOW,
   BookingStatus.ACCESS_DENIED,
-]);
-
-const TECHNICIAN_FILE_TYPES = new Set<FileType>([
-  FileType.BEFORE_SERVICE,
-  FileType.EXISTING_DAMAGE,
-  FileType.DURING_SERVICE,
-  FileType.AFTER_SERVICE,
 ]);
 
 type Actor = { id: string; role: UserRole };
@@ -218,7 +203,10 @@ export async function updateTechnicianTaskStatusAction(formData: FormData) {
 
   try {
     await db.$transaction(async (tx) => {
-      await requireOperationalBookingAccess(tx, actor, parsed.data.bookingId);
+      const booking = await requireOperationalBookingAccess(tx, actor, parsed.data.bookingId);
+      if (parsed.data.targetStatus === BookingStatus.IN_SERVICE) {
+        await assertRequiredMaterialsReady(tx, booking);
+      }
       await transitionBookingStatus(tx, {
         bookingId: parsed.data.bookingId,
         toStatus: parsed.data.targetStatus,
@@ -236,63 +224,6 @@ export async function updateTechnicianTaskStatusAction(formData: FormData) {
       return { error: error.message };
     }
     return { error: 'تعذر تحديث حالة الحجز.' };
-  }
-}
-
-/**
- * Confirms a file that was already uploaded and attached by /api/upload.
- * Arbitrary external URLs are never accepted here.
- */
-export async function uploadTechnicianPhotoAction(formData: FormData) {
-  const actor = await requireRole([
-    UserRole.EMPLOYEE,
-    UserRole.OPERATIONS_MANAGER,
-    UserRole.OWNER,
-  ]);
-  const parsed = technicianPhotoSchema.safeParse({
-    bookingId: formData.get('bookingId'),
-    bookingFileId: formData.get('bookingFileId'),
-  });
-
-  if (!parsed.success) return { error: 'ارفع ملف صورة صالحًا أولًا.' };
-  if (!(await canExecuteBookingTask(actor, parsed.data.bookingId))) {
-    return { error: 'لا تملك صلاحية تنفيذ مهام هذا الفرع.' };
-  }
-
-  try {
-    await db.$transaction(async (tx) => {
-      const booking = await requireOperationalBookingAccess(tx, actor, parsed.data.bookingId);
-      const file = await tx.bookingFile.findFirst({
-        where: {
-          id: parsed.data.bookingFileId,
-          bookingId: parsed.data.bookingId,
-          uploadedByUserId: actor.id,
-        },
-      });
-
-      if (!file || !TECHNICIAN_FILE_TYPES.has(file.fileType) || !file.mimeType.startsWith('image/')) {
-        throw new Error('ملف الصورة غير موجود أو غير مرتبط بهذا الحجز.');
-      }
-      if (!canUploadExecutionFile(booking.bookingStatus, file.fileType)) {
-        throw new Error('مرحلة الحجز الحالية لا تسمح بتوثيق هذا النوع من الصور.');
-      }
-
-      await tx.auditLog.create({
-        data: {
-          actorUserId: actor.id,
-          actorRole: actor.role,
-          action: `TECHNICIAN_PHOTO_${file.fileType}`,
-          entityType: 'BookingFile',
-          entityId: file.id,
-          afterJson: { bookingId: file.bookingId, fileType: file.fileType },
-        },
-      });
-    });
-
-    revalidatePath('/staff');
-    return { success: true };
-  } catch (error) {
-    return { error: error instanceof Error ? error.message : 'تعذر توثيق الصورة.' };
   }
 }
 
@@ -366,7 +297,6 @@ export async function toggleChecklistItemAction(formData: FormData) {
     itemId: formData.get('itemId') ?? formData.get('itemLabel'),
     isChecked: formData.get('isChecked'),
     note: formData.get('note') ?? '',
-    photoFileId: formData.get('photoFileId') || undefined,
   });
 
   if (!parsed.success) return { error: 'بيانات عنصر الفحص غير مكتملة.' };
@@ -416,7 +346,6 @@ export async function toggleChecklistItemAction(formData: FormData) {
         itemLabel: templateItem.labelAr,
         isChecked: parsed.data.isChecked,
         note: parsed.data.note || null,
-        photoUrl: null,
         checkedByUserId: parsed.data.isChecked ? actor.id : null,
         checkedAt: parsed.data.isChecked ? new Date() : null,
       };
@@ -439,7 +368,7 @@ export async function toggleChecklistItemAction(formData: FormData) {
           active: true,
           required: true,
         },
-        select: { id: true, requiresPhoto: true, requiresNote: true },
+        select: { id: true, requiresNote: true },
       });
       const results = await tx.bookingChecklistItemResult.findMany({
         where: { instanceId: instance.id, itemId: { in: requiredItems.map((item) => item.id) } },

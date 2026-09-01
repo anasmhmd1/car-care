@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { BookingStatus, FileType, ProofStatus, UserRole } from '@prisma/client';
+import { BookingStatus, ProofStatus, UserRole } from '@prisma/client';
 import { redirect } from 'next/navigation';
 import { getAccessibleBranchIds } from '@/lib/auth/authorization';
 import {
@@ -233,11 +233,6 @@ export default async function DelegatedOperationsPage() {
             service: { select: { nameAr: true } },
             assignedTeam: { select: { name: true } },
             customer: { select: { user: { select: { fullName: true } } } },
-            files: {
-              where: { fileType: { in: [FileType.BEFORE_SERVICE, FileType.AFTER_SERVICE, FileType.EXISTING_DAMAGE] } },
-              orderBy: { createdAt: 'asc' },
-              select: { id: true, fileType: true, fileUrl: true, mimeType: true },
-            },
           },
         })
       : Promise.resolve([]),

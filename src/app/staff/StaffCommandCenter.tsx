@@ -1,9 +1,9 @@
 'use client';
 
-import type { ChangeEvent, ReactNode } from 'react';
+import type { BookingStatus, ChecklistStage } from '@prisma/client';
+import type { ReactNode } from 'react';
 import { useMemo, useState, useTransition } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import {
   AlertTriangle,
@@ -25,10 +25,8 @@ import {
   Globe,
   HandCoins,
   History,
-  Image as ImageIcon,
   LayoutDashboard,
   ListChecks,
-  LoaderCircle,
   LogOut,
   MapPin,
   Menu,
@@ -44,7 +42,6 @@ import {
   ShieldCheck,
   Sparkles,
   Square,
-  UploadCloud,
   User,
   Wrench,
   X,
@@ -55,12 +52,11 @@ import {
   recordTechnicianNoteAction,
   toggleChecklistItemAction,
   updateTechnicianTaskStatusAction,
-  uploadTechnicianPhotoAction,
 } from '@/app/actions/technician';
 import { advancePostServiceAction } from '@/app/actions/quality';
 import { phoneHref, whatsappHref } from '@/lib/contact-links';
 import { formatMaterialQuantityWithUnit } from '@/lib/inventory/units';
-import { prepareImageForUpload } from '@/lib/client/image-upload';
+import { canEditChecklistStage as canEditChecklistStageOnServer } from '@/lib/engine/evidence-stage';
 
 export type StaffSection =
   | 'overview'
@@ -118,7 +114,6 @@ export interface ChecklistItemDto {
   labelAr: string;
   descriptionAr: string | null;
   required: boolean;
-  requiresPhoto: boolean;
   requiresNote: boolean;
   displayOrder: number;
 }
@@ -128,14 +123,6 @@ export interface ChecklistTemplateDto {
   name: string;
   stage: string;
   items: ChecklistItemDto[];
-}
-
-export interface BookingFileDto {
-  id: string;
-  fileType: string;
-  fileUrl: string;
-  mimeType: string;
-  createdAt: string | Date;
 }
 
 export interface BookingNoteDto {
@@ -204,9 +191,10 @@ export interface StaffBookingDto {
     };
   };
   checklistInstances: Array<{
+    stage: string;
+    completedAt: string | Date | null;
     results: Array<{ itemId: string; isChecked: boolean; note?: string | null }>;
   }>;
-  files: BookingFileDto[];
   notes: BookingNoteDto[];
   requiredMaterials: RequiredMaterialDto[];
 }
@@ -274,7 +262,6 @@ export interface DelegatedQueuesDto {
     branch: { nameAr: string };
     service: { nameAr: string };
     customer: { user: { fullName: string } };
-    files: Array<{ id: string; fileType: string; fileUrl: string; mimeType: string }>;
   }>;
   balanceBookings: Array<{
     id: string;
@@ -346,40 +333,65 @@ const WORKFLOW_STEPS: WorkflowStepConfig[] = [
   {
     stepNumber: 1,
     stageKey: 'TEAM_PREPARATION',
-    fromStatuses: ['ASSIGNED', 'TEAM_ACKNOWLEDGED'],
-    to: 'ON_THE_WAY',
-    label: 'تحضير وانطلاق الفريق',
-    shortLabel: 'انطلاق الفريق',
-    helper: 'تجهيز المواد وانطلاق سيارة التشغيل نحو العميل',
+    fromStatuses: ['ASSIGNED'],
+    to: 'TEAM_ACKNOWLEDGED',
+    label: 'تأكيد استلام المهمة',
+    shortLabel: 'استلام المهمة',
+    helper: 'راجع بيانات العميل والموقع قبل بدء المهمة',
   },
   {
     stepNumber: 2,
-    stageKey: 'ARRIVAL_INSPECTION',
-    fromStatuses: ['ON_THE_WAY'],
-    to: 'ARRIVED',
-    label: 'فحص ومعاينة الوصول',
-    shortLabel: 'تأكيد الوصول',
-    helper: 'تسجيل الوصول لموقع العميل وبدء الفحص الميداني',
+    stageKey: 'TEAM_PREPARATION',
+    fromStatuses: ['TEAM_ACKNOWLEDGED'],
+    to: 'ON_THE_WAY',
+    label: 'بدء التحرك نحو العميل',
+    shortLabel: 'انطلاق الفريق',
+    helper: 'جهّز المواد وسجّل انطلاق الفريق للموقع',
   },
   {
     stepNumber: 3,
+    stageKey: 'ARRIVAL_INSPECTION',
+    fromStatuses: ['ON_THE_WAY'],
+    to: 'ARRIVED',
+    label: 'تأكيد الوصول والفحص',
+    shortLabel: 'تأكيد الوصول',
+    helper: 'سجّل الوصول ووثّق حالة السيارة قبل الخدمة',
+  },
+  {
+    stepNumber: 4,
     stageKey: 'SERVICE_EXECUTION',
     fromStatuses: ['ARRIVED'],
     to: 'IN_SERVICE',
     label: 'بدء تنفيذ الخدمة',
-    shortLabel: 'تنفيذ الخدمة',
-    helper: 'بدء تنفيذ مهام الخدمة وبنود التشيك ليست',
+    shortLabel: 'بدء التنفيذ',
+    helper: 'يتطلب إكمال Checklist المالك لفحص الوصول وتوفير المواد المطلوبة',
   },
   {
-    stepNumber: 4,
+    stepNumber: 5,
     stageKey: 'CLOSING',
-    fromStatuses: ['IN_SERVICE', 'QUALITY_REVIEW', 'SERVICE_COMPLETED'],
+    fromStatuses: ['IN_SERVICE'],
+    to: 'QUALITY_REVIEW',
+    label: 'إرسال لمراجعة الجودة',
+    shortLabel: 'إرسال للجودة',
+    helper: 'أكمل قوائم المراحل التي أعدّها المالك أولًا',
+  },
+  {
+    stepNumber: 6,
+    stageKey: 'CLOSING',
+    fromStatuses: ['SERVICE_COMPLETED'],
     to: 'DELIVERED',
-    label: 'إتمام وتسليم الخدمة',
+    label: 'تأكيد تسليم الخدمة',
     shortLabel: 'تسليم للعميل',
-    helper: 'إنهاء البنود وتسليم السيارة وتسوية الحساب',
+    helper: 'بعد اعتماد الجودة وتسوية الرصيد المستحق',
   },
 ];
+
+const EXECUTION_CHECKLIST_STAGE_KEYS = [
+  'TEAM_PREPARATION',
+  'ARRIVAL_INSPECTION',
+  'SERVICE_EXECUTION',
+  'CLOSING',
+] as const;
 
 const REVERT_MAP: Partial<Record<WorkflowStatus, { to: WorkflowStatus; label: string }>> = {
   TEAM_ACKNOWLEDGED: { to: 'ASSIGNED', label: 'الرجوع لحالة بانتظار الاستلام' },
@@ -392,23 +404,10 @@ const REVERT_MAP: Partial<Record<WorkflowStatus, { to: WorkflowStatus; label: st
 
 function getTargetStatusForStep(
   step: WorkflowStepConfig,
-  currentStatus: WorkflowStatus,
 ): WorkflowStatus {
-  if (step.stepNumber === 1 && currentStatus === 'ASSIGNED') {
-    return 'TEAM_ACKNOWLEDGED';
-  }
   return step.to;
 }
 
-
-const STAGE_LABELS: Record<string, string> = {
-  BOOKING_REVIEW: 'مراجعة الحجز والإسناد',
-  TEAM_PREPARATION: 'تحضير الفريق وتجهيز المواد',
-  ARRIVAL_INSPECTION: 'فحص الوصول وتوثيق الحالة',
-  SERVICE_EXECUTION: 'قائمة مهام وتشيك ليست التنفيذ للموظفين',
-  CLOSING: 'الإغلاق والتسليم الميداني',
-  QUALITY_REVIEW: 'مراجعة واعتماد الجودة',
-};
 
 const bookingStatusLabels: Record<string, string> = {
   ASSIGNED: 'مسندة للفريق',
@@ -445,10 +444,10 @@ const badgeTone: Record<string, string> = {
 };
 
 function canEditChecklistStage(stage: string, bookingStatus: string): boolean {
-  if (['DELIVERED', 'CLOSED', 'CANCELLED', 'REJECTED', 'EXECUTION_FAILED'].includes(bookingStatus)) {
-    return false;
-  }
-  return true;
+  return canEditChecklistStageOnServer(
+    bookingStatus as BookingStatus,
+    stage as ChecklistStage,
+  );
 }
 
 const numberFormatter = new Intl.NumberFormat('ar-EG');
@@ -777,8 +776,6 @@ export default function StaffCommandCenter({
     bookingId: string;
   } | null>(null);
   const [checklistNote, setChecklistNote] = useState('');
-  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
-  const [uploadingCategory, setUploadingCategory] = useState<string | null>(null);
 
   // Local checklist cache for instant snappy feedback
   const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>(() => {
@@ -787,6 +784,17 @@ export default function StaffCommandCenter({
       for (const instance of b.checklistInstances) {
         for (const res of instance.results) {
           map[`${b.id}:${res.itemId}`] = res.isChecked;
+        }
+      }
+    }
+    return map;
+  });
+  const [checklistNotes, setChecklistNotes] = useState<Record<string, string>>(() => {
+    const map: Record<string, string> = {};
+    for (const b of bookings) {
+      for (const instance of b.checklistInstances) {
+        for (const res of instance.results) {
+          if (res.note) map[`${b.id}:${res.itemId}`] = res.note;
         }
       }
     }
@@ -849,22 +857,6 @@ export default function StaffCommandCenter({
   const currentTaskStatus = selectedBooking
     ? taskStatuses[selectedBooking.id] ?? selectedBooking.bookingStatus
     : '';
-
-  const activeMissionBooking = useMemo(() => {
-    // Find the current active priority booking
-    return (
-      bookings.find((b) => {
-        const st = taskStatuses[b.id] ?? b.bookingStatus;
-        return st === 'IN_SERVICE' || st === 'ARRIVED' || st === 'ON_THE_WAY';
-      }) ??
-      bookings.find((b) => {
-        const st = taskStatuses[b.id] ?? b.bookingStatus;
-        return st === 'TEAM_ACKNOWLEDGED' || st === 'ASSIGNED';
-      }) ??
-      bookings[0] ??
-      null
-    );
-  }, [bookings, taskStatuses]);
 
   const filteredBookings = useMemo(() => {
     return bookings.filter((b) => {
@@ -931,6 +923,31 @@ export default function StaffCommandCenter({
     selectedBooking?.requiredMaterials.some((m) => m.required && !m.ready),
   );
 
+  function isChecklistStageComplete(stage: string) {
+    if (!selectedBooking) return false;
+    const requiredItems = selectedBooking.service.checklistTemplates
+      .filter((template) => template.stage === stage)
+      .flatMap((template) => template.items)
+      .filter((item) => item.required);
+    if (requiredItems.length === 0) return true;
+    return requiredItems.every((item) => {
+      const key = `${selectedBooking.id}:${item.id}`;
+      return Boolean(checkedItems[key] && (!item.requiresNote || checklistNotes[key]?.trim()));
+    });
+  }
+
+  const hasStartChecklistBlocker = !isChecklistStageComplete('TEAM_PREPARATION')
+    || !isChecklistStageComplete('ARRIVAL_INSPECTION');
+  const hasQualityChecklistBlocker = EXECUTION_CHECKLIST_STAGE_KEYS.some(
+    (stage) => !isChecklistStageComplete(stage),
+  );
+
+  function isStatusActionBlocked(targetStatus: WorkflowStatus) {
+    if (targetStatus === 'IN_SERVICE') return hasMaterialBlocker || hasStartChecklistBlocker;
+    if (targetStatus === 'QUALITY_REVIEW') return hasQualityChecklistBlocker;
+    return false;
+  }
+
   const sectionNav: Array<{
     id: StaffSection;
     label: string;
@@ -975,6 +992,19 @@ export default function StaffCommandCenter({
   // Actions
   function handleStatusChange(targetStatus: WorkflowStatus, bookingId = selectedBooking?.id) {
     if (!bookingId) return;
+    if (targetStatus === 'IN_SERVICE' && (hasMaterialBlocker || hasStartChecklistBlocker)) {
+      setFeedback({
+        kind: 'error',
+        message: hasMaterialBlocker
+          ? 'لا يمكن بدء الخدمة قبل توفير المواد المطلوبة لهذه المهمة.'
+          : 'أكمل قوائم الاستلام والوصول التي أعدّها المالك قبل بدء الخدمة.',
+      });
+      return;
+    }
+    if (targetStatus === 'QUALITY_REVIEW' && hasQualityChecklistBlocker) {
+      setFeedback({ kind: 'error', message: 'أكمل كل قوائم الـChecklist التي أعدّها المالك قبل إرسال الحجز للجودة.' });
+      return;
+    }
     setFeedback(null);
     startTransition(async () => {
       const formData = new FormData();
@@ -1017,6 +1047,7 @@ export default function StaffCommandCenter({
         setCheckedItems((curr) => ({ ...curr, [key]: !nextValue }));
         setFeedback({ kind: 'error', message: result.error });
       } else {
+        if (!nextValue) setChecklistNotes((curr) => ({ ...curr, [key]: '' }));
         setFeedback({ kind: 'success', message: 'تم حفظ حالة عنصر الفحص.' });
       }
     });
@@ -1029,7 +1060,6 @@ export default function StaffCommandCenter({
       setFeedback({ kind: 'error', message: 'اكتب ملاحظة فحص واضحة من 3 أحرف على الأقل.' });
       return;
     }
-
     startTransition(async () => {
       const formData = new FormData();
       formData.set('bookingId', bookingId);
@@ -1041,6 +1071,7 @@ export default function StaffCommandCenter({
         setFeedback({ kind: 'error', message: result.error });
       } else {
         setCheckedItems((curr) => ({ ...curr, [`${bookingId}:${item.id}`]: true }));
+        setChecklistNotes((curr) => ({ ...curr, [`${bookingId}:${item.id}`]: checklistNote.trim() }));
         setActiveChecklistEvidence(null);
         setChecklistNote('');
         setFeedback({ kind: 'success', message: 'تم حفظ الملاحظة واعتماد بند الفحص.' });
@@ -1065,46 +1096,6 @@ export default function StaffCommandCenter({
         router.refresh();
       }
     });
-  }
-
-  async function handleFileUpload(
-    event: ChangeEvent<HTMLInputElement>,
-    category: 'before-photos' | 'after-photos' | 'existing-damage' | 'during-photos',
-  ) {
-    const file = event.target.files?.[0];
-    if (!file || !selectedBooking) return;
-    setUploadingCategory(category);
-    setFeedback(null);
-
-    try {
-      const preparedFile = await prepareImageForUpload(file);
-      const uploadData = new FormData();
-      uploadData.set('file', preparedFile);
-      uploadData.set('bookingId', selectedBooking.id);
-      uploadData.set('category', category);
-
-      const res = await fetch('/api/upload', { method: 'POST', body: uploadData });
-      const json = await res.json();
-
-      if (!res.ok || json.error) {
-        setFeedback({ kind: 'error', message: json.error || 'تعذر رفع الصورة.' });
-        return;
-      }
-
-      // Call audit confirmation action
-      const confirmData = new FormData();
-      confirmData.set('bookingId', selectedBooking.id);
-      confirmData.set('bookingFileId', json.bookingFileId);
-      await uploadTechnicianPhotoAction(confirmData);
-
-      setFeedback({ kind: 'success', message: 'تم رفع وتوثيق الصورة بنجاح في سجل الحجز.' });
-      router.refresh();
-    } catch {
-      setFeedback({ kind: 'error', message: 'حدث خطأ في الاتصال أثناء رفع الصورة.' });
-    } finally {
-      setUploadingCategory(null);
-      event.target.value = '';
-    }
   }
 
   // Render Section Content
@@ -1197,7 +1188,7 @@ export default function StaffCommandCenter({
                 </p>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                 {/* Week Navigator */}
                 <div className="inline-flex items-center rounded-xl border border-neutral-800 bg-neutral-950 p-1">
                   <button
@@ -1627,8 +1618,16 @@ export default function StaffCommandCenter({
                     return (
                       <article
                         key={b.id}
+                        role="button"
+                        tabIndex={0}
                         onClick={() => setSelectedTaskId(b.id)}
-                        className={`cursor-pointer rounded-2xl border p-4 text-right transition-all duration-200 ${
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            setSelectedTaskId(b.id);
+                          }
+                        }}
+                        className={`cursor-pointer rounded-2xl border p-4 text-right transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d4af37] ${
                           isSelected
                             ? 'border-[#d4af37] bg-gradient-to-br from-[#1c1a12] via-[#141418] to-[#111114] shadow-lg shadow-[#d4af37]/10 ring-1 ring-[#d4af37]/40'
                             : 'border-neutral-800/80 bg-[#111114]/90 hover:border-neutral-700 hover:bg-[#151518]'
@@ -1813,6 +1812,7 @@ export default function StaffCommandCenter({
                       <button
                         type="button"
                         onClick={() => setFeedback(null)}
+                        aria-label="إغلاق رسالة الحالة"
                         className="rounded-lg p-1 text-neutral-400 hover:bg-white/10 hover:text-white transition-colors shrink-0"
                       >
                         <X className="size-4" />
@@ -1820,7 +1820,7 @@ export default function StaffCommandCenter({
                     </div>
                   )}
 
-                  {/* 4-STAGE WORKFLOW STEPPER TIMELINE */}
+                  {/* Workflow stepper timeline */}
                   <section className="rounded-2xl border border-white/[0.08] bg-black/40 p-4 sm:p-5 space-y-3.5">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                       <h3 className="flex items-center gap-2 text-xs font-black text-[#f3e4a8]">
@@ -1849,8 +1849,8 @@ export default function StaffCommandCenter({
                       </div>
                     </div>
 
-                    {/* 4-STAGE WORKFLOW STEPPER TIMELINE */}
-                    <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+                    {/* Workflow stepper timeline */}
+                    <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
                       {WORKFLOW_STEPS.map((step) => {
                         const activeStepIndex = WORKFLOW_STEPS.findIndex((s) =>
                           s.fromStatuses.includes(currentTaskStatus as WorkflowStatus)
@@ -1862,22 +1862,22 @@ export default function StaffCommandCenter({
                           (['DELIVERED', 'CLOSED'].includes(currentTaskStatus)) ||
                           (activeStepIndex > -1 && step.stepNumber <= activeStepIndex);
 
+                        const targetStatus = getTargetStatusForStep(step);
+                        const blocked = isStatusActionBlocked(targetStatus);
+
                         return (
                           <button
                             key={step.stepNumber}
                             type="button"
-                            disabled={!isCurrent || isPending}
+                            disabled={!isCurrent || isPending || blocked}
                             onClick={() =>
-                              handleStatusChange(
-                                getTargetStatusForStep(
-                                  step,
-                                  currentTaskStatus as WorkflowStatus
-                                )
-                              )
+                              handleStatusChange(targetStatus)
                             }
                             className={`group relative flex items-start gap-3 rounded-xl border p-3 text-right transition-all active:scale-[0.98] ${
-                              isCurrent
+                              isCurrent && !blocked
                                 ? 'border-[#d4af37] bg-gradient-to-r from-[#d4af37]/20 via-neutral-900 to-[#d4af37]/10 shadow-lg shadow-[#d4af37]/15 ring-2 ring-[#d4af37]/30 cursor-pointer'
+                                : isCurrent && blocked
+                                ? 'border-amber-500/30 bg-amber-500/[0.04] text-amber-200 opacity-80 cursor-not-allowed'
                                 : isCompleted
                                 ? 'border-emerald-500/20 bg-emerald-500/[0.04] text-neutral-300'
                                 : 'border-white/5 bg-neutral-950/40 text-neutral-500 opacity-60 cursor-not-allowed'
@@ -1887,8 +1887,10 @@ export default function StaffCommandCenter({
                               className={`flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-black mt-0.5 ${
                                 isCompleted
                                   ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
-                                  : isCurrent
+                                  : isCurrent && !blocked
                                   ? 'bg-[#d4af37] text-neutral-950 font-black shadow-md'
+                                  : isCurrent && blocked
+                                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
                                   : 'bg-neutral-800 text-neutral-400 border border-neutral-700'
                               }`}
                             >
@@ -1898,8 +1900,10 @@ export default function StaffCommandCenter({
                             <div className="min-w-0 flex-1">
                               <p
                                 className={`text-xs font-black ${
-                                  isCurrent
+                                  isCurrent && !blocked
                                     ? 'text-[#f3e4a8]'
+                                    : isCurrent && blocked
+                                    ? 'text-amber-200'
                                     : isCompleted
                                     ? 'text-neutral-200'
                                     : 'text-neutral-400'
@@ -1912,7 +1916,7 @@ export default function StaffCommandCenter({
                               </p>
                             </div>
 
-                            {isCurrent && (
+                            {isCurrent && !blocked && (
                               <span className="size-2 rounded-full bg-[#d4af37] animate-ping shrink-0 self-center" />
                             )}
                           </button>
@@ -1969,8 +1973,6 @@ export default function StaffCommandCenter({
                     )}
                   </div>
 
-
-
                   {/* EXECUTION CHECKLISTS ACCORDION */}
                   <section className="rounded-2xl border border-white/[0.08] bg-black/40 p-4 sm:p-5 space-y-4">
                     <div className="flex items-center justify-between">
@@ -2025,7 +2027,7 @@ export default function StaffCommandCenter({
                                   stageEditable ? 'bg-[#d4af37]' : 'bg-neutral-500'
                                 }`}
                               />
-                              <span>{template.name || STAGE_LABELS[template.stage] || 'قائمة المهام'}</span>
+                              <span>{template.name}</span>
                             </legend>
 
                             <div className="space-y-2 pt-1">
@@ -2100,22 +2102,21 @@ export default function StaffCommandCenter({
                 {nextAvailableStep && (
                   <div className="fixed bottom-4 left-4 right-4 z-40 lg:hidden">
                     <div className="rounded-2xl border border-[#d4af37]/40 bg-[#141418]/95 p-2 shadow-2xl backdrop-blur-md">
+                      {(() => {
+                        const targetStatus = getTargetStatusForStep(nextAvailableStep);
+                        const blocked = isStatusActionBlocked(targetStatus);
+                        return (
                       <button
                         type="button"
-                        disabled={isPending}
-                        onClick={() =>
-                          handleStatusChange(
-                            getTargetStatusForStep(
-                              nextAvailableStep,
-                              currentTaskStatus as WorkflowStatus
-                            )
-                          )
-                        }
+                        disabled={isPending || blocked}
+                        onClick={() => handleStatusChange(targetStatus)}
                         className="flex w-full min-h-12 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#d4af37] via-[#e5c45a] to-[#d4af37] px-4 text-xs font-black text-neutral-950 shadow-lg shadow-[#d4af37]/20 hover:brightness-110 active:scale-[0.98] disabled:opacity-50"
                       >
                         <CheckCircle2 className="size-4" />
                         <span>{nextAvailableStep.label}</span>
                       </button>
+                        );
+                      })()}
                     </div>
                   </div>
                 )}
@@ -2878,6 +2879,7 @@ export default function StaffCommandCenter({
               <button
                 type="button"
                 onClick={() => setFeedback(null)}
+                aria-label="إغلاق رسالة الحالة"
                 className="text-neutral-400 hover:text-white p-1"
               >
                 <X className="size-4" />
@@ -2908,6 +2910,7 @@ export default function StaffCommandCenter({
               <button
                 type="button"
                 onClick={() => setActiveNoteModal(null)}
+                aria-label="إغلاق نافذة الملاحظة"
                 className="rounded-xl p-1.5 text-neutral-400 hover:bg-neutral-800"
               >
                 <X className="size-4" />
@@ -2980,6 +2983,7 @@ export default function StaffCommandCenter({
               <button
                 type="button"
                 onClick={() => setActiveChecklistEvidence(null)}
+                aria-label="إغلاق نافذة إثبات القائمة"
                 className="rounded-xl p-1.5 text-neutral-400 hover:bg-neutral-800"
               >
                 <X className="size-4" />
@@ -3029,38 +3033,6 @@ export default function StaffCommandCenter({
         </div>
       )}
 
-      {/* MODAL: IMAGE PREVIEW */}
-      {previewImageUrl && (
-        <div
-          className="fixed inset-0 z-50 grid place-items-center bg-black/90 backdrop-blur-md p-4"
-          onClick={() => setPreviewImageUrl(null)}
-          role="presentation"
-        >
-          <div
-            role="dialog"
-            aria-modal="true"
-            className="relative max-w-3xl w-full max-h-[85vh] overflow-hidden rounded-3xl border border-[#d4af37]/40 bg-neutral-950 p-2"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              type="button"
-              onClick={() => setPreviewImageUrl(null)}
-              className="absolute top-4 right-4 z-10 size-9 rounded-full bg-black/70 text-white flex items-center justify-center hover:bg-black"
-            >
-              <X className="size-5" />
-            </button>
-            <div className="relative aspect-[4/3] w-full">
-              <Image
-                src={previewImageUrl}
-                alt="معاينة الصورة"
-                fill
-                unoptimized
-                className="object-contain"
-              />
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

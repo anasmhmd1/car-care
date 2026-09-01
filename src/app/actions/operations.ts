@@ -43,7 +43,6 @@ import {
   canExpireAwaitingPaymentBooking,
   expireAwaitingPaymentBooking,
 } from '@/lib/engine/booking-expiration';
-import { purgePaymentProofReceiptsForBooking } from '@/lib/engine/payment-proof-cleanup';
 import {
   assignTeamManuallySchema,
   cancelBookingByOperationsSchema,
@@ -776,38 +775,13 @@ export async function cancelBookingByOperationsAction(formData: FormData) {
         },
       });
 
-      // 2. Update booking status to CANCELLED
-      await tx.booking.update({
-        where: { id: booking.id },
-        data: { bookingStatus: BookingStatus.CANCELLED },
-      });
-
-      // 3. Status history
-      await tx.bookingStatusHistory.create({
-        data: {
-          bookingId: booking.id,
-          fromStatus: booking.bookingStatus,
-          toStatus: BookingStatus.CANCELLED,
-          changedByUserId: manager.id,
-          actorRole: manager.role,
-          reason: parsed.data.reason,
-          metadata: { cancelledBy: 'OPERATIONS_MANAGER', managerId: manager.id },
-        },
-      });
-
-      // 4. Audit log
-      await tx.auditLog.create({
-        data: {
-          actorUserId: manager.id,
-          actorRole: manager.role,
-          branchId: booking.branchId,
-          action: 'BOOKING_CANCELLED_BY_OPERATIONS',
-          entityType: 'Booking',
-          entityId: booking.id,
-          beforeJson: { bookingStatus: booking.bookingStatus },
-          afterJson: { bookingStatus: BookingStatus.CANCELLED },
-          reason: parsed.data.reason,
-        },
+      await transitionBookingStatus(tx, {
+        bookingId: booking.id,
+        toStatus: BookingStatus.CANCELLED,
+        actorUserId: manager.id,
+        actorRole: manager.role,
+        reason: parsed.data.reason,
+        metadata: { source: 'OPERATIONS_CANCELLATION' },
       });
     });
 
@@ -878,6 +852,9 @@ export async function rescheduleBookingByOperationsAction(formData: FormData) {
 
       const previousStartAt = booking.startAt;
       const previousEndAt = booking.endAt;
+      const rescheduleTargetStatus = booking.bookingStatus === BookingStatus.RESCHEDULE_REQUESTED
+        ? (booking.assignedTeamId ? BookingStatus.ASSIGNED : BookingStatus.ACCEPTED)
+        : null;
 
       // Update booking date & time
       await tx.booking.update({
@@ -885,11 +862,25 @@ export async function rescheduleBookingByOperationsAction(formData: FormData) {
         data: {
           startAt: newStartAt,
           endAt: newEndAt,
-          ...(booking.bookingStatus === BookingStatus.RESCHEDULE_REQUESTED
-            ? { bookingStatus: booking.assignedTeamId ? BookingStatus.ASSIGNED : BookingStatus.ACCEPTED }
-            : {}),
         },
       });
+
+      if (rescheduleTargetStatus) {
+        await transitionBookingStatus(tx, {
+          bookingId: booking.id,
+          toStatus: rescheduleTargetStatus,
+          actorUserId: manager.id,
+          actorRole: manager.role,
+          reason: parsed.data.reason,
+          metadata: {
+            source: 'OPERATIONS_RESCHEDULE_APPROVAL',
+            previousStartAt: previousStartAt.toISOString(),
+            previousEndAt: previousEndAt.toISOString(),
+            newStartAt: newStartAt.toISOString(),
+            newEndAt: newEndAt.toISOString(),
+          },
+        });
+      }
 
       // If there was a pending time change request, approve it
       await tx.bookingTimeChange.updateMany({
@@ -903,24 +894,24 @@ export async function rescheduleBookingByOperationsAction(formData: FormData) {
       });
 
       // Log status history / time change
-      await tx.bookingStatusHistory.create({
-        data: {
-          bookingId: booking.id,
-          fromStatus: booking.bookingStatus,
-          toStatus: booking.bookingStatus === BookingStatus.RESCHEDULE_REQUESTED
-            ? (booking.assignedTeamId ? BookingStatus.ASSIGNED : BookingStatus.ACCEPTED)
-            : booking.bookingStatus,
-          changedByUserId: manager.id,
-          actorRole: manager.role,
-          reason: `تعديل/تأجيل الموعد: ${parsed.data.reason}`,
-          metadata: {
-            previousStartAt: previousStartAt.toISOString(),
-            previousEndAt: previousEndAt.toISOString(),
-            newStartAt: newStartAt.toISOString(),
-            newEndAt: newEndAt.toISOString(),
+      if (!rescheduleTargetStatus) {
+        await tx.bookingStatusHistory.create({
+          data: {
+            bookingId: booking.id,
+            fromStatus: booking.bookingStatus,
+            toStatus: booking.bookingStatus,
+            changedByUserId: manager.id,
+            actorRole: manager.role,
+            reason: `تعديل/تأجيل الموعد: ${parsed.data.reason}`,
+            metadata: {
+              previousStartAt: previousStartAt.toISOString(),
+              previousEndAt: previousEndAt.toISOString(),
+              newStartAt: newStartAt.toISOString(),
+              newEndAt: newEndAt.toISOString(),
+            },
           },
-        },
-      });
+        });
+      }
 
       // Audit log
       await tx.auditLog.create({
@@ -1007,9 +998,19 @@ export async function transferBookingTeamAction(formData: FormData) {
           assignedTeamId: targetTeam.id,
           assignedEmployeeId: null,
           operationalVehicleId: null,
-          bookingStatus: nextStatus,
         },
       });
+
+      if (nextStatus !== booking.bookingStatus) {
+        await transitionBookingStatus(tx, {
+          bookingId: booking.id,
+          toStatus: nextStatus,
+          actorUserId: manager.id,
+          actorRole: manager.role,
+          reason: parsed.data.reason,
+          metadata: { source: 'OPERATIONS_TEAM_TRANSFER' },
+        });
+      }
 
       await tx.bookingAssignmentHistory.create({
         data: {
@@ -1213,4 +1214,3 @@ export async function deletePaymentProofReceiptAction(formData: FormData) {
     return { error: operationError(error, 'تعذر حذف إيصال الدفع.') };
   }
 }
-

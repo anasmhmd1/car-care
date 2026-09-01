@@ -30,8 +30,6 @@ describe('booking administrative exceptions', () => {
           reason: 'تعذر استكمال توثيق قائمة الإغلاق',
           hasAssignedTeam: true,
           completedChecklistStages: [],
-          afterPhotoCount: 0,
-          minimumAfterPhotos: 4,
         },
       )).toEqual({ allowed: true });
 

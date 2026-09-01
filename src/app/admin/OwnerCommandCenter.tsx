@@ -2,8 +2,10 @@
 
 import type { FormEvent, ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import {
   Activity,
   AlertTriangle,
@@ -183,10 +185,6 @@ export interface RefundDto {
 
 export interface QualityBookingDto {
   booking: BookingSummaryDto;
-  beforePhotos?: number;
-  afterPhotos?: number;
-  minimumBeforePhotos?: number;
-  minimumAfterPhotos?: number;
 }
 
 export interface ComplaintDto {
@@ -626,11 +624,16 @@ function BookingCard({
 }: {
   booking: BookingSummaryDto;
 }) {
+  const [mounted, setMounted] = useState(false);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [proofDeleted, setProofDeleted] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const proof = !proofDeleted ? booking.paymentProof : null;
 
@@ -709,10 +712,13 @@ function BookingCard({
               onClick={() => setShowReceiptModal(true)}
               className="relative size-12 shrink-0 overflow-hidden rounded-lg border border-[#d4af37]/40 bg-black/60 hover:opacity-80 transition-opacity focus-visible:ring-2 focus-visible:ring-[#cea355]"
             >
-              <img
+              <Image
                 src={proof.proofFileUrl}
                 alt="إيصال الدفع"
-                className="size-full object-cover"
+                fill
+                unoptimized
+                sizes="48px"
+                className="object-cover"
                 onError={(e) => {
                   (e.target as HTMLElement).style.display = 'none';
                 }}
@@ -749,6 +755,7 @@ function BookingCard({
             <button
               type="button"
               onClick={() => setShowDeleteConfirm(true)}
+              aria-label="حذف إيصال الدفع"
               className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/10 p-1.5 text-xs font-bold text-red-300 hover:bg-red-500/20 transition-colors"
               title="حذف الوصل"
             >
@@ -794,10 +801,10 @@ function BookingCard({
         </span>
       </div>
 
-      {/* Full-screen / Modal Receipt Preview */}
-      {showReceiptModal && proof?.proofFileUrl && (
+      {/* Full-screen / Modal Receipt Preview with React Portal */}
+      {showReceiptModal && proof?.proofFileUrl && mounted && typeof document !== 'undefined' && createPortal(
         <div
-          className="fixed inset-0 z-50 overflow-y-auto bg-black/90 backdrop-blur-md p-4 sm:p-6 flex min-h-screen items-center justify-center animate-in fade-in duration-200"
+          className="fixed inset-0 z-[99999] overflow-y-auto bg-black/90 backdrop-blur-md p-4 sm:p-6 flex min-h-screen items-center justify-center animate-in fade-in duration-200"
           role="dialog"
           aria-modal="true"
           onClick={() => setShowReceiptModal(false)}
@@ -814,6 +821,7 @@ function BookingCard({
               <button
                 type="button"
                 onClick={() => setShowReceiptModal(false)}
+                aria-label="إغلاق معاينة إيصال الدفع"
                 className="rounded-xl p-2 text-neutral-400 hover:bg-neutral-800 hover:text-white"
               >
                 <X className="size-5" />
@@ -821,9 +829,12 @@ function BookingCard({
             </div>
 
             <div className="relative max-h-[70vh] min-h-[300px] overflow-auto rounded-2xl border border-neutral-800 bg-black/80 flex items-center justify-center p-3">
-              <img
+              <Image
                 src={proof.proofFileUrl}
                 alt="إيصال الدفع الكامل"
+                fill
+                unoptimized
+                sizes="(max-width: 768px) 100vw, 768px"
                 className="max-h-[65vh] w-auto max-w-full object-contain rounded-lg shadow-lg"
               />
             </div>
@@ -867,7 +878,8 @@ function BookingCard({
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </article>
   );

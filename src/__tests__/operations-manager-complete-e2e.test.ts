@@ -278,8 +278,6 @@ describe('Operations Manager (مدير التشغيل) Complete E2E & Logical Te
         {
           hasAssignedTeam: true,
           completedChecklistStages: [ChecklistStage.TEAM_PREPARATION],
-          minimumAfterPhotos: 2,
-          afterPhotoCount: 2,
         },
       );
       expect(incompleteChecklist.allowed).toBe(false);
@@ -291,8 +289,6 @@ describe('Operations Manager (مدير التشغيل) Complete E2E & Logical Te
         {
           hasAssignedTeam: true,
           completedChecklistStages: EXECUTION_CHECKLIST_STAGES,
-          minimumAfterPhotos: 2,
-          afterPhotoCount: 2,
         },
       );
       expect(completeChecklist.allowed).toBe(true);

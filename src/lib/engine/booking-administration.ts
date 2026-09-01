@@ -1,6 +1,5 @@
 import {
   BookingStatus,
-  FileType,
   Prisma,
   UserRole,
 } from '@prisma/client';
@@ -156,12 +155,6 @@ export async function closeBookingWithManagerOverride(
       checklistInstances: {
         select: { stage: true, completedAt: true },
       },
-      files: {
-        where: {
-          fileType: { in: [FileType.BEFORE_SERVICE, FileType.AFTER_SERVICE] },
-        },
-        select: { fileType: true, mimeType: true },
-      },
     },
   });
   if (!booking) {
@@ -231,12 +224,6 @@ export async function closeBookingWithManagerOverride(
   });
   path.push(BookingStatus.CLOSED);
 
-  const beforePhotoCount = booking.files.filter(
-    (file) => file.fileType === FileType.BEFORE_SERVICE && file.mimeType.startsWith('image/'),
-  ).length;
-  const afterPhotoCount = booking.files.filter(
-    (file) => file.fileType === FileType.AFTER_SERVICE && file.mimeType.startsWith('image/'),
-  ).length;
   await tx.auditLog.create({
     data: {
       actorUserId: input.actorUserId,
@@ -257,8 +244,6 @@ export async function closeBookingWithManagerOverride(
         completedChecklistStages: booking.checklistInstances
           .filter(({ completedAt }) => Boolean(completedAt))
           .map(({ stage }) => stage),
-        beforePhotoCount,
-        afterPhotoCount,
       },
       afterJson: {
         bookingStatus: BookingStatus.CLOSED,
