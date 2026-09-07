@@ -59,7 +59,7 @@ vi.mock('@/lib/auth/permissions', () => ({
   hasPermissionAcrossScopes: mocks.hasPermissionAcrossScopes,
 }));
 
-import { createBookingAction } from '@/app/actions/booking';
+import { createBookingAction, releasePendingBookingHoldAction } from '@/app/actions/booking';
 import { recordRefundAction } from '@/app/actions/cancellation';
 import {
   cancelBookingByOperationsAction,
@@ -304,4 +304,66 @@ describe('booking and refund action guards', () => {
     expect(result.error).toContain('الحجز مفتوح لمراجعة إدارية طرفية');
     expect(mocks.transaction).not.toHaveBeenCalled();
   });
+
+  it('rejects booking creation when policy is not accepted', async () => {
+    const formData = bookingForm({ policyAccepted: 'false' });
+    const result = await createBookingAction(formData);
+    expect(result).toEqual({ error: 'يجب الموافقة على سياسة الحجز والإلغاء.' });
+    expect(mocks.transaction).not.toHaveBeenCalled();
+  });
+
+  it('releases pending booking hold when requested', async () => {
+    const tx = {
+      $executeRaw: vi.fn().mockResolvedValue(0),
+      booking: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: BOOKING_ID,
+          customerId: 'customer-1',
+          subscriptionId: null,
+          bookingStatus: BookingStatus.REQUEST_SUBMITTED,
+          creditAppliedAmount: 0,
+          paymentStatus: PaymentStatus.AWAITING_PROOF,
+          customer: { userId: 'customer-user-1' },
+        }),
+        findUnique: vi.fn().mockResolvedValue({
+          id: BOOKING_ID,
+          bookingStatus: BookingStatus.REQUEST_SUBMITTED,
+          service: { nameAr: 'غسيل', checklistTemplates: [] },
+        }),
+        update: vi.fn().mockResolvedValue({}),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
+      bookingStatusHistory: {
+        create: vi.fn().mockResolvedValue({}),
+      },
+      auditLog: {
+        create: vi.fn().mockResolvedValue({}),
+      },
+      bookingHold: {
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
+    };
+    mocks.transaction.mockImplementation(async (callback: (innerTx: typeof tx) => Promise<unknown>) => callback(tx));
+    mocks.getCurrentUser.mockResolvedValue({
+      id: 'customer-user-1',
+      role: UserRole.CUSTOMER,
+      active: true,
+      deletedAt: null,
+    });
+
+    const formData = new FormData();
+    formData.set('bookingId', BOOKING_ID);
+
+    const result = await releasePendingBookingHoldAction(formData);
+
+    expect(result).toEqual({ success: true });
+    expect(tx.bookingHold.updateMany).toHaveBeenCalledWith({
+      where: { bookingId: BOOKING_ID, status: 'ACTIVE' },
+      data: expect.objectContaining({
+        status: 'EXPIRED',
+        releasedReason: 'تحرير الموعد بناءً على طلب العميل',
+      }),
+    });
+  });
 });
+

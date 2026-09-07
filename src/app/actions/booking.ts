@@ -739,3 +739,66 @@ export async function uploadPaymentProofAction(formData: FormData) {
     return { error: 'تعذر إرسال إثبات التحويل.' };
   }
 }
+
+export async function releasePendingBookingHoldAction(formData: FormData) {
+  const bookingId = String(formData.get('bookingId') || '');
+  if (!bookingId) return { error: 'معرف الحجز مطلوب' };
+
+  const user = await getCurrentUser().catch(() => null);
+
+  try {
+    return await db.$transaction(async (tx) => {
+      const booking = await tx.booking.findFirst({
+        where: { id: bookingId, deletedAt: null },
+        select: {
+          id: true,
+          customerId: true,
+          subscriptionId: true,
+          bookingStatus: true,
+          creditAppliedAmount: true,
+          paymentStatus: true,
+          customer: { select: { userId: true } },
+        },
+      });
+      if (!booking) return { error: 'الحجز غير موجود' };
+
+      if (
+        booking.bookingStatus !== BookingStatus.REQUEST_SUBMITTED &&
+        booking.bookingStatus !== BookingStatus.AWAITING_PAYMENT_PROOF
+      ) {
+        return { error: 'لا يمكن تحرير هذا الحجز' };
+      }
+
+      if (user && booking.customer.userId !== user.id && user.role !== UserRole.OWNER && user.role !== UserRole.SYSTEM_SUPER_ADMIN) {
+        return { error: 'غير مصرح' };
+      }
+
+      const actor = user
+        ? { id: user.id, role: user.role }
+        : { id: booking.customer.userId, role: UserRole.CUSTOMER };
+
+      await expireAwaitingPaymentBooking(tx, {
+        booking,
+        actor,
+        now: new Date(),
+        reason: 'إلغاء الحجز المؤقت وتحرير الموعد',
+        automatic: false,
+      });
+
+      await tx.bookingHold.updateMany({
+        where: { bookingId: booking.id, status: BookingHoldStatus.ACTIVE },
+        data: {
+          status: BookingHoldStatus.EXPIRED,
+          releasedAt: new Date(),
+          releasedReason: 'تحرير الموعد بناءً على طلب العميل',
+        },
+      });
+
+      return { success: true };
+    });
+  } catch (error) {
+    console.error('Release pending booking hold failed', error);
+    return { error: 'تعذر تحرير الحجز المؤقت' };
+  }
+}
+

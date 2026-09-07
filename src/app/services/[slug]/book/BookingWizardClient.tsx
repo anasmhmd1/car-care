@@ -31,7 +31,7 @@ import {
   Copy,
   Check,
 } from 'lucide-react';
-import { createBookingAction, uploadPaymentProofAction } from '@/app/actions/booking';
+import { createBookingAction, uploadPaymentProofAction, releasePendingBookingHoldAction } from '@/app/actions/booking';
 import { BOOKING_TERMS_VERSION } from '@/lib/policies/versions';
 import { prepareImageForUpload } from '@/lib/client/image-upload';
 import { whatsappHref } from '@/lib/contact-links';
@@ -606,6 +606,11 @@ export default function BookingWizardClient({
   const [whatsapp, setWhatsapp] = useState(user?.whatsapp || user?.phone || '');
   const [customerNotes, setCustomerNotes] = useState('');
   const [policyAccepted, setPolicyAccepted] = useState(false);
+  const [pendingBooking, setPendingBooking] = useState<{
+    bookingId: string;
+    bookingNumber: string;
+    paymentRequired: boolean;
+  } | null>(null);
   const [useCredit] = useState(false);
   const [bookingSubmitting, setBookingSubmitting] = useState(false);
 
@@ -953,6 +958,10 @@ export default function BookingWizardClient({
   }
 
   async function createBooking() {
+    if (!policyAccepted) {
+      showError('يجب الموافقة على سياسة الحجز وسياسة الخصوصية والإلغاء المعتمدة أولاً للمتابعة.', 'policy-accepted');
+      return;
+    }
     if (!selectedArea) {
       showError('اختر منطقة التغطية.');
       goToStep(2);
@@ -1010,7 +1019,7 @@ export default function BookingWizardClient({
     formData.append('vehicleSize', vehicleSize);
     formData.append('startAt', selectedSlot.startAt);
     formData.append('addonIds', JSON.stringify(selectedAddonIds));
-    formData.append('policyAccepted', 'true');
+    formData.append('policyAccepted', String(policyAccepted));
     formData.append('policyVersion', BOOKING_TERMS_VERSION);
     if (service.cancellationPolicy.policyId) {
       formData.append('acceptedCancellationPolicyId', service.cancellationPolicy.policyId);
@@ -1049,23 +1058,37 @@ export default function BookingWizardClient({
     }
 
     try {
-      const result = await createBookingAction(formData);
-      if ('error' in result && result.error) {
-        showError(result.error);
-        return;
-      }
-      if (!('success' in result) || !result.success) {
-        showError('تعذر إنشاء الحجز الآن. حاول مرة أخرى.');
-        return;
+      let bookingId = pendingBooking?.bookingId;
+      let bookingNumber = pendingBooking?.bookingNumber;
+      let paymentRequired = pendingBooking?.paymentRequired ?? false;
+
+      if (!bookingId) {
+        const result = await createBookingAction(formData);
+        if ('error' in result && result.error) {
+          showError(result.error);
+          return;
+        }
+        if (!('success' in result) || !result.success) {
+          showError('تعذر إنشاء الحجز الآن. حاول مرة أخرى.');
+          return;
+        }
+        bookingId = result.bookingId;
+        bookingNumber = result.bookingNumber;
+        paymentRequired = result.paymentRequired;
+        setPendingBooking({
+          bookingId: result.bookingId,
+          bookingNumber: result.bookingNumber,
+          paymentRequired: result.paymentRequired,
+        });
       }
 
-      if (requiresPaymentProof && result.paymentRequired) {
+      if (requiresPaymentProof && paymentRequired) {
         let bookingFileId = uploadedProofFileId;
         if (!bookingFileId && proofFile) {
           const preparedProof = await prepareImageForUpload(proofFile);
           const uploadData = new FormData();
           uploadData.append('file', preparedProof);
-          uploadData.append('bookingId', result.bookingId);
+          uploadData.append('bookingId', bookingId);
           uploadData.append('category', 'payment-proofs');
 
           const uploadResponse = await fetch('/api/upload', {
@@ -1079,14 +1102,14 @@ export default function BookingWizardClient({
             uploadPayload.success !== true ||
             typeof uploadPayload.bookingFileId !== 'string'
           ) {
-            throw new Error(responseError(uploadPayload, 'تم حجز الموعد بنجاح لكن تعذر رفع ملف إثبات التحويل. يمكنك إرساله من صفحة حجزك.'));
+            throw new Error(responseError(uploadPayload, 'تم حجز الموعد بنجاح لكن تعذر رفع ملف إثبات التحويل. اضغط تأكيد الحجز للمحاولة مرة أخرى.'));
           }
           bookingFileId = uploadPayload.bookingFileId;
           setUploadedProofFileId(bookingFileId);
         }
 
         const proofData = new FormData();
-        proofData.append('bookingId', result.bookingId);
+        proofData.append('bookingId', bookingId);
         proofData.append('paymentMethodId', selectedPaymentMethodId);
         proofData.append('bookingFileId', bookingFileId);
         proofData.append('senderName', senderName.trim());
@@ -1102,11 +1125,12 @@ export default function BookingWizardClient({
         }
       }
 
+      setPendingBooking(null);
       if (user) {
-        router.push(`/account/bookings/${result.bookingId}`);
+        router.push(`/account/bookings/${bookingId}`);
       } else {
         setGuestConfirmed({
-          bookingNumber: result.bookingNumber,
+          bookingNumber: bookingNumber || 'BQ-CONFIRMED',
           serviceName: service.nameAr,
           dateStr: selectedSlot.timeStr,
           contactPhone: phone,
@@ -1875,7 +1899,15 @@ export default function BookingWizardClient({
                             type="radio"
                             name="booking-slot"
                             checked={isSelected}
-                            onChange={() => setSelectedSlot(slot)}
+                            onChange={() => {
+                              if (pendingBooking?.bookingId) {
+                                const fd = new FormData();
+                                fd.append('bookingId', pendingBooking.bookingId);
+                                void releasePendingBookingHoldAction(fd);
+                                setPendingBooking(null);
+                              }
+                              setSelectedSlot(slot);
+                            }}
                             className="size-4 accent-[#cea355]"
                           />
                           <span className="flex-1">
@@ -2150,31 +2182,80 @@ export default function BookingWizardClient({
               </div>
             )}
 
-            <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-neutral-800 p-4 hover:border-neutral-700 transition-all">
-              <input id="policy-accepted" type="checkbox" checked={policyAccepted} onChange={(e) => setPolicyAccepted(e.target.checked)} className="mt-1 size-4 accent-[#cea355]" />
-              <span className="text-xs leading-6 text-white font-medium">
-                أوافق على <Link href="/policies/booking" className="font-bold text-white underline underline-offset-4">سياسة الحجز</Link> وسياسة الخصوصية والإلغاء المعتمدة في منصة بريق.
+            <label
+              htmlFor="policy-accepted"
+              className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-4 transition-all ${
+                policyAccepted
+                  ? 'border-[#cea355]/60 bg-[#cea355]/10 shadow-[0_0_15px_rgba(206,163,85,0.1)]'
+                  : 'border-neutral-800 hover:border-neutral-700 bg-neutral-900/40'
+              }`}
+            >
+              <input
+                id="policy-accepted"
+                type="checkbox"
+                checked={policyAccepted}
+                onChange={(e) => {
+                  setPolicyAccepted(e.target.checked);
+                  if (uiError) setUiError(null);
+                }}
+                className="mt-1 size-5 accent-[#cea355] cursor-pointer rounded"
+              />
+              <span className="text-xs leading-6 text-white font-medium select-none">
+                أوافق على{' '}
+                <Link
+                  href="/policies/booking"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-bold text-[#cea355] underline underline-offset-4 hover:text-[#e5bf70]"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  سياسة الحجز
+                </Link>{' '}
+                وسياسة الخصوصية والإلغاء المعتمدة في منصة بريق.{' '}
+                <span className="text-amber-400 font-bold">* (مطلوب لإتمام الحجز)</span>
               </span>
             </label>
 
             <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-4">
-              <button type="button" disabled={bookingSubmitting} onClick={() => goToStep(4)} className="inline-flex items-center justify-center gap-2 rounded-xl border border-neutral-700 px-5 py-3 font-semibold text-white hover:border-white disabled:opacity-50 w-full sm:w-auto">
+              <button
+                type="button"
+                disabled={bookingSubmitting}
+                onClick={() => goToStep(4)}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-neutral-700 px-5 py-3 font-semibold text-white hover:border-white disabled:opacity-50 w-full sm:w-auto"
+              >
                 <ArrowRight aria-hidden="true" className="size-4" />
                 <span>السابق</span>
               </button>
-              <button data-testid="booking-submit" type="button" onClick={createBooking} disabled={bookingSubmitting || (estimatedTransferAmount > 0 && !proofFile && !uploadedProofFileId)} className="inline-flex items-center justify-center gap-2 rounded-xl gold-gradient px-7 py-3.5 font-black text-white hover:brightness-110 disabled:opacity-50 shadow-xl shadow-[#cea355]/20 w-full sm:w-auto min-h-12 text-base">
-                {bookingSubmitting ? (
-                  <>
-                    <LoaderCircle aria-hidden="true" className="size-4 animate-spin text-white" />
-                    <span>جاري تأكيد الحجز…</span>
-                  </>
-                ) : (
-                  <>
-                    <ShieldCheck aria-hidden="true" className="size-4" />
-                    <span>تأكيد الحجز النهائي</span>
-                  </>
+              <div className="flex flex-col items-center sm:items-end gap-1.5 w-full sm:w-auto">
+                <button
+                  data-testid="booking-submit"
+                  type="button"
+                  onClick={createBooking}
+                  disabled={
+                    bookingSubmitting ||
+                    !policyAccepted ||
+                    (estimatedTransferAmount > 0 && !proofFile && !uploadedProofFileId)
+                  }
+                  className="inline-flex items-center justify-center gap-2 rounded-xl gold-gradient px-7 py-3.5 font-black text-white hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed shadow-xl shadow-[#cea355]/20 w-full sm:w-auto min-h-12 text-base transition-all"
+                >
+                  {bookingSubmitting ? (
+                    <>
+                      <LoaderCircle aria-hidden="true" className="size-4 animate-spin text-white" />
+                      <span>جاري تأكيد الحجز…</span>
+                    </>
+                  ) : (
+                    <>
+                      <ShieldCheck aria-hidden="true" className="size-4" />
+                      <span>تأكيد الحجز النهائي</span>
+                    </>
+                  )}
+                </button>
+                {!policyAccepted && (
+                  <span className="text-xs text-amber-400/90 text-center sm:text-right">
+                    * يرجى الموافقة على السياسات لتفعيل زر تأكيد الحجز.
+                  </span>
                 )}
-              </button>
+              </div>
             </div>
           </div>
         )}
