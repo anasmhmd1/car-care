@@ -51,6 +51,7 @@ import {
   assignTeamManuallyAction,
   cancelBookingByOperationsAction,
   deletePaymentProofReceiptAction,
+  getRescheduleAvailableSlotsAction,
   recordBalancePaymentAction,
   rescheduleBookingByOperationsAction,
   reviewBookingAction,
@@ -411,6 +412,14 @@ export default function OperationsDashboardClient({
   const [rescheduleDate, setRescheduleDate] = useState('');
   const [rescheduleTime, setRescheduleTime] = useState('');
   const [rescheduleReason, setRescheduleReason] = useState('');
+  const [rescheduleSlotsData, setRescheduleSlotsData] = useState<{
+    loading: boolean;
+    error: string;
+    isClosed?: boolean;
+    breakTime?: { start: string; end: string } | null;
+    slotUnitMinutes?: number;
+    slots: Array<{ time: string; label: string; available: boolean; reason?: string }>;
+  } | null>(null);
   const [selectedTransferBooking, setSelectedTransferBooking] = useState<{ id: string; bookingNumber: string; branchId?: string; currentTeamId?: string | null } | null>(null);
   const [transferTeamId, setTransferTeamId] = useState('');
   const [transferReason, setTransferReason] = useState('');
@@ -538,6 +547,48 @@ export default function OperationsDashboardClient({
     selectedLockBranch,
   ]);
 
+  useEffect(() => {
+    if (!selectedRescheduleBooking || !rescheduleDate) {
+      setRescheduleSlotsData(null);
+      return;
+    }
+    let active = true;
+    setRescheduleSlotsData({ loading: true, error: '', slots: [] });
+    void (async () => {
+      try {
+        const res = await getRescheduleAvailableSlotsAction({
+          bookingId: selectedRescheduleBooking.id,
+          targetDate: rescheduleDate,
+        });
+        if (!active) return;
+        if ('error' in res && res.error) {
+          setRescheduleSlotsData({ loading: false, error: res.error, slots: [] });
+          return;
+        }
+        if ('success' in res && res.success) {
+          setRescheduleSlotsData({
+            loading: false,
+            error: '',
+            isClosed: res.isClosed,
+            breakTime: res.breakTime,
+            slotUnitMinutes: res.slotUnitMinutes,
+            slots: res.slots,
+          });
+        }
+      } catch {
+        if (!active) return;
+        setRescheduleSlotsData({
+          loading: false,
+          error: 'تعذر تحميل فترات المواعيد لليوم المختار.',
+          slots: [],
+        });
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [selectedRescheduleBooking, rescheduleDate]);
+
   async function finishAction(
     task: () => Promise<{ success?: boolean; error?: string }>,
     successMessage: string,
@@ -604,6 +655,7 @@ export default function OperationsDashboardClient({
       setRescheduleDate('');
       setRescheduleTime('');
       setRescheduleReason('');
+      setRescheduleSlotsData(null);
     }
   }
 
@@ -1852,7 +1904,7 @@ export default function OperationsDashboardClient({
                             setSelectedRescheduleBooking(booking);
                             const d = new Date(booking.startAt);
                             setRescheduleDate(d.toISOString().slice(0, 10));
-                            setRescheduleTime(d.toTimeString().slice(0, 5));
+                            setRescheduleTime('');
                             setRescheduleReason('');
                             setFeedback(null);
                           }}
@@ -2396,69 +2448,155 @@ export default function OperationsDashboardClient({
             )}
 
             <div className="space-y-2">
-              <span className="block text-xs font-bold text-neutral-400">خيارات سريعة:</span>
+              <span className="block text-xs font-bold text-neutral-400">تحديد تاريخ سريع:</span>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 text-xs">
                 <button
                   type="button"
                   onClick={() => {
-                    const current = new Date(selectedRescheduleBooking.startAt);
-                    const shifted = new Date(current.getTime() + 60 * 60_000);
-                    setRescheduleDate(shifted.toISOString().slice(0, 10));
-                    setRescheduleTime(shifted.toTimeString().slice(0, 5));
+                    const d = new Date();
+                    d.setDate(d.getDate() + 1);
+                    setRescheduleDate(d.toISOString().slice(0, 10));
+                    setRescheduleTime('');
                   }}
                   className="rounded-xl border border-sky-500/30 bg-sky-500/10 p-2 font-bold text-sky-300 hover:bg-sky-500/20"
                 >
-                  +1 ساعة
+                  غداً
                 </button>
                 <button
                   type="button"
                   onClick={() => {
-                    const current = new Date(selectedRescheduleBooking.startAt);
-                    const shifted = new Date(current.getTime() + 120 * 60_000);
-                    setRescheduleDate(shifted.toISOString().slice(0, 10));
-                    setRescheduleTime(shifted.toTimeString().slice(0, 5));
-                  }}
-                  className="rounded-xl border border-sky-500/30 bg-sky-500/10 p-2 font-bold text-sky-300 hover:bg-sky-500/20"
-                >
-                  +2 ساعة
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const current = new Date(selectedRescheduleBooking.startAt);
-                    const shifted = new Date(current.getTime() + 24 * 60 * 60_000);
-                    setRescheduleDate(shifted.toISOString().slice(0, 10));
-                    setRescheduleTime(shifted.toTimeString().slice(0, 5));
-                  }}
-                  className="rounded-xl border border-sky-500/30 bg-sky-500/10 p-2 font-bold text-sky-300 hover:bg-sky-500/20"
-                >
-                  غداً نفس الموعد
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const current = new Date(selectedRescheduleBooking.startAt);
-                    const shifted = new Date(current.getTime() + 48 * 60 * 60_000);
-                    setRescheduleDate(shifted.toISOString().slice(0, 10));
-                    setRescheduleTime(shifted.toTimeString().slice(0, 5));
+                    const d = new Date();
+                    d.setDate(d.getDate() + 2);
+                    setRescheduleDate(d.toISOString().slice(0, 10));
+                    setRescheduleTime('');
                   }}
                   className="rounded-xl border border-sky-500/30 bg-sky-500/10 p-2 font-bold text-sky-300 hover:bg-sky-500/20"
                 >
                   بعد يومين
                 </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const d = new Date();
+                    d.setDate(d.getDate() + 3);
+                    setRescheduleDate(d.toISOString().slice(0, 10));
+                    setRescheduleTime('');
+                  }}
+                  className="rounded-xl border border-sky-500/30 bg-sky-500/10 p-2 font-bold text-sky-300 hover:bg-sky-500/20"
+                >
+                  بعد 3 أيام
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const d = new Date();
+                    d.setDate(d.getDate() + 7);
+                    setRescheduleDate(d.toISOString().slice(0, 10));
+                    setRescheduleTime('');
+                  }}
+                  className="rounded-xl border border-sky-500/30 bg-sky-500/10 p-2 font-bold text-sky-300 hover:bg-sky-500/20"
+                >
+                  بعد أسبوع
+                </button>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label htmlFor="reschedule-date" className="mb-2 block text-xs font-bold text-neutral-300">التاريخ الجديد</label>
-                <input id="reschedule-date" type="date" value={rescheduleDate} onChange={(e) => setRescheduleDate(e.target.value)} className={inputClass} />
-              </div>
-              <div>
-                <label htmlFor="reschedule-time" className="mb-2 block text-xs font-bold text-neutral-300">الوقت الجديد</label>
-                <input id="reschedule-time" type="time" value={rescheduleTime} onChange={(e) => setRescheduleTime(e.target.value)} className={inputClass} />
-              </div>
+            <div>
+              <label htmlFor="reschedule-date" className="mb-2 block text-xs font-bold text-neutral-300">التاريخ الجديد</label>
+              <input
+                id="reschedule-date"
+                type="date"
+                min={new Date().toISOString().slice(0, 10)}
+                value={rescheduleDate}
+                onChange={(e) => {
+                  setRescheduleDate(e.target.value);
+                  setRescheduleTime('');
+                }}
+                className={inputClass}
+              />
             </div>
+
+            {/* Predefined Slots Selection */}
+            {rescheduleDate && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-neutral-300">
+                    الفترات الزمنية المتاحة (Slots)
+                  </span>
+                  {rescheduleSlotsData?.slotUnitMinutes ? (
+                    <span className="text-[11px] font-medium text-neutral-400">
+                      كل {rescheduleSlotsData.slotUnitMinutes} دقيقة
+                    </span>
+                  ) : null}
+                </div>
+
+                {rescheduleSlotsData?.breakTime ? (
+                  <div className="flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-200">
+                    <span className="size-2 shrink-0 rounded-full bg-amber-400" />
+                    <span>
+                      فترة استراحة الفرع: من {rescheduleSlotsData.breakTime.start} إلى {rescheduleSlotsData.breakTime.end} (مغلقة ومستبعدة).
+                    </span>
+                  </div>
+                ) : null}
+
+                {rescheduleSlotsData?.loading ? (
+                  <div className="flex items-center justify-center gap-2 rounded-xl border border-neutral-800 bg-neutral-900/50 p-4 text-xs text-neutral-400">
+                    <Loader2 className="size-4 animate-spin text-sky-400" />
+                    <span>جارٍ تحميل الفترات المتاحة وفحص أوقات الاستراحة...</span>
+                  </div>
+                ) : rescheduleSlotsData?.error ? (
+                  <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-300">
+                    {rescheduleSlotsData.error}
+                  </div>
+                ) : rescheduleSlotsData?.isClosed ? (
+                  <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs font-bold text-amber-300">
+                    الفرع مغلق في هذا اليوم (إجازة أسبوعية أو إغلاق إداري). يرجى اختيار تاريخ آخر.
+                  </div>
+                ) : rescheduleSlotsData?.slots && rescheduleSlotsData.slots.length > 0 ? (
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 max-h-48 overflow-y-auto p-1.5 border border-neutral-800 rounded-xl bg-black/40">
+                      {rescheduleSlotsData.slots.map((slot) => {
+                        const isSelected = rescheduleTime === slot.time;
+                        return (
+                          <button
+                            key={slot.time}
+                            type="button"
+                            disabled={!slot.available}
+                            onClick={() => setRescheduleTime(slot.time)}
+                            title={!slot.available ? slot.reason : undefined}
+                            className={`rounded-lg px-2.5 py-2 text-xs font-bold transition-all text-center ${
+                              isSelected
+                                ? 'bg-sky-500 text-neutral-950 font-black ring-2 ring-sky-300 shadow-lg'
+                                : slot.available
+                                ? 'border border-neutral-700 bg-neutral-800/90 text-white hover:border-sky-400 hover:bg-neutral-800'
+                                : 'border border-neutral-800/40 bg-neutral-900/40 text-neutral-600 line-through cursor-not-allowed opacity-50'
+                            }`}
+                          >
+                            <span>{slot.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {rescheduleTime ? (
+                      <div className="flex items-center gap-1.5 text-xs text-sky-300 font-bold">
+                        <CheckCircle2 className="size-3.5" />
+                        <span>
+                          الفترة المختارة: {rescheduleSlotsData.slots.find((s) => s.time === rescheduleTime)?.label ?? rescheduleTime}
+                        </span>
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-neutral-400">
+                        اختر إحدى الفترات المتاحة أعلاه لتأكيد الموعد.
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-3 text-xs text-rose-300">
+                    لا توجد فترات عمل متاحة في هذا اليوم، يرجى اختيار تاريخ بديل.
+                  </p>
+                )}
+              </div>
+            )}
 
             <div>
               <label htmlFor="reschedule-reason" className="mb-2 block text-xs font-bold text-neutral-300">سبب التأجيل أو تعديل الموعد</label>

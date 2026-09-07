@@ -23,6 +23,7 @@ import { evaluateRequestedInterval } from '@/lib/engine/availability';
 import { isCalendarReschedulableStatus } from '@/lib/engine/calendar';
 import {
   dayOfWeekForLocalDate,
+  intervalsOverlap,
   localDateTimeToUtc,
 } from '@/lib/engine/time';
 import { databaseIdSchema } from '@/lib/validations/database-id';
@@ -251,6 +252,22 @@ export async function rescheduleCalendarBookingAction(formData: FormData) {
       const offsetFromOpening = minutesFromTime(parsed.data.targetTime) - minutesFromTime(workingHours.openTime);
       if (offsetFromOpening < 0 || offsetFromOpening % booking.branch.slotUnitMinutes !== 0) {
         throw new CalendarRescheduleError(`اختر وقتًا مطابقًا لوحدات الفرع (${booking.branch.slotUnitMinutes} دقيقة).`);
+      }
+
+      if (
+        workingHours.breakStartTime &&
+        workingHours.breakEndTime &&
+        workingHours.breakStartTime.trim() &&
+        workingHours.breakEndTime.trim()
+      ) {
+        const breakStart = localDateTimeToUtc(parsed.data.targetDate, workingHours.breakStartTime, booking.branch.timezone);
+        const breakEnd = localDateTimeToUtc(parsed.data.targetDate, workingHours.breakEndTime, booking.branch.timezone);
+        const newEndAtTemp = new Date(newStartAt.getTime() + booking.totalDurationMinutes * 60_000);
+        if (intervalsOverlap(newStartAt, newEndAtTemp, breakStart, breakEnd)) {
+          throw new CalendarRescheduleError(
+            `الموعد المختار يتعارض مع فترة استراحة الفرع (من ${workingHours.breakStartTime} إلى ${workingHours.breakEndTime}). اختر موعدًا آخر.`,
+          );
+        }
       }
 
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`capacity:${booking.branchId}`}))`;

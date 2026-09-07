@@ -11,6 +11,7 @@ import {
   ProofStatus,
   TimeChangeStatus,
   UserRole,
+  VehicleSize,
 } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 import { requireRole } from '@/lib/auth/session';
@@ -21,7 +22,13 @@ import {
 } from '@/lib/auth/permissions';
 import { db } from '@/lib/db';
 import { deleteUploadedFile } from '@/lib/upload';
-import { localDateTimeToUtc } from '@/lib/engine/time';
+import {
+  dayOfWeekForLocalDate,
+  intervalsOverlap,
+  localDateTimeToUtc,
+} from '@/lib/engine/time';
+import { evaluateRequestedInterval } from '@/lib/engine/availability';
+import { databaseIdSchema } from '@/lib/validations/database-id';
 import {
   AssignmentError,
   assignTeamToBooking,
@@ -833,17 +840,72 @@ export async function rescheduleBookingByOperationsAction(formData: FormData) {
     return { error: 'لا يمكن تعديل موعد حجز منتهٍ أو ملغي.' };
   }
 
+  const dayOfWeek = dayOfWeekForLocalDate(parsed.data.targetDate);
+  const workingHours = booking.branch.workingHours.find((h) => h.dayOfWeek === dayOfWeek);
+  if (!workingHours || workingHours.isClosed) {
+    return { error: 'الفرع مغلق في اليوم المختار.' };
+  }
+
+  const slotUnitMinutes = Math.max(15, booking.branch.slotUnitMinutes || 30);
+  const [targetH, targetM] = parsed.data.targetTime.split(':').map(Number);
+  const targetMinute = targetH * 60 + targetM;
+  const [openH, openM] = workingHours.openTime.split(':').map(Number);
+  const openMinute = openH * 60 + openM;
+  const [closeH, closeM] = workingHours.closeTime.split(':').map(Number);
+  const closeMinute = closeH * 60 + closeM;
+
+  if (targetMinute < openMinute || targetMinute >= closeMinute) {
+    return {
+      error: `الموعد يجب أن يكون ضمن ساعات عمل الفرع (${workingHours.openTime} - ${workingHours.closeTime}).`,
+    };
+  }
+
+  const offsetFromOpening = targetMinute - openMinute;
+  if (offsetFromOpening % slotUnitMinutes !== 0) {
+    return {
+      error: `الوقت المختار (${parsed.data.targetTime}) غير متوافق مع تقسيم فترات المواعيد المعتمدة (كل ${slotUnitMinutes} دقيقة).`,
+    };
+  }
+
   const newStartAt = localDateTimeToUtc(
     parsed.data.targetDate,
     parsed.data.targetTime,
     booking.branch.timezone,
   );
+  const now = new Date();
+  if (newStartAt <= now) {
+    return { error: 'لا يمكن تأجيل الحجز إلى موعد ماضٍ.' };
+  }
 
-  const durationMinutes = booking.service.variants.find(
+  const durationMinutes = booking.totalDurationMinutes || (booking.service.variants.find(
     (v) => v.vehicleSize === booking.vehicle?.vehicleSize,
-  )?.durationMinutes ?? 60;
+  )?.durationMinutes ?? 60);
 
   const newEndAt = new Date(newStartAt.getTime() + durationMinutes * 60_000);
+
+  // Validate break time conflict
+  if (
+    workingHours.breakStartTime &&
+    workingHours.breakEndTime &&
+    workingHours.breakStartTime.trim() &&
+    workingHours.breakEndTime.trim()
+  ) {
+    const breakStart = localDateTimeToUtc(
+      parsed.data.targetDate,
+      workingHours.breakStartTime,
+      booking.branch.timezone,
+    );
+    const breakEnd = localDateTimeToUtc(
+      parsed.data.targetDate,
+      workingHours.breakEndTime,
+      booking.branch.timezone,
+    );
+    if (intervalsOverlap(newStartAt, newEndAt, breakStart, breakEnd)) {
+      return {
+        error: `يتعارض الموعد مع فترة استراحة العمل المحددة للفرع (من ${workingHours.breakStartTime} إلى ${workingHours.breakEndTime}). يرجى اختيار موعد آخر.`,
+      };
+    }
+  }
 
   try {
     await db.$transaction(async (tx) => {
@@ -859,6 +921,31 @@ export async function rescheduleBookingByOperationsAction(formData: FormData) {
         );
       }
 
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`capacity:${booking.branchId}`}))`;
+      const availability = await evaluateRequestedInterval(tx, {
+        branchId: booking.branchId,
+        serviceId: booking.serviceId,
+        coverageAreaId: booking.coverageAreaId,
+        vehicleSize: booking.vehicle?.vehicleSize ?? VehicleSize.SEDAN,
+        addonIds: booking.addons.map(({ addonId }) => addonId),
+        startAt: newStartAt,
+        excludeBookingId: booking.id,
+        reservedDurationMinutes: durationMinutes,
+      }, now);
+      if (!availability) {
+        throw new OperationsInputError(
+          'الموعد غير متاح تشغيلياً أو يتعارض مع السعة أو الانتقال بين المناطق. اختر موعداً آخر.',
+        );
+      }
+      if (
+        booking.assignedTeamId &&
+        !availability.feasibleTeamIds.includes(booking.assignedTeamId)
+      ) {
+        throw new OperationsInputError(
+          'الفريق المسند حالياً غير متاح في الموعد الجديد. غيّر توزيع الفريق أو اختر موعداً آخر.',
+        );
+      }
+
       const previousStartAt = booking.startAt;
       const previousEndAt = booking.endAt;
       const rescheduleTargetStatus = booking.bookingStatus === BookingStatus.RESCHEDULE_REQUESTED
@@ -871,6 +958,7 @@ export async function rescheduleBookingByOperationsAction(formData: FormData) {
         data: {
           startAt: newStartAt,
           endAt: newEndAt,
+          totalDurationMinutes: availability.totalDurationMinutes,
         },
       });
 
@@ -944,6 +1032,143 @@ export async function rescheduleBookingByOperationsAction(formData: FormData) {
   } catch (error) {
     return { error: operationError(error, 'تعذر تعديل موعد الحجز.') };
   }
+}
+
+export async function getRescheduleAvailableSlotsAction(input: {
+  bookingId: string;
+  targetDate: string;
+}) {
+  const manager = await requireRole([...MANAGEMENT_OPERATIONS_ROLES]);
+  if (!databaseIdSchema.safeParse(input.bookingId).success) {
+    return { error: 'معرف الحجز غير صالح.' };
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.targetDate)) {
+    return { error: 'تاريخ الموعد غير صالح.' };
+  }
+
+  const booking = await db.booking.findUnique({
+    where: { id: input.bookingId, deletedAt: null },
+    include: {
+      branch: { include: { workingHours: true } },
+      service: { include: { variants: true } },
+      vehicle: true,
+      addons: true,
+    },
+  });
+  if (!booking) return { error: 'الحجز غير موجود.' };
+  await assertBranchScope(manager, booking.branchId);
+
+  const dayOfWeek = dayOfWeekForLocalDate(input.targetDate);
+  const workingHours = booking.branch.workingHours.find((h) => h.dayOfWeek === dayOfWeek);
+  if (!workingHours || workingHours.isClosed) {
+    return {
+      success: true,
+      isClosed: true,
+      branchName: booking.branch.nameAr,
+      slotUnitMinutes: booking.branch.slotUnitMinutes,
+      breakTime: null,
+      slots: [],
+    };
+  }
+
+  const now = new Date();
+  const durationMinutes = booking.totalDurationMinutes || (booking.service.variants.find(
+    (v) => v.vehicleSize === booking.vehicle?.vehicleSize,
+  )?.durationMinutes ?? 60);
+
+  const slotUnitMinutes = Math.max(15, booking.branch.slotUnitMinutes || 30);
+  const [openH, openM] = workingHours.openTime.split(':').map(Number);
+  const openMinute = openH * 60 + openM;
+  const [closeH, closeM] = workingHours.closeTime.split(':').map(Number);
+  const closeMinute = closeH * 60 + closeM;
+
+  const hasBreak = Boolean(
+    workingHours.breakStartTime &&
+    workingHours.breakEndTime &&
+    workingHours.breakStartTime.trim() &&
+    workingHours.breakEndTime.trim()
+  );
+  const breakStart = hasBreak
+    ? localDateTimeToUtc(input.targetDate, workingHours.breakStartTime!, booking.branch.timezone)
+    : null;
+  const breakEnd = hasBreak
+    ? localDateTimeToUtc(input.targetDate, workingHours.breakEndTime!, booking.branch.timezone)
+    : null;
+
+  const breakTime = hasBreak
+    ? { start: workingHours.breakStartTime!, end: workingHours.breakEndTime! }
+    : null;
+
+  const slots: Array<{
+    time: string;
+    label: string;
+    available: boolean;
+    reason?: string;
+  }> = [];
+
+  return await db.$transaction(async (tx) => {
+    for (let minute = openMinute; minute < closeMinute; minute += slotUnitMinutes) {
+      const h = Math.floor(minute / 60);
+      const m = minute % 60;
+      const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+      const period = h >= 12 ? 'م' : 'ص';
+      const displayH = h === 0 ? 12 : h > 12 ? h - 12 : h;
+      const label = `${String(displayH).padStart(2, '0')}:${String(m).padStart(2, '0')} ${period}`;
+
+      const slotStart = localDateTimeToUtc(input.targetDate, timeStr, booking.branch.timezone);
+      const slotEnd = new Date(slotStart.getTime() + durationMinutes * 60_000);
+
+      if (slotStart <= now) {
+        slots.push({ time: timeStr, label, available: false, reason: 'انقضى الوقت' });
+        continue;
+      }
+
+      if (slotEnd.getTime() > localDateTimeToUtc(input.targetDate, workingHours.closeTime, booking.branch.timezone).getTime()) {
+        slots.push({ time: timeStr, label, available: false, reason: 'يتجاوز موعد إغلاق الفرع' });
+        continue;
+      }
+
+      if (breakStart && breakEnd && intervalsOverlap(slotStart, slotEnd, breakStart, breakEnd)) {
+        slots.push({ time: timeStr, label, available: false, reason: 'فترة استراحة' });
+        continue;
+      }
+
+      const availability = await evaluateRequestedInterval(tx, {
+        branchId: booking.branchId,
+        serviceId: booking.serviceId,
+        coverageAreaId: booking.coverageAreaId,
+        vehicleSize: booking.vehicle?.vehicleSize ?? VehicleSize.SEDAN,
+        addonIds: booking.addons.map(({ addonId }) => addonId),
+        startAt: slotStart,
+        excludeBookingId: booking.id,
+        reservedDurationMinutes: durationMinutes,
+      }, now);
+
+      if (!availability) {
+        slots.push({ time: timeStr, label, available: false, reason: 'غير متاح (السعة أو التغطية)' });
+        continue;
+      }
+
+      if (
+        booking.assignedTeamId &&
+        !availability.feasibleTeamIds.includes(booking.assignedTeamId)
+      ) {
+        slots.push({ time: timeStr, label, available: false, reason: 'الفريق المسند غير متاح' });
+        continue;
+      }
+
+      slots.push({ time: timeStr, label, available: true });
+    }
+
+    return {
+      success: true,
+      isClosed: false,
+      branchName: booking.branch.nameAr,
+      slotUnitMinutes,
+      breakTime,
+      slots,
+    };
+  });
 }
 
 export async function transferBookingTeamAction(formData: FormData) {

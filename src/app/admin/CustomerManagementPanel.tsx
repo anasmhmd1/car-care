@@ -89,12 +89,15 @@ const secondaryButtonClass =
 const primaryButtonClass =
   'inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#d4af37] via-[#e5c45a] to-[#d4af37] px-4 py-2 text-xs sm:text-sm font-bold text-neutral-950 shadow-md shadow-[#d4af37]/20 transition hover:opacity-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d4af37]/70 disabled:cursor-not-allowed disabled:opacity-50';
 
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat('ar-EG', { dateStyle: 'medium' }).format(new Date(value));
+function formatDate(value: string | null | undefined) {
+  if (!value) return 'لا يوجد';
+  const date = new Date(value);
+  if (isNaN(date.getTime())) return 'لا يوجد';
+  return new Intl.DateTimeFormat('ar-EG', { dateStyle: 'medium' }).format(date);
 }
 
-function formatCurrency(amount: number) {
-  return `${amount.toLocaleString('ar-EG')} ج.م`;
+function formatCurrency(amount: number | null | undefined) {
+  return `${(amount ?? 0).toLocaleString('ar-EG')} ج.م`;
 }
 
 function getBookingStatusBadge(status: string) {
@@ -404,6 +407,7 @@ function CustomerAccountDialog({
           {activeTab === 'profile' && (
             <form id="customer-crm-form" onSubmit={onSubmit} className="space-y-5">
               <input type="hidden" name="customerId" value={customer.id} />
+              <input type="hidden" name="active" value={customer.active ? 'true' : 'false'} />
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="block text-sm font-medium text-white/75">

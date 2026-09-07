@@ -41,6 +41,42 @@ describe('owner customer account validation', () => {
     }).success).toBe(false);
   });
 
+  it('safely handles omitted, empty string, or boolean active values without throwing enum error', () => {
+    // String 'false'
+    const parsedStringFalse = ownerCustomerAccountSchema.parse({
+      ...validCustomerAccount,
+      active: 'false',
+    });
+    expect(parsedStringFalse.active).toBe(false);
+
+    // Boolean true
+    const parsedBoolTrue = ownerCustomerAccountSchema.parse({
+      ...validCustomerAccount,
+      active: true,
+    });
+    expect(parsedBoolTrue.active).toBe(true);
+
+    // Boolean false
+    const parsedBoolFalse = ownerCustomerAccountSchema.parse({
+      ...validCustomerAccount,
+      active: false,
+    });
+    expect(parsedBoolFalse.active).toBe(false);
+
+    // Empty string (e.g. from missing form input)
+    const parsedEmpty = ownerCustomerAccountSchema.parse({
+      ...validCustomerAccount,
+      active: '',
+    });
+    expect(parsedEmpty.active).toBeUndefined();
+
+    // Omitted active field
+    const withoutActive = { ...validCustomerAccount };
+    delete (withoutActive as Record<string, unknown>).active;
+    const parsedOmitted = ownerCustomerAccountSchema.parse(withoutActive);
+    expect(parsedOmitted.active).toBeUndefined();
+  });
+
   it('allows an empty optional WhatsApp value without weakening the required login phone', () => {
     const result = ownerCustomerAccountSchema.parse({
       ...validCustomerAccount,

@@ -1883,6 +1883,7 @@ export default function StaffCommandCenter({
                         return (
                           <button
                             key={step.stepNumber}
+                            data-testid={`workflow-${targetStatus}`}
                             type="button"
                             disabled={!isCurrent || isPending || blocked}
                             onClick={() =>

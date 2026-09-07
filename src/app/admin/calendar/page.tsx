@@ -251,7 +251,14 @@ function buildSchedule(
       startMinute + Math.ceil((rawEnd - startMinute) / slotMinutes) * slotMinutes,
     ),
   );
-  return { startMinute, endMinute, slotMinutes };
+  const breakPeriods = applicableHours
+    .filter((h) => h.breakStartTime && h.breakEndTime && h.breakStartTime.trim() && h.breakEndTime.trim())
+    .map((h) => ({
+      startMinute: minutesFromTime(h.breakStartTime!),
+      endMinute: minutesFromTime(h.breakEndTime!),
+      label: `استراحة (${h.breakStartTime} - ${h.breakEndTime})`,
+    }));
+  return { startMinute, endMinute, slotMinutes, breakPeriods };
 }
 
 function toBookingDto(
@@ -295,6 +302,8 @@ const branchSelect = {
       isClosed: true,
       openTime: true,
       closeTime: true,
+      breakStartTime: true,
+      breakEndTime: true,
     },
   },
   teams: {

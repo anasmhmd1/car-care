@@ -140,6 +140,7 @@ export default function BookingActionsClient({
         paymentFile!,
       );
       values.set('bookingId', bookingId);
+      values.set('bookingFileId', evidenceFileId);
       values.set('evidenceFileId', evidenceFileId);
       const result = await uploadPaymentProofAction(values);
       if (!result.error) {

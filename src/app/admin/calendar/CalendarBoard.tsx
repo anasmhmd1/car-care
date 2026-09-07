@@ -89,6 +89,11 @@ export interface CalendarBoardProps {
     startMinute: number;
     endMinute: number;
     slotMinutes: number;
+    breakPeriods?: Array<{
+      startMinute: number;
+      endMinute: number;
+      label: string;
+    }>;
   };
   canReschedule: boolean;
   totalMatchingCount: number;
@@ -390,18 +395,45 @@ function Timeline({
       {slots.map((minute) => {
         const slotBookings = timelineGroups.bySlot.get(minute) ?? [];
         const time = timeFromMinutes(minute);
+        const breakPeriod = schedule.breakPeriods?.find(
+          (b) => minute >= b.startMinute && minute < b.endMinute
+        );
+        const isBreak = Boolean(breakPeriod);
+
         return (
-          <div key={minute} className="grid min-h-20 grid-cols-[5rem_minmax(0,1fr)] border-b border-white/[0.07] last:border-b-0">
-            <time dateTime={`${dateKey}T${time}`} className="border-l border-white/[0.07] px-3 py-4 text-center text-xs font-bold tabular-nums text-white/40">{formatTimeValue(time)}</time>
+          <div
+            key={minute}
+            className={`grid min-h-20 grid-cols-[5rem_minmax(0,1fr)] border-b border-white/[0.07] last:border-b-0 ${
+              isBreak ? 'bg-amber-500/[0.04]' : ''
+            }`}
+          >
+            <time dateTime={`${dateKey}T${time}`} className={`border-l border-white/[0.07] px-3 py-4 text-center text-xs font-bold tabular-nums ${isBreak ? 'text-amber-400/80 font-black' : 'text-white/40'}`}>
+              {formatTimeValue(time)}
+            </time>
             <div
               onDragOver={(event) => {
-                if (!draggingId) return;
+                if (!draggingId || isBreak) return;
                 event.preventDefault();
                 event.dataTransfer.dropEffect = 'move';
               }}
-              onDrop={(event) => onDropTarget(event, dateKey, time, targetTeamId)}
-              className={`min-w-0 space-y-2 p-2 transition-colors ${draggingId ? 'bg-[#d4af37]/[0.035] hover:bg-[#d4af37]/10' : ''}`}
+              onDrop={(event) => {
+                if (isBreak) return;
+                onDropTarget(event, dateKey, time, targetTeamId);
+              }}
+              className={`min-w-0 space-y-2 p-2 transition-colors ${
+                isBreak
+                  ? 'bg-amber-950/20 border-dashed border-amber-500/20 cursor-not-allowed'
+                  : draggingId
+                  ? 'bg-[#d4af37]/[0.035] hover:bg-[#d4af37]/10'
+                  : ''
+              }`}
             >
+              {isBreak && slotBookings.length === 0 ? (
+                <div className="flex items-center gap-2 py-2 text-xs font-bold text-amber-300/70">
+                  <span className="size-2 rounded-full bg-amber-400 animate-pulse" />
+                  <span>{breakPeriod?.label ?? 'فترة استراحة الفرع (غير متاح للعمل)'}</span>
+                </div>
+              ) : null}
               {slotBookings.map((booking) => (
                 <BookingCard key={booking.id} booking={booking} dragging={draggingId === booking.id} onDragStart={onDragStart} onDragEnd={onDragEnd} onReschedule={onReschedule} />
               ))}
@@ -425,6 +457,7 @@ function Timeline({
 
 function RescheduleDialog({
   draft,
+  schedule,
   today,
   pending,
   error,
@@ -433,6 +466,7 @@ function RescheduleDialog({
   onSubmit,
 }: {
   draft: RescheduleDraft;
+  schedule: CalendarBoardProps['schedule'];
   today: string;
   pending: boolean;
   error: string;
@@ -442,6 +476,22 @@ function RescheduleDialog({
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const errorRef = useRef<HTMLParagraphElement>(null);
+
+  const availableSlots = useMemo(() => {
+    const items: Array<{ time: string; label: string; isBreak: boolean }> = [];
+    for (let minute = schedule.startMinute; minute < schedule.endMinute; minute += schedule.slotMinutes) {
+      const timeStr = timeFromMinutes(minute);
+      const isBreak = Boolean(
+        schedule.breakPeriods?.some((b) => minute >= b.startMinute && minute < b.endMinute)
+      );
+      items.push({
+        time: timeStr,
+        label: formatTimeValue(timeStr),
+        isBreak,
+      });
+    }
+    return items;
+  }, [schedule.breakPeriods, schedule.endMinute, schedule.slotMinutes, schedule.startMinute]);
 
   useEffect(() => {
     dialogRef.current?.focus();
@@ -511,10 +561,29 @@ function RescheduleDialog({
               <input id="calendar-target-date" name="targetDate" type="date" min={today} autoComplete="off" required value={draft.targetDate} onChange={(event) => onDraftChange({ ...draft, targetDate: event.target.value })} className={inputClass} />
             </div>
             <div>
-              <label htmlFor="calendar-target-time" className="mb-2 block text-sm font-bold text-white/70">الوقت الجديد</label>
-              <input id="calendar-target-time" name="targetTime" type="time" step={300} autoComplete="off" required value={draft.targetTime} onChange={(event) => onDraftChange({ ...draft, targetTime: event.target.value })} className={inputClass} />
+              <label htmlFor="calendar-target-time" className="mb-2 block text-sm font-bold text-white/70">الفترة المحددة (Slot)</label>
+              <select
+                id="calendar-target-time"
+                name="targetTime"
+                required
+                value={draft.targetTime}
+                onChange={(event) => onDraftChange({ ...draft, targetTime: event.target.value })}
+                className={inputClass}
+              >
+                <option value="" disabled>اختر فترة الموعد...</option>
+                {availableSlots.map((slot) => (
+                  <option key={slot.time} value={slot.time} disabled={slot.isBreak}>
+                    {slot.label} {slot.isBreak ? ' · استراحة (مغلقة)' : ''}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
+          {schedule.breakPeriods && schedule.breakPeriods.length > 0 ? (
+            <p className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-2.5 text-xs text-amber-200">
+              فترات الاستراحة محجوبة ولا يمكن تسكين المواعيد خلالها.
+            </p>
+          ) : null}
           <div>
             <label htmlFor="calendar-reschedule-reason" className="mb-2 block text-sm font-bold text-white/70">سبب التغيير</label>
             <textarea id="calendar-reschedule-reason" name="reason" required minLength={5} maxLength={500} autoComplete="off" rows={4} placeholder="مثال: طلب العميل تغيير الموعد إلى الفترة الصباحية…" className={`${inputClass} resize-y py-3`} />
@@ -812,7 +881,7 @@ export default function CalendarBoard(props: CalendarBoardProps) {
         </section>
       </main>
 
-      {draft ? <RescheduleDialog draft={draft} today={today} pending={pending} error={actionError} onDraftChange={setDraft} onClose={closeReschedule} onSubmit={submitReschedule} /> : null}
+      {draft ? <RescheduleDialog draft={draft} schedule={schedule} today={today} pending={pending} error={actionError} onDraftChange={setDraft} onClose={closeReschedule} onSubmit={submitReschedule} /> : null}
     </div>
   );
 }

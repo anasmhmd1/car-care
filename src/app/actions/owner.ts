@@ -1088,13 +1088,18 @@ export async function updateCustomerAccountAction(formData: FormData) {
     UserRole.OPERATIONS_MANAGER,
   ]);
 
+  const rawActive = formData.get('active');
+  const activeInput = typeof rawActive === 'string' && rawActive.trim().length > 0
+    ? rawActive.trim()
+    : undefined;
+
   const parsed = ownerCustomerAccountSchema.safeParse({
     customerId: (formData.get('customerId') as string || '').trim(),
     fullName: (formData.get('fullName') as string || '').trim(),
     phone: (formData.get('phone') as string || '').trim(),
     whatsapp: (formData.get('whatsapp') as string || '').trim(),
     email: (formData.get('email') as string || '').trim(),
-    active: (formData.get('active') as string || '').trim(),
+    ...(activeInput !== undefined ? { active: activeInput } : {}),
     notes: (formData.get('notes') as string || '').trim(),
     temporaryPassword: (formData.get('temporaryPassword') as string || '').trim(),
   });
@@ -1146,7 +1151,8 @@ export async function updateCustomerAccountAction(formData: FormData) {
   }
 
   const phoneChanged = customer.user.phone !== data.phone;
-  const activeChanged = customer.user.active !== data.active;
+  const effectiveActive = data.active !== undefined ? data.active : customer.user.active;
+  const activeChanged = customer.user.active !== effectiveActive;
   const passwordReset = data.temporaryPassword.length > 0;
   const sessionsMustBeRevoked = phoneChanged || activeChanged || passwordReset;
   const passwordHash = passwordReset ? await bcrypt.hash(data.temporaryPassword, 12) : undefined;
@@ -1162,7 +1168,7 @@ export async function updateCustomerAccountAction(formData: FormData) {
           phone: data.phone,
           whatsapp: normalizedWhatsapp,
           email: normalizedEmail,
-          active: data.active,
+          active: effectiveActive,
           ...(passwordHash ? { passwordHash, mustChangePwd: true } : {}),
         },
       });
@@ -1178,7 +1184,7 @@ export async function updateCustomerAccountAction(formData: FormData) {
         const securityReason = passwordReset
           ? 'CUSTOMER_PASSWORD_RESET'
           : activeChanged
-            ? (data.active ? 'CUSTOMER_ACCOUNT_ENABLED' : 'CUSTOMER_ACCOUNT_DISABLED')
+            ? (effectiveActive ? 'CUSTOMER_ACCOUNT_ENABLED' : 'CUSTOMER_ACCOUNT_DISABLED')
             : 'CUSTOMER_LOGIN_PHONE_CHANGED';
         await revokeAllUserSessionsAndBumpVersion(tx, customer.userId, securityReason);
       }
@@ -1203,7 +1209,7 @@ export async function updateCustomerAccountAction(formData: FormData) {
             phone: data.phone,
             whatsapp: normalizedWhatsapp,
             email: normalizedEmail,
-            active: data.active,
+            active: effectiveActive,
             notes: data.notes || null,
             passwordReset,
             sessionsRevoked: sessionsMustBeRevoked,

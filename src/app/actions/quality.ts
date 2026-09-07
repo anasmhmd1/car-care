@@ -276,7 +276,11 @@ export async function advancePostServiceAction(formData: FormData) {
         actorRole: actor.role,
         reason: reason || (targetStatus === BookingStatus.DELIVERED ? 'تأكيد تسليم الخدمة وتحصيل كامل القيمة' : 'إغلاق الحجز بعد التسوية الكاملة'),
       });
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    }, {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      maxWait: 10_000,
+      timeout: 25_000,
+    });
     revalidateQuality(bookingId);
     return { success: true };
   } catch (error) {

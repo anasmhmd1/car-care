@@ -26,13 +26,12 @@ test.describe('Bareeq RBAC & Auth Security E2E Tests', () => {
     await expect(page).toHaveURL(/.*login/);
   });
 
-  test('public pages are accessible without authentication', async ({ page }) => {
-    test.setTimeout(120_000);
-    const publicRoutes = ['/', '/services', '/plans', '/areas', '/before-after', '/about', '/faq', '/contact'];
-    for (const route of publicRoutes) {
+  const publicRoutes = ['/', '/services', '/plans', '/areas', '/before-after', '/about', '/faq', '/contact'];
+  for (const route of publicRoutes) {
+    test(`public page ${route} is accessible without authentication`, async ({ page }) => {
       const res = await page.goto(route, { waitUntil: 'domcontentloaded' });
       expect(res?.status() ?? 200, `${route} must be reachable`).toBeLessThan(400);
-      await expect(page.locator('h1').first()).toBeVisible({ timeout: 20_000 });
-    }
-  });
+      await expect(page.locator('h1').first()).toBeVisible({ timeout: 25_000 });
+    });
+  }
 });

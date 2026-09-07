@@ -103,7 +103,7 @@ test.describe('Payment re-upload acceptance', () => {
       await managerPage.goto('/operations');
       const initialCard = managerPage.locator('article').filter({ hasText: booking.bookingNumber });
       await expect(initialCard).toBeVisible();
-      await initialCard.getByRole('button', { name: 'فتح المراجعة' }).click();
+      await initialCard.getByRole('button', { name: /مراجعة إثبات التحويل|فتح المراجعة/ }).click();
       await managerPage.locator('#proof-notes').fill('E2E amount is below the required deposit');
       await managerPage.getByRole('button', { name: 'المبلغ ناقص' }).click();
 
@@ -174,7 +174,7 @@ test.describe('Payment re-upload acceptance', () => {
       for (const page of [managerPage, secondManagerPage]) {
         const card = page.locator('article').filter({ hasText: booking.bookingNumber });
         await expect(card).toBeVisible();
-        await card.getByRole('button', { name: 'فتح المراجعة' }).click();
+        await card.getByRole('button', { name: /مراجعة إثبات التحويل|فتح المراجعة/ }).click();
         await expect(page.getByRole('dialog')).toContainText(booking.bookingNumber);
       }
       await Promise.all([

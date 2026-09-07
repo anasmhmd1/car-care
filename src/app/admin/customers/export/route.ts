@@ -10,7 +10,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   await requireRole([UserRole.OWNER, UserRole.SYSTEM_SUPER_ADMIN, UserRole.OPERATIONS_MANAGER]);
 
   const searchParams = request.nextUrl.searchParams;
-  const query = searchParams.get('q')?.trim();
+  const query = (searchParams.get('q') || searchParams.get('customer_q'))?.trim();
 
   const whereClause = query
     ? {

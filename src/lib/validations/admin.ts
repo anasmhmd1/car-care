@@ -214,12 +214,30 @@ export const profileUpdateSchema = z.object({
 // customer into a workforce or owner account.
 export const ownerCustomerAccountSchema = z.object({
   customerId: databaseIdSchema,
-  fullName: z.string().min(2).max(100),
+  fullName: z
+    .string({ required_error: 'الاسم الكامل مطلوب' })
+    .min(2, 'الاسم الكامل يجب أن يتكون من حرفين على الأقل')
+    .max(100, 'الاسم الكامل يجب ألا يتجاوز 100 حرف'),
   phone: phoneSchema,
   whatsapp: optionalPhoneSchema,
-  email: z.string().email().optional().or(z.literal('')).default(''),
-  active: z.enum(['true', 'false']).transform((value) => value === 'true'),
-  notes: z.string().max(1000).optional().default(''),
+  email: z
+    .string()
+    .email('البريد الإلكتروني غير صالح')
+    .optional()
+    .or(z.literal(''))
+    .default(''),
+  active: z
+    .union([
+      z.enum(['true', 'false']).transform((value) => value === 'true'),
+      z.boolean(),
+      z.literal('').transform(() => undefined),
+    ])
+    .optional(),
+  notes: z
+    .string()
+    .max(1000, 'الملاحظات يجب ألا تتجاوز 1000 حرف')
+    .optional()
+    .default(''),
   temporaryPassword: z
     .string()
     .max(128)

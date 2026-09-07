@@ -603,7 +603,7 @@ export async function uploadPaymentProofAction(formData: FormData) {
   const parsed = uploadPaymentProofSchema.safeParse({
     bookingId: formData.get('bookingId'),
     paymentMethodId: formData.get('paymentMethodId'),
-    bookingFileId: formData.get('bookingFileId'),
+    bookingFileId: formData.get('bookingFileId') || formData.get('evidenceFileId'),
     senderName: formData.get('senderName'),
     senderPhoneOrAccount: formData.get('senderPhoneOrAccount'),
     referenceNumber: formData.get('referenceNumber') || '',

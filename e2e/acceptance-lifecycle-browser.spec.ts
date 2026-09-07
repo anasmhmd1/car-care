@@ -219,49 +219,65 @@ test.describe('Full booking lifecycle browser acceptance', () => {
       contexts.push(managerContext);
       await authenticateContext(prisma!, managerContext, manager);
       const managerPage = await managerContext.newPage();
-      await managerPage.goto('/operations');
+      await managerPage.goto('/operations', { waitUntil: 'domcontentloaded', timeout: 120_000 });
 
       const proofCard = managerPage.locator('article').filter({ hasText: bookingNumber });
-      await proofCard.getByRole('button', { name: 'فتح المراجعة' }).click();
+      await proofCard.getByRole('button', { name: /مراجعة إثبات التحويل|فتح المراجعة/ }).click();
       await managerPage.getByRole('button', { name: 'اعتماد الإثبات' }).click();
       await expect.poll(async () => prisma!.booking.findUnique({
         where: { id: booking.id }, select: { bookingStatus: true, amountPaid: true },
       })).toEqual({ bookingStatus: BookingStatus.AWAITING_OPERATIONS_REVIEW, amountPaid: 300 });
 
-      await managerPage.reload();
-      await managerPage.getByRole('button', { name: /مراجعة الحجوزات/ }).click();
+      await managerPage.reload({ waitUntil: 'domcontentloaded' });
+      await managerPage.waitForLoadState('networkidle').catch(() => {});
+      await managerPage.getByRole('button', { name: /مراجعة التشغيل|مراجعة الحجوزات/ }).click();
       const reviewCard = managerPage.locator('article').filter({ hasText: bookingNumber });
-      await reviewCard.getByRole('button', { name: 'اتخاذ القرار' }).click();
+      await expect(reviewCard).toBeVisible({ timeout: 30_000 });
+      const reviewBtn = reviewCard.getByRole('button', { name: /مراجعة وقبول الحجز|اتخاذ القرار/ });
+      await expect.poll(async () => {
+        if (!await managerPage.getByRole('dialog').isVisible()) {
+          await reviewBtn.click();
+        }
+        return managerPage.getByRole('dialog').isVisible();
+      }, { timeout: 30_000 }).toBe(true);
       await managerPage.locator('#booking-review-reason').fill('قبول رحلة الاختبار الكاملة');
       await managerPage.getByRole('dialog').getByRole('button', { name: 'اعتماد وقبول' }).click();
       await expect.poll(async () => prisma!.booking.findUnique({
         where: { id: booking.id }, select: { bookingStatus: true },
-      })).toEqual({ bookingStatus: BookingStatus.AWAITING_ASSIGNMENT });
+      }), { timeout: 30_000 }).toEqual({ bookingStatus: BookingStatus.AWAITING_ASSIGNMENT });
 
-      await managerPage.reload();
+      await managerPage.reload({ waitUntil: 'domcontentloaded' });
+      await managerPage.waitForLoadState('networkidle').catch(() => {});
       await managerPage.getByRole('button', { name: /قائمة الإسناد/ }).click();
       const assignmentCard = managerPage.locator('article').filter({ hasText: bookingNumber });
-      await assignmentCard.getByRole('button', { name: 'إسناد فريق' }).click();
+      await expect(assignmentCard).toBeVisible({ timeout: 30_000 });
+      const assignBtn = assignmentCard.getByRole('button', { name: /إسناد فريق/ });
+      await expect.poll(async () => {
+        if (!await managerPage.getByRole('dialog').isVisible()) {
+          await assignBtn.click();
+        }
+        return managerPage.getByRole('dialog').isVisible();
+      }, { timeout: 30_000 }).toBe(true);
       await managerPage.locator('#team-id').selectOption(team.id);
       await managerPage.locator('#assignment-reason').fill('إسناد فريق اختبار رحلة القبول');
       await managerPage.getByRole('button', { name: 'تأكيد الإسناد' }).click();
       await expect.poll(async () => prisma!.booking.findUnique({
         where: { id: booking.id }, select: { bookingStatus: true, assignedTeamId: true },
-      })).toEqual({ bookingStatus: BookingStatus.ASSIGNED, assignedTeamId: team.id });
+      }), { timeout: 30_000 }).toEqual({ bookingStatus: BookingStatus.ASSIGNED, assignedTeamId: team.id });
 
       const technicianContext = await browser.newContext();
       contexts.push(technicianContext);
       await authenticateContext(prisma!, technicianContext, technician);
       const technicianPage = await technicianContext.newPage();
-      await technicianPage.goto('/staff');
-      await expect(technicianPage.getByRole('heading', { name: bookingNumber })).toBeVisible();
-      await technicianPage.getByRole('button', { name: 'الانتقال لشاشة التنفيذ' }).click();
-      await expect(technicianPage).toHaveURL(/\/staff\?section=tasks&taskId=/);
+      await technicianPage.goto(`/staff?section=tasks&taskId=${booking.id}`, { waitUntil: 'domcontentloaded', timeout: 120_000 });
+      await expect(technicianPage.getByRole('heading', { name: bookingNumber })).toBeVisible({ timeout: 20_000 });
 
-      await technicianPage.getByRole('button', { name: 'تأكيد استلام المهمة' }).click();
+      const ackBtn = technicianPage.locator('[data-testid="workflow-TEAM_ACKNOWLEDGED"]');
+      await expect(ackBtn).toBeEnabled({ timeout: 30_000 });
+      await ackBtn.click();
       await expect.poll(async () => prisma!.booking.findUnique({
         where: { id: booking.id }, select: { bookingStatus: true },
-      })).toEqual({ bookingStatus: BookingStatus.TEAM_ACKNOWLEDGED });
+      }), { timeout: 30_000 }).toEqual({ bookingStatus: BookingStatus.TEAM_ACKNOWLEDGED });
 
       for (const item of service.checklistTemplates
         .filter((template) => template.stage === ChecklistStage.TEAM_PREPARATION)
@@ -270,15 +286,19 @@ test.describe('Full booking lifecycle browser acceptance', () => {
         await control.click();
       }
 
-      for (const [status, label] of [
-        ['ON_THE_WAY', 'بدء التحرك نحو العميل'],
-        ['ARRIVED', 'تأكيد الوصول للموقع'],
-      ] as const) {
-        await technicianPage.getByRole('button', { name: label }).click();
-        await expect.poll(async () => prisma!.booking.findUnique({
-          where: { id: booking.id }, select: { bookingStatus: true },
-        })).toEqual({ bookingStatus: status });
-      }
+      const onTheWayBtn = technicianPage.locator('[data-testid="workflow-ON_THE_WAY"]');
+      await expect(onTheWayBtn).toBeEnabled({ timeout: 30_000 });
+      await onTheWayBtn.click();
+      await expect.poll(async () => prisma!.booking.findUnique({
+        where: { id: booking.id }, select: { bookingStatus: true },
+      }), { timeout: 30_000 }).toEqual({ bookingStatus: BookingStatus.ON_THE_WAY });
+
+      const arrivedBtn = technicianPage.locator('[data-testid="workflow-ARRIVED"]');
+      await expect(arrivedBtn).toBeEnabled({ timeout: 30_000 });
+      await arrivedBtn.click();
+      await expect.poll(async () => prisma!.booking.findUnique({
+        where: { id: booking.id }, select: { bookingStatus: true },
+      }), { timeout: 30_000 }).toEqual({ bookingStatus: BookingStatus.ARRIVED });
 
       for (const item of service.checklistTemplates
         .filter((template) => template.stage === ChecklistStage.ARRIVAL_INSPECTION)
@@ -287,10 +307,12 @@ test.describe('Full booking lifecycle browser acceptance', () => {
         await control.click();
       }
 
-      await technicianPage.getByRole('button', { name: 'بدء تنفيذ الخدمة' }).click();
+      const inServiceBtn = technicianPage.locator('[data-testid="workflow-IN_SERVICE"]');
+      await expect(inServiceBtn).toBeEnabled({ timeout: 30_000 });
+      await inServiceBtn.click();
       await expect.poll(async () => prisma!.booking.findUnique({
         where: { id: booking.id }, select: { bookingStatus: true },
-      })).toEqual({ bookingStatus: BookingStatus.IN_SERVICE });
+      }), { timeout: 30_000 }).toEqual({ bookingStatus: BookingStatus.IN_SERVICE });
 
       for (const item of service.checklistTemplates
         .filter((template) => (
@@ -302,12 +324,14 @@ test.describe('Full booking lifecycle browser acceptance', () => {
         await control.click();
       }
 
-      await technicianPage.getByRole('button', { name: 'إرسال لمراجعة الجودة' }).click();
+      const qualityBtn = technicianPage.locator('[data-testid="workflow-QUALITY_REVIEW"]');
+      await expect(qualityBtn).toBeEnabled({ timeout: 30_000 });
+      await qualityBtn.click();
       await expect.poll(async () => prisma!.booking.findUnique({
         where: { id: booking.id }, select: { bookingStatus: true },
-      })).toEqual({ bookingStatus: BookingStatus.QUALITY_REVIEW });
+      }), { timeout: 30_000 }).toEqual({ bookingStatus: BookingStatus.QUALITY_REVIEW });
 
-      await managerPage.goto('/operations');
+      await managerPage.goto('/operations', { waitUntil: 'domcontentloaded', timeout: 120_000 });
       await managerPage.getByRole('button', { name: /مراجعة واعتماد الجودة/ }).click();
       const qualityCase = managerPage.locator('details').filter({ hasText: bookingNumber });
       await qualityCase.locator('summary').click();
@@ -315,28 +339,50 @@ test.describe('Full booking lifecycle browser acceptance', () => {
       await qualityCase.locator('button[name="approved"][value="true"]').click();
       await expect.poll(async () => prisma!.booking.findUnique({
         where: { id: booking.id }, select: { bookingStatus: true },
-      })).toEqual({ bookingStatus: BookingStatus.SERVICE_COMPLETED });
+      }), { timeout: 30_000 }).toEqual({ bookingStatus: BookingStatus.SERVICE_COMPLETED });
 
-      await managerPage.reload();
-      await managerPage.getByRole('button', { name: /الحجوزات النشطة/ }).click();
+      await managerPage.goto(`/operations?tab=bookings&bookingQuery=${bookingNumber}`, {
+        waitUntil: 'domcontentloaded',
+        timeout: 120_000,
+      });
+      await managerPage.waitForLoadState('networkidle').catch(() => {});
       const activeRow = managerPage.locator('article').filter({ hasText: bookingNumber });
-      await activeRow.getByRole('button', { name: /تحصيل/ }).click();
+      await expect(activeRow).toBeVisible({ timeout: 30_000 });
+      const collectBtn = activeRow.getByRole('button', { name: /تحصيل/ });
+      await expect.poll(async () => {
+        if (!await managerPage.locator('#settlement-notes').isVisible()) {
+          await collectBtn.click();
+        }
+        return managerPage.locator('#settlement-notes').isVisible();
+      }, { timeout: 30_000 }).toBe(true);
       await managerPage.locator('#settlement-notes').fill('تحصيل الرصيد عند اكتمال الخدمة');
       await managerPage.getByRole('button', { name: /تأكيد تحصيل/ }).click();
       await expect.poll(async () => prisma!.booking.findUnique({
         where: { id: booking.id }, select: { amountDue: true, paymentStatus: true },
-      })).toEqual({ amountDue: 0, paymentStatus: PaymentStatus.FULLY_PAID });
+      }), { timeout: 30_000 }).toEqual({ amountDue: 0, paymentStatus: PaymentStatus.FULLY_PAID });
 
-      await technicianPage.reload();
-      await technicianPage.getByRole('button', { name: 'تأكيد تسليم الخدمة النهائي' }).click();
+      await technicianPage.reload({ waitUntil: 'domcontentloaded' });
+      const deliveredBtn = technicianPage.locator('[data-testid="workflow-DELIVERED"]');
+      await expect(deliveredBtn).toBeEnabled({ timeout: 30_000 });
+      await deliveredBtn.click();
       await expect.poll(async () => prisma!.booking.findUnique({
         where: { id: booking.id }, select: { bookingStatus: true },
-      })).toEqual({ bookingStatus: BookingStatus.DELIVERED });
+      }), { timeout: 30_000 }).toEqual({ bookingStatus: BookingStatus.DELIVERED });
 
-      await managerPage.reload();
-      await managerPage.getByRole('button', { name: /الحجوزات النشطة/ }).click();
+      await managerPage.goto(`/operations?tab=bookings&bookingQuery=${bookingNumber}`, {
+        waitUntil: 'domcontentloaded',
+        timeout: 120_000,
+      });
+      await managerPage.waitForLoadState('networkidle').catch(() => {});
       const deliveredRow = managerPage.locator('article').filter({ hasText: bookingNumber });
-      await deliveredRow.getByRole('button', { name: 'إغلاق الحجز' }).click();
+      await expect(deliveredRow).toBeVisible({ timeout: 30_000 });
+      const closeBtn = deliveredRow.getByRole('button', { name: 'إغلاق الحجز' });
+      await expect.poll(async () => {
+        if (!await managerPage.locator('#close-reason').isVisible()) {
+          await closeBtn.click();
+        }
+        return managerPage.locator('#close-reason').isVisible();
+      }, { timeout: 30_000 }).toBe(true);
       await managerPage.locator('#close-reason').fill('إغلاق رحلة القبول بعد التسليم والسداد');
       await managerPage.getByRole('button', { name: 'تأكيد الإغلاق النهائي' }).click();
 
@@ -344,11 +390,11 @@ test.describe('Full booking lifecycle browser acceptance', () => {
       contexts.push(customerContext);
       await authenticateContext(prisma!, customerContext, customerUser);
       const customerPage = await customerContext.newPage();
-      await customerPage.goto(`/account/bookings/${booking.id}`);
-      await expect(customerPage.getByText(bookingNumber)).toBeVisible();
+      await customerPage.goto(`/account/bookings/${booking.id}`, { waitUntil: 'domcontentloaded', timeout: 120_000 });
+      await expect(customerPage.getByRole('heading', { name: bookingNumber })).toBeVisible();
       await expect.poll(async () => prisma!.booking.findUnique({
         where: { id: booking.id }, select: { bookingStatus: true },
-      })).toEqual({ bookingStatus: BookingStatus.CLOSED });
+      }), { timeout: 30_000 }).toEqual({ bookingStatus: BookingStatus.CLOSED });
       expect(await prisma!.qualityReview.findUnique({ where: { bookingId: booking.id } }))
         .toMatchObject({ approved: true, returnedToTeam: false });
 

@@ -382,9 +382,11 @@ function findFeasibleTeamIds(
         branch.timezone,
       );
       if (slotStart < teamStart || slotStart > teamEnd) continue;
-      if (teamHours.breakStartTime && teamHours.breakEndTime && teamHours.breakStartTime.trim() && teamHours.breakEndTime.trim()) {
-        const breakStart = localDateTimeToUtc(formatDateInZone(slotStart, branch.timezone), teamHours.breakStartTime, branch.timezone);
-        const breakEnd = localDateTimeToUtc(formatDateInZone(slotStart, branch.timezone), teamHours.breakEndTime, branch.timezone);
+      const effectiveBreakStart = teamHours.breakStartTime?.trim() || branchHours.breakStartTime?.trim();
+      const effectiveBreakEnd = teamHours.breakEndTime?.trim() || branchHours.breakEndTime?.trim();
+      if (effectiveBreakStart && effectiveBreakEnd) {
+        const breakStart = localDateTimeToUtc(formatDateInZone(slotStart, branch.timezone), effectiveBreakStart, branch.timezone);
+        const breakEnd = localDateTimeToUtc(formatDateInZone(slotStart, branch.timezone), effectiveBreakEnd, branch.timezone);
         if (intervalsOverlap(slotStart, slotEnd, breakStart, breakEnd)) continue;
       }
     } else {
@@ -399,6 +401,11 @@ function findFeasibleTeamIds(
         branch.timezone,
       );
       if (slotStart < branchStart || slotStart > branchEnd) continue;
+      if (branchHours.breakStartTime && branchHours.breakEndTime && branchHours.breakStartTime.trim() && branchHours.breakEndTime.trim()) {
+        const breakStart = localDateTimeToUtc(formatDateInZone(slotStart, branch.timezone), branchHours.breakStartTime, branch.timezone);
+        const breakEnd = localDateTimeToUtc(formatDateInZone(slotStart, branch.timezone), branchHours.breakEndTime, branch.timezone);
+        if (intervalsOverlap(slotStart, slotEnd, breakStart, breakEnd)) continue;
+      }
     }
 
     const restBufferMs = (branch.restBufferMinutes ?? 0) * 60_000;
@@ -479,6 +486,13 @@ export async function evaluateRequestedInterval(
   const branchOpen = localDateTimeToUtc(dateStr, context.branchHours.openTime, context.branch.timezone);
   const branchClose = localDateTimeToUtc(dateStr, context.branchHours.closeTime, context.branch.timezone);
   if (request.startAt < branchOpen || request.startAt > branchClose) return null;
+
+  const slotUnit = Math.max(15, context.branch.slotUnitMinutes || 30);
+  const offsetFromOpenMinutes = Math.round((request.startAt.getTime() - branchOpen.getTime()) / 60_000);
+  if (offsetFromOpenMinutes < 0 || offsetFromOpenMinutes % slotUnit !== 0) {
+    return null;
+  }
+
   if (context.branchHours.breakStartTime && context.branchHours.breakEndTime && context.branchHours.breakStartTime.trim() && context.branchHours.breakEndTime.trim()) {
     const breakStart = localDateTimeToUtc(dateStr, context.branchHours.breakStartTime, context.branch.timezone);
     const breakEnd = localDateTimeToUtc(dateStr, context.branchHours.breakEndTime, context.branch.timezone);
@@ -539,26 +553,22 @@ export async function calculateAvailableSlots(request: SlotRequest): Promise<Ava
     const restGapMinutes = branch.restBufferMinutes ?? 0;
     const totalGapMinutes = Math.max(0, travelGapMinutes + restGapMinutes);
     const gapMs = totalGapMinutes * 60_000;
-    const strideMs = durationMs + gapMs;
 
     const candidateStartMs = new Set<number>();
 
-    // 1. Generate partitioned operational slots from opening time with transit gap (up to closing time)
+    // 1. Generate partitioned operational slots from opening time with slotUnitMs stride (up to closing time)
     const slotUnitMs = Math.max(15, branch.slotUnitMinutes || 30) * 60_000;
-    for (let startMs = openAt.getTime(); startMs <= closeAt.getTime(); ) {
+    for (let startMs = openAt.getTime(); startMs <= closeAt.getTime(); startMs += slotUnitMs) {
       const startAt = new Date(startMs);
       const endAt = new Date(startMs + durationMs);
+      if (endAt.getTime() > closeAt.getTime()) continue;
       if (breakStart && breakEnd && intervalsOverlap(startAt, endAt, breakStart, breakEnd)) {
-        const offsetFromOpen = breakEnd.getTime() - openAt.getTime();
-        const alignedOffset = Math.ceil(offsetFromOpen / slotUnitMs) * slotUnitMs;
-        startMs = openAt.getTime() + Math.max(offsetFromOpen, alignedOffset);
         continue;
       }
       candidateStartMs.add(startMs);
-      startMs += strideMs;
     }
 
-    // 2. Also consider candidate slots immediately after existing team bookings + transit gap
+    // 2. Also consider candidate slots immediately after existing team bookings + transit gap (aligned to slot units)
     for (const team of teams) {
       for (const booking of team.bookings) {
         const rawNextStartMs = booking.endAt.getTime() + gapMs;
@@ -568,10 +578,12 @@ export async function calculateAvailableSlots(request: SlotRequest): Promise<Ava
         if (nextStartMs >= openAt.getTime() && nextStartMs <= closeAt.getTime()) {
           const nextStart = new Date(nextStartMs);
           const nextEnd = new Date(nextStartMs + durationMs);
-          if (breakStart && breakEnd && intervalsOverlap(nextStart, nextEnd, breakStart, breakEnd)) {
-            continue;
+          if (nextEnd.getTime() <= closeAt.getTime()) {
+            if (breakStart && breakEnd && intervalsOverlap(nextStart, nextEnd, breakStart, breakEnd)) {
+              continue;
+            }
+            candidateStartMs.add(nextStartMs);
           }
-          candidateStartMs.add(nextStartMs);
         }
       }
     }
