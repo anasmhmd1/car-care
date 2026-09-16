@@ -20,8 +20,8 @@ export const DEFAULT_SERVICE_COLLECTIONS: ServiceCollection[] = [
     id: 'col_exterior',
     titleAr: 'العناية الخارجية بالدهان',
     badge: '',
-    descriptionAr: 'غسيل جاف ممتاز من بريق يعيد للمعان الدهان بريقه مع طبقة واكس واقية تمنع خدوش الغسيل التقليدي.',
-    image: '/images/bareeq_exterior_care.png',
+    descriptionAr: 'غسيل جاف فائق الاحترافية من كار كير يعيد للمعان الدهان بريقه مع طبقة واكس واقية تمنع خدوش الغسيل التقليدي.',
+    image: '/images/car_care_exterior.jpg',
     serviceIds: ['seed-service-essential', 'seed-service-complete', 'seed-service-vip'],
     active: true,
     priority: 1,
@@ -30,8 +30,8 @@ export const DEFAULT_SERVICE_COLLECTIONS: ServiceCollection[] = [
     id: 'col_interior',
     titleAr: 'العناية الداخلية وتنظيف الجلد',
     badge: '',
-    descriptionAr: 'منتجات ترطيب وتنظيف متخصصة تمنع جفاف وتشققات الجلد والتابلوه بدون روائح حادة.',
-    image: '/images/bareeq_interior_care.png',
+    descriptionAr: 'منتجات ترطيب وتنظيف متخصصة تمنع جفاف وتشققات الجلد والتابلوه بدون روائح حادة وبأعلى معايير الدقة.',
+    image: '/images/car_care_interior.jpg',
     serviceIds: ['seed-service-interior', 'seed-service-upholstery', 'seed-service-roof', 'seed-service-complete'],
     active: true,
     priority: 2,
@@ -40,8 +40,8 @@ export const DEFAULT_SERVICE_COLLECTIONS: ServiceCollection[] = [
     id: 'col_engine',
     titleAr: 'تنظيف حجرة الموتور بعناية',
     badge: '',
-    descriptionAr: 'تنظيف آمن ومدروس من بريق يمنع تعريض المكونات والدوائر الكهربائية للمياه أو المواد الضارة.',
-    image: '/images/bareeq_engine_care.png',
+    descriptionAr: 'تنظيف آمن ومدروس من كار كير يمنع تعريض المكونات والدوائر الكهربائية للمياه أو المواد الضارة.',
+    image: '/images/car_care_engine.jpg',
     serviceIds: ['seed-service-engine', 'seed-service-vip'],
     active: true,
     priority: 3,
@@ -49,12 +49,12 @@ export const DEFAULT_SERVICE_COLLECTIONS: ServiceCollection[] = [
 ];
 
 export const PRESET_COLLECTION_IMAGES = [
-  { label: 'عناية خارجية فاخرة', url: '/images/bareeq_exterior_care.png' },
-  { label: 'عناية داخلية وجلد', url: '/images/bareeq_interior_care.png' },
-  { label: 'حجرة الموتور والمحرك', url: '/images/bareeq_engine_care.png' },
-  { label: 'السيارة الشاملة (Hero)', url: '/images/bareeq_hero_car.png' },
-  { label: 'سيارة التشغيل المتنقلة', url: '/images/bareeq_banner_van.png' },
-  { label: 'منتجات بريق الـ 9', url: '/images/bareeq_dry_products_hq.jpg' },
+  { label: 'عناية خارجية فاخرة', url: '/images/car_care_exterior.jpg' },
+  { label: 'عناية داخلية وجلد', url: '/images/car_care_interior.jpg' },
+  { label: 'حجرة الموتور والمحرك', url: '/images/car_care_engine.jpg' },
+  { label: 'اللمعان الفائق (Paint Gloss)', url: '/images/car_care_paint_gloss.jpg' },
+  { label: 'سيارة التشغيل المتنقلة', url: '/images/car_care_van_banner.jpg' },
+  { label: 'منتجات كار كير الرسمية', url: '/images/car_care_products_banner.jpg' },
 ];
 
 /** Read and validate collections stored in BrandSettings or homepageContent */

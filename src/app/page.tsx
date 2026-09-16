@@ -482,11 +482,11 @@ export default async function HomePage() {
               </h2>
             </div>
 
-            {/* Ultra-Wide 16:9 BAREEQ Branded Panoramic Product Banner Image */}
+            {/* Ultra-Wide 16:9 CAR CARE Branded Panoramic Product Banner Image */}
             <div className="relative w-full rounded-2xl lg:rounded-3xl border border-[#cea355]/40 bg-[#070707] shadow-[0_15px_60px_rgba(0,0,0,0.95)] overflow-hidden group">
               <div className="relative w-full aspect-[16/9] sm:aspect-[16/8] lg:aspect-[16/7.5] overflow-hidden bg-[#070707]">
                 <PublicImage
-                  src="/images/bareeq_dry_products_hq.jpg"
+                  src="/images/car_care_products_banner.jpg"
                   alt="منتجات كار كير CAR CARE الرسمية للعناية الجافة بالسيارات"
                   sizes="100vw"
                   priority
@@ -653,7 +653,7 @@ export default async function HomePage() {
         <section className="relative py-32 overflow-hidden bg-black border-y border-neutral-800">
           <div className="absolute inset-0">
             <PublicImage
-              src="/images/bareeq_banner_van.png"
+              src="/images/car_care_van_banner.jpg"
               alt="سيارات تشغيل كار كير المجهزة بالكامل حتى باب منزلك"
               sizes="100vw"
               className="w-full h-full object-cover opacity-35 scale-105"
@@ -750,7 +750,7 @@ export default async function HomePage() {
                 <div className="w-13 h-13 rounded-2xl bg-[#cea355]/10 border border-[#cea355]/30 text-white flex items-center justify-center">
                   <ShieldCheck className="w-6 h-6 text-white" aria-hidden="true" />
                 </div>
-                <h3 className="text-xl font-bold text-white">ابتكار بريق: العناية الجافة 100%</h3>
+                <h3 className="text-xl font-bold text-white">ابتكار كار كير: العناية الجافة 100%</h3>
                 <ul className="space-y-2.5 text-xs text-neutral-300 leading-relaxed">
                   <li className="flex items-start gap-2">
                     <span className="text-[#cea355] font-bold">•</span>
@@ -782,7 +782,7 @@ export default async function HomePage() {
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
               <div className="text-center max-w-2xl mx-auto mb-16 space-y-3">
-                <h2 className="text-3xl sm:text-4xl font-black text-white">لمسات بريق — نتائج حقيقية تتحدث عن الدقة</h2>
+                <h2 className="text-3xl sm:text-4xl font-black text-white">لمسات كار كير — نتائج حقيقية تتحدث عن الدقة</h2>
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-3 gap-5">
@@ -813,7 +813,7 @@ export default async function HomePage() {
         <section className="py-28 bg-[#050505]">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-16 space-y-3">
-              <h2 className="text-3xl sm:text-4xl font-black text-white">الأسئلة الشائعة حول خدمات بريق</h2>
+              <h2 className="text-3xl sm:text-4xl font-black text-white">الأسئلة الشائعة حول خدمات كار كير</h2>
             </div>
 
             <div className="space-y-4">
