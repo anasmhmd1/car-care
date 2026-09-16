@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" fill="none">
+  <defs>
+    <linearGradient id="sq-gold-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f5e2b3" />
+      <stop offset="35%" stop-color="#dfb46c" />
+      <stop offset="70%" stop-color="#cea355" />
+      <stop offset="100%" stop-color="#9a712e" />
+    </linearGradient>
+    <filter id="sq-gold-glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="10" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Dark Background Rounded Container -->
+  <rect width="600" height="600" rx="40" fill="#0a0a0a" stroke="#cea355" stroke-width="2" stroke-opacity="0.3"/>
+
+  <!-- Ambient Glow behind emblem -->
+  <circle cx="300" cy="220" r="140" fill="#cea355" opacity="0.1" filter="url(#sq-gold-glow)"/>
+
+  <!-- Center Double-C Automotive Emblem -->
+  <g transform="translate(145, 90)">
+    <!-- Sports Car Silhouette Roofline -->
+    <path d="M 40 160 C 70 135, 115 105, 160 105 C 205 105, 240 130, 265 155" 
+          stroke="url(#sq-gold-grad)" stroke-width="6" stroke-linecap="round" fill="none"/>
+    <path d="M 265 155 C 280 165, 290 170, 298 174" 
+          stroke="url(#sq-gold-grad)" stroke-width="5" stroke-linecap="round" fill="none"/>
+    <path d="M 20 174 C 28 168, 38 163, 46 160" 
+          stroke="url(#sq-gold-grad)" stroke-width="5" stroke-linecap="round" fill="none"/>
+
+    <!-- First 'C' (Left Ring) -->
+    <path d="M 140 60 C 85 60, 40 105, 40 160 C 40 215, 85 260, 140 260 C 176 260, 206 240, 220 210 L 195 195 C 184 215, 163 231, 140 231 C 101 231, 69 199, 69 160 C 69 121, 101 89, 140 89 C 163 89, 184 105, 195 125 L 220 110 C 206 80, 176 60, 140 60 Z" 
+          fill="url(#sq-gold-grad)"/>
+
+    <!-- Second 'C' (Interlocking Right Ring) -->
+    <path d="M 205 60 C 168 60, 138 80, 124 110 L 149 125 C 160 105, 181 89, 205 89 C 244 89, 276 121, 276 160 C 276 199, 244 231, 205 231 C 181 231, 160 215, 149 195 L 124 210 C 138 240, 168 260, 205 260 C 260 260, 305 215, 305 160 C 305 105, 260 60, 205 60 Z" 
+          fill="url(#sq-gold-grad)"/>
+
+    <!-- Sparkle Stars -->
+    <path d="M 205 45 L 208 57 L 220 60 L 208 63 L 205 75 L 202 63 L 190 60 L 202 57 Z" fill="#ffffff"/>
+    <path d="M 298 150 L 300 157 L 307 159 L 300 161 L 298 168 L 296 161 L 289 159 L 296 157 Z" fill="#f5dfad"/>
+  </g>
+
+  <!-- Typography -->
+  <!-- CAR CARE -->
+  <text x="300" y="420" 
+        text-anchor="middle"
+        font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" 
+        font-size="52" 
+        font-weight="900" 
+        letter-spacing="9" 
+        fill="url(#sq-gold-grad)">
+    CAR CARE
+  </text>
+
+  <!-- كار كير -->
+  <text x="300" y="475" 
+        text-anchor="middle"
+        font-family="system-ui, -apple-system, 'Segoe UI', Tahoma, Arial, sans-serif" 
+        font-size="34" 
+        font-weight="800" 
+        letter-spacing="1" 
+        fill="#ffffff">
+    كار كير
+  </text>
+
+  <!-- Tagline -->
+  <text x="300" y="525" 
+        text-anchor="middle"
+        font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" 
+        font-size="16" 
+        font-weight="700" 
+        letter-spacing="6" 
+        fill="#b3b3b3">
+    LUXURY AUTO CARE
+  </text>
+</svg>

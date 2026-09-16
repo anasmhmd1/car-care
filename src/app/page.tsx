@@ -24,14 +24,14 @@ import {
 export const dynamic = 'force-dynamic';
 
 export const metadata = createPublicMetadata({
-  title: 'BAREEQ',
-  description: 'BAREEQ Premium Mobile Auto Care — official website.',
+  title: 'CAR CARE',
+  description: 'CAR CARE Premium Mobile Auto Care — official website.',
   path: '/',
 });
 
 function publicCustomerName(fullName: string) {
   const trimmed = fullName.trim();
-  return trimmed || 'عميل بريق';
+  return trimmed || 'عميل كار كير';
 }
 
 function isFaqList(value: unknown): value is Array<{ q: string; a: string }> {
@@ -112,23 +112,23 @@ export default async function HomePage() {
 
   const defaultFaqs = [
     {
-      q: 'هل تحتاج خدمة بريق لمصدر مياه أو كهرباء من موقع العميل؟',
-      a: 'لا نهائياً، سيارات تشغيل بريق مجهزة بالكامل بوحدات ذاتية ومعدات احترافية ومصادر خاصة للمهمة المتنقلة دون إزعاج بالكمبوند.'
+      q: 'هل تحتاج خدمة كار كير لمصدر مياه أو كهرباء من موقع العميل؟',
+      a: 'لا نهائياً، سيارات تشغيل كار كير مجهزة بالكامل بوحدات ذاتية ومعدات احترافية ومصادر خاصة للمهمة المتنقلة دون إزعاج بالكمبوند.'
     },
     {
-      q: 'لماذا تعتبر تقنية الغسيل الجاف من بريق أفضل من الغسيل بالمياه؟',
-      a: 'تعتمد بريق على 9 منتجات متخصصة ترفع الأتربة وتغلفها، مما يمنع الخدوش السطحية وبهتان الدهان ويحمي المحرك والكهرباء من أي تسريب للمياه.'
+      q: 'لماذا تعتبر تقنية الغسيل الجاف من كار كير أفضل من الغسيل بالمياه؟',
+      a: 'تعتمد كار كير على 9 منتجات متخصصة ترفع الأتربة وتغلفها، مما يمنع الخدوش السطحية وبهتان الدهان ويحمي المحرك والكهرباء من أي تسريب للمياه.'
     },
     {
-      q: 'كيف تضمن بريق حماية الدهان والسطح الخارجي؟',
+      q: 'كيف تضمن كار كير حماية الدهان والسطح الخارجي؟',
       a: 'تتضمن المواد طبقة واكس واقية تمنح السيارة لمعاناً زجاجياً فائقاً وتقلل التصاق الأتربة، مما يحافظ على القيمة السوقية لسيارتك.'
     },
     {
-      q: 'كيف تعمل باقات اشتراكات بريق الدورية في حساب العميل؟',
+      q: 'كيف تعمل باقات اشتراكات كار كير الدورية في حساب العميل؟',
       a: 'الاشتراك يمنحك رصيد زيارات دورية ثابتة شهرياً. عند اختيار موعد الحجز من حسابك، يتم استخدام بياناتك المحفوظة تلقائياً ويُطلب منك تحديد بيانات السيارة فقط.'
     },
     {
-      q: 'ما هي مناطق التغطية المتاحة حالياً لخدمة بريق؟',
+      q: 'ما هي مناطق التغطية المتاحة حالياً لخدمة كار كير؟',
       a: 'نغطي مختلف المناطق والكمبوندات الرئيسية عبر فروع تشغيلنا المجهزة ونضمن التزاماً تاماً بالمواعيد الدقيقة.'
     }
   ];
@@ -148,16 +148,16 @@ export default async function HomePage() {
         {/* ---------------------------------------------------- */}
         <section className="relative min-h-[85vh] lg:min-h-[750px] w-full flex flex-col justify-between overflow-hidden bg-[#000000] border-b border-neutral-900 pt-20 pb-8 lg:pt-24 lg:pb-12">
 
-          {/* Desktop Background: Full-Bleed Studio Van Photo */}
+          {/* Desktop Background: Full-Bleed Studio BMW Photo */}
           <div className="hidden lg:block absolute inset-0 z-0 overflow-hidden pointer-events-none">
             <PublicImage
-              src="/images/bareeq_hero_van_new.jpg"
+              src="/images/bareeq_user_bmw_hero_bg.png"
               alt="BAREEQ — Premium Mobile Auto Care"
               sizes="100vw"
               priority
               quality={100}
               unoptimized={true}
-              className="w-full h-full object-cover object-left-center scale-100"
+              className="w-full h-full object-cover object-center scale-100"
             />
             {/* Soft Ambient Contrast Vignette for Left Side text readability */}
             <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/40 to-transparent pointer-events-none z-[1]" />
@@ -243,16 +243,16 @@ export default async function HomePage() {
               </div>
             </div>
 
-            {/* Middle Visual: Complete uncropped Van image seamlessly blended into black background */}
+            {/* Middle Visual: BMW image seamlessly blended into black background */}
             <div className="w-full relative aspect-[4/3] xs:aspect-[1.38/1] overflow-hidden my-0">
               <PublicImage
-                src="/images/bareeq_hero_van_new.jpg"
-                alt="BAREEQ Mobile Care Van & Detailing Supplies"
+                src="/images/bareeq_user_bmw_hero_bg.png"
+                alt="BAREEQ Mobile Care BMW"
                 sizes="100vw"
                 priority
                 quality={100}
                 unoptimized={true}
-                className="w-full h-full object-contain xs:object-cover object-center"
+                className="w-full h-full object-cover object-center"
               />
               {/* Subtle narrow black blend vignette around edges to melt seamlessly into the background */}
               <div className="absolute inset-0 pointer-events-none [box-shadow:inset_0_0_12px_6px_#000000] z-[2]" />
@@ -478,7 +478,7 @@ export default async function HomePage() {
             {/* Section Header */}
             <div className="text-center max-w-4xl mx-auto px-2">
               <h2 className="text-2xl xs:text-3xl sm:text-4xl lg:text-5xl font-black text-white leading-snug sm:leading-tight lg:leading-[1.28] tracking-tight">
-                لماذا تختار غسيل <span className="gold-gradient-text">بريق</span> الجاف بدلاً من الغسيل التقليدي بالمياه؟
+                لماذا تختار غسيل <span className="gold-gradient-text">كار كير</span> الجاف بدلاً من الغسيل التقليدي بالمياه؟
               </h2>
             </div>
 
@@ -487,7 +487,7 @@ export default async function HomePage() {
               <div className="relative w-full aspect-[16/9] sm:aspect-[16/8] lg:aspect-[16/7.5] overflow-hidden bg-[#070707]">
                 <PublicImage
                   src="/images/bareeq_dry_products_hq.jpg"
-                  alt="منتجات بريق BAREEQ الرسمية للعناية الجافة بالسيارات"
+                  alt="منتجات كار كير CAR CARE الرسمية للعناية الجافة بالسيارات"
                   sizes="100vw"
                   priority
                   className="w-full h-full object-cover object-center scale-105 group-hover:scale-110 transition-transform duration-700"
@@ -577,7 +577,7 @@ export default async function HomePage() {
                     تجهيز كامل بدون إزعاج
                   </h3>
                   <p className="text-xs text-neutral-300 leading-relaxed">
-                    فريق بريق مجهز بوحدات تشغيل ذاتية كاملة دون الحاجة لمصدر مياه أو كهرباء من موقعك.
+                    فريق كار كير مجهز بوحدات تشغيل ذاتية كاملة دون الحاجة لمصدر مياه أو كهرباء من موقعك.
                   </p>
                 </div>
               </div>
@@ -654,7 +654,7 @@ export default async function HomePage() {
           <div className="absolute inset-0">
             <PublicImage
               src="/images/bareeq_banner_van.png"
-              alt="سيارات تشغيل بريق المجهزة بالكامل حتى باب منزلك"
+              alt="سيارات تشغيل كار كير المجهزة بالكامل حتى باب منزلك"
               sizes="100vw"
               className="w-full h-full object-cover opacity-35 scale-105"
             />
@@ -668,7 +668,7 @@ export default async function HomePage() {
               </h2>
 
               <p className="text-white text-sm sm:text-base leading-relaxed">
-                لا داعي لإضاعة ساعات الانتظار في المغاسل أو المخاطرة بالغسيل العشوائي. وحدات بريق المجهزة تصلك أينما كنت مع الالتزام التام بالمواعيد المحددة.
+                لا داعي لإضاعة ساعات الانتظار في المغاسل أو المخاطرة بالغسيل العشوائي. وحدات كار كير المجهزة تصلك أينما كنت مع الالتزام التام بالمواعيد المحددة.
               </p>
 
               <div className="pt-3">
@@ -695,7 +695,7 @@ export default async function HomePage() {
             <div className="text-center max-w-3xl mx-auto mb-16 space-y-3">
               <h2 className="text-3xl sm:text-4xl font-black text-white">لماذا يعتبر الغسيل التقليدي بالمياه خياراً خاطئاً؟</h2>
               <p className="text-neutral-400 text-xs sm:text-sm">
-                حقائق توضح الأضرار الناتجة عن الطرق التقليدية وكيف يحمي نظام بريق الجاف قيمة سيارتك.
+                حقائق توضح الأضرار الناتجة عن الطرق التقليدية وكيف يحمي نظام كار كير الجاف قيمة سيارتك.
               </p>
             </div>
 

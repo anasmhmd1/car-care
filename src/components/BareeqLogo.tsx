@@ -25,20 +25,20 @@ export default function BareeqLogo({
   }[size];
 
   const logoSrc = variant === 'header' 
-    ? '/images/bareeq_header_logo.svg' 
-    : '/images/bareeq_official_logo.svg';
+    ? '/images/car_care_header_logo.svg' 
+    : '/images/car_care_official_logo.svg';
 
   return (
     <div
       className={`inline-flex items-center select-none group ${className}`}
       dir="ltr"
       role="img"
-      aria-label="بريق | BAREEQ"
+      aria-label="كار كير | CAR CARE"
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={logoSrc}
-        alt="بريق | BAREEQ"
+        alt="كار كير | CAR CARE"
         className={`${heightClass} w-auto object-contain transition-transform duration-300 group-hover:scale-103 drop-shadow-[0_2px_14px_rgba(206,163,85,0.35)]`}
         loading="eager"
       />

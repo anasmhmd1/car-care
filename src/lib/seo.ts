@@ -11,7 +11,7 @@ function resolveSiteUrl() {
 }
 
 export const siteUrl = resolveSiteUrl();
-export const siteName = 'BAREEQ';
+export const siteName = 'CAR CARE';
 
 interface PublicMetadataOptions {
   title?: string;
@@ -20,11 +20,11 @@ interface PublicMetadataOptions {
 }
 
 export function createPublicMetadata({
-  title = 'BAREEQ',
+  title = 'CAR CARE',
   description,
   path,
 }: PublicMetadataOptions): Metadata {
-  const brandTitle = title === 'BAREEQ' ? 'BAREEQ' : `${title} | BAREEQ`;
+  const brandTitle = title === 'CAR CARE' ? 'CAR CARE | كار كير' : `${title} | CAR CARE`;
   return {
     title: brandTitle,
     description,
@@ -40,10 +40,10 @@ export function createPublicMetadata({
       type: 'website',
       images: [
         {
-          url: '/images/bareeq_official_logo.png',
+          url: '/images/car_care_official_logo.png',
           width: 1200,
           height: 630,
-          alt: 'BAREEQ',
+          alt: 'CAR CARE',
         },
       ],
     },
@@ -51,7 +51,7 @@ export function createPublicMetadata({
       card: 'summary_large_image',
       title: brandTitle,
       description,
-      images: ['/images/bareeq_official_logo.png'],
+      images: ['/images/car_care_official_logo.png'],
     },
   };
 }

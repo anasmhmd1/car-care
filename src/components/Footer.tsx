@@ -22,11 +22,11 @@ export default async function Footer({ initialSocialLinks }: FooterProps = {}) {
           
           {/* Brand Logo & Tagline */}
           <div className="space-y-3.5 max-w-xl flex flex-col items-center lg:items-start mx-auto lg:mx-0">
-            <Link href="/" aria-label="بريق — الصفحة الرئيسية" className="inline-block">
+            <Link href="/" aria-label="كار كير — الصفحة الرئيسية" className="inline-block">
               <BareeqLogo size="lg" />
             </Link>
             <p className="text-neutral-400 leading-relaxed text-xs sm:text-sm font-medium space-y-1 text-center lg:text-start">
-              <span className="block">بريق — براند عناية متنقلة فاخرة بالسيارات</span>
+              <span className="block">كار كير — براند عناية متنقلة فاخرة بالسيارات</span>
               <span className="block">يصلك في المنزل أو العمل بأحدث المعدات</span>
               <span className="block">وبأفضل مواد العناية المخصصة لكل جزء.</span>
             </p>
@@ -120,9 +120,9 @@ export default async function Footer({ initialSocialLinks }: FooterProps = {}) {
 
         {/* Bottom Copyright Bar */}
         <div className="border-t border-neutral-900/90 pt-6 flex flex-col sm:flex-row items-center justify-between text-xs text-neutral-500 gap-4 text-center sm:text-start">
-          <p>© {new Date().getFullYear()} BAREEQ (BAREEQ MOBILE CAR CARE). ALL RIGHTS RESERVED.</p>
+          <p>© {new Date().getFullYear()} CAR CARE (CAR CARE MOBILE AUTO CARE). ALL RIGHTS RESERVED.</p>
           <p className="flex items-center justify-center gap-2">
-            <span>نظام تشغيل خاص ببراند بريق</span>
+            <span>نظام تشغيل خاص ببراند كار كير</span>
             <span className="text-[#cea355]">•</span>
             <span translate="no">Premium Luxury Detailing</span>
           </p>

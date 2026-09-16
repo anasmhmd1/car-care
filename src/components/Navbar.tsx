@@ -156,7 +156,7 @@ export default function Navbar({ user }: NavbarProps) {
           {/* 3. BRAND LOGO (FAR LEFT; Toggles Mobile Menu Popup on Mobile) */}
           <div className="flex items-center shrink-0">
             {/* Desktop Brand Logo Link */}
-            <Link href="/" className="hidden md:flex items-center" aria-label="BAREEQ — Homepage">
+            <Link href="/" className="hidden md:flex items-center" aria-label="CAR CARE — Homepage">
               <BareeqLogo size="md" variant="header" />
             </Link>
 

@@ -16,33 +16,33 @@ const alexandria = Alexandria({
   variable: '--font-display',
 });
 
-const description = 'BAREEQ Premium Mobile Auto Care — official website.';
+const description = 'CAR CARE Premium Mobile Auto Care — official website.';
 
 export const metadata: Metadata = {
   metadataBase: siteUrl,
-  applicationName: 'بريق | BAREEQ',
+  applicationName: 'كار كير | CAR CARE',
   title: {
-    default: 'بريق | BAREEQ',
-    template: '%s | بريق BAREEQ',
+    default: 'كار كير | CAR CARE',
+    template: '%s | كار كير CAR CARE',
   },
   description,
-  keywords: ['غسيل سيارات متنقل', 'غسيل جاف', 'تفصيل سيارات', 'بريق', 'Bareeq', 'عناية بالسيارات', 'تلميع سيارات'],
+  keywords: ['غسيل سيارات متنقل', 'غسيل جاف', 'تفصيل سيارات', 'كار كير', 'Car Care', 'عناية بالسيارات', 'تلميع سيارات'],
   icons: {
     icon: '/icon.svg',
     shortcut: '/icon.svg',
     apple: '/icon.svg',
   },
   openGraph: {
-    title: 'BAREEQ',
+    title: 'CAR CARE',
     description,
     url: '/',
-    siteName: 'BAREEQ',
+    siteName: 'CAR CARE',
     images: [
       {
-        url: '/images/bareeq_official_logo.png',
+        url: '/images/car_care_official_logo.png',
         width: 1200,
         height: 630,
-        alt: 'BAREEQ',
+        alt: 'CAR CARE',
       },
     ],
     locale: 'ar_EG',
@@ -50,9 +50,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'BAREEQ',
+    title: 'CAR CARE',
     description,
-    images: ['/images/bareeq_official_logo.png'],
+    images: ['/images/car_care_official_logo.png'],
   },
   robots: {
     index: true,
@@ -71,8 +71,8 @@ const localBusinessJsonLd = {
   '@context': 'https://schema.org',
   '@type': 'LocalBusiness',
   '@id': `${siteUrl.origin}/#business`,
-  name: 'بريق للعناية المتنقلة بالسيارات',
-  alternateName: 'Bareeq Mobile Car Care',
+  name: 'كار كير للعناية المتنقلة بالسيارات',
+  alternateName: 'Car Care Mobile Auto Care',
   url: siteUrl.origin,
   logo: new URL('/logo.svg', siteUrl).toString(),
   image: new URL('/logo.svg', siteUrl).toString(),
