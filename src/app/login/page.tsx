@@ -73,7 +73,7 @@ function LoginPageContent({ callback }: { callback: string | null }) {
                 <span>تسجيل الدخول</span>
               </h1>
               <p className="text-xs sm:text-sm text-neutral-400 font-normal">
-                مرحباً بك مجدداً في تجربة بريق للعناية الفائقة
+                مرحباً بك مجدداً في تجربة كار كير للعناية الفائقة
               </p>
             </div>
           </div>

@@ -43,7 +43,7 @@ export default async function Footer({ initialSocialLinks }: FooterProps = {}) {
                   href={facebookUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  aria-label="صفحة بريق على فيسبوك"
+                  aria-label="صفحة كار كير على فيسبوك"
                   title="فيسبوك - Facebook"
                   className="w-11 h-11 rounded-2xl border border-neutral-800/90 bg-[#101010] hover:bg-[#18150f] hover:border-[#cea355]/60 text-neutral-400 hover:text-[#edce8b] flex items-center justify-center transition-all duration-200 shadow-md hover:shadow-lg hover:shadow-[#cea355]/10 active:scale-95 group"
                 >
@@ -63,7 +63,7 @@ export default async function Footer({ initialSocialLinks }: FooterProps = {}) {
                   href={tiktokUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  aria-label="حساب بريق على تيك توك"
+                  aria-label="حساب كار كير على تيك توك"
                   title="تيك توك - TikTok"
                   className="w-11 h-11 rounded-2xl border border-neutral-800/90 bg-[#101010] hover:bg-[#18150f] hover:border-[#cea355]/60 text-neutral-400 hover:text-[#edce8b] flex items-center justify-center transition-all duration-200 shadow-md hover:shadow-lg hover:shadow-[#cea355]/10 active:scale-95 group"
                 >
@@ -83,7 +83,7 @@ export default async function Footer({ initialSocialLinks }: FooterProps = {}) {
                   href={instagramUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  aria-label="حساب بريق على انستجرام"
+                  aria-label="حساب كار كير على انستجرام"
                   title="انستجرام - Instagram"
                   className="w-11 h-11 rounded-2xl border border-neutral-800/90 bg-[#101010] hover:bg-[#18150f] hover:border-[#cea355]/60 text-neutral-400 hover:text-[#edce8b] flex items-center justify-center transition-all duration-200 shadow-md hover:shadow-lg hover:shadow-[#cea355]/10 active:scale-95 group"
                 >

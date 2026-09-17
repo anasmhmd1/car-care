@@ -11,38 +11,45 @@ interface LogoProps {
 export default function BareeqLogo({
   className = '',
   size = 'md',
-  variant = 'official',
+  variant = 'header',
 }: LogoProps) {
-  // Height sizing for crisp responsive scaling
-  const heightClass = {
-    xs: 'h-6 sm:h-7',
-    sm: 'h-7 sm:h-8',
-    md: 'h-9 sm:h-11',
-    lg: 'h-12 sm:h-14',
-    xl: 'h-16 sm:h-20',
-    '2xl': 'h-24 sm:h-28',
-    '3xl': 'h-32 sm:h-40',
+  const sizeClasses = {
+    xs: 'text-xs sm:text-sm tracking-[0.18em]',
+    sm: 'text-sm sm:text-base tracking-[0.2em]',
+    md: 'text-lg sm:text-xl md:text-2xl tracking-[0.22em]',
+    lg: 'text-2xl sm:text-3xl tracking-[0.24em]',
+    xl: 'text-3xl sm:text-4xl tracking-[0.26em]',
+    '2xl': 'text-4xl sm:text-5xl tracking-[0.28em]',
+    '3xl': 'text-5xl sm:text-6xl tracking-[0.3em]',
   }[size];
 
-  const logoSrc = variant === 'header' 
-    ? '/images/car_care_header_logo.svg' 
-    : '/images/car_care_official_logo.svg';
+  const carColor =
+    variant === 'gold'
+      ? 'text-[#cea355]'
+      : variant === 'dark'
+      ? 'text-neutral-900'
+      : 'text-white';
+
+  const careColor =
+    variant === 'white'
+      ? 'text-white'
+      : variant === 'dark'
+      ? 'text-[#a67c33]'
+      : 'text-[#cea355]';
 
   return (
     <div
-      className={`inline-flex items-center select-none group ${className}`}
+      className={`inline-flex items-center select-none font-black uppercase font-sans transition-all duration-300 group ${sizeClasses} ${className}`}
       dir="ltr"
       role="img"
-      aria-label="كار كير | CAR CARE"
+      aria-label="CAR CARE"
     >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={logoSrc}
-        alt="كار كير | CAR CARE"
-        className={`${heightClass} w-auto object-contain transition-transform duration-300 group-hover:scale-103 drop-shadow-[0_2px_14px_rgba(206,163,85,0.35)]`}
-        loading="eager"
-      />
+      <span className={`${carColor} transition-colors duration-200 drop-shadow-[0_2px_8px_rgba(255,255,255,0.15)] group-hover:text-white`}>
+        CAR
+      </span>
+      <span className={`${careColor} ml-1.5 sm:ml-2 transition-colors duration-200 drop-shadow-[0_2px_14px_rgba(206,163,85,0.45)] group-hover:brightness-110`}>
+        CARE
+      </span>
     </div>
   );
 }
-
