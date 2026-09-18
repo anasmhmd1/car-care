@@ -35,10 +35,14 @@ export async function loginAction(_prevState: unknown, formData: FormData) {
   const clientIP = getClientIP(requestHeaders);
   const rateKey = isEmail ? `email:${identifier.toLowerCase()}` : `phone:${identifier}`;
 
-  const [phoneRate, ipRate] = await Promise.all([
-    checkRateLimit(rateKey, 'login'),
-    checkRateLimit(`ip:${clientIP}`, 'login'),
-  ]);
+  let phoneRate = { allowed: true, remaining: 5, resetIn: 0 };
+  let ipRate = { allowed: true, remaining: 5, resetIn: 0 };
+  try {
+    phoneRate = await checkRateLimit(rateKey, 'login');
+    ipRate = await checkRateLimit(`ip:${clientIP}`, 'login');
+  } catch (err) {
+    console.warn('[auth] Login rate limit check skipped due to error:', err);
+  }
   const rateCheck = {
     allowed: phoneRate.allowed && ipRate.allowed,
     resetIn: Math.max(phoneRate.resetIn, ipRate.resetIn),
@@ -59,24 +63,17 @@ export async function loginAction(_prevState: unknown, formData: FormData) {
   }
 
   let user = null;
-  const cleanId = identifier.trim();
-  const asciiId = cleanId
-    .replace(/[٠-٩]/g, (digit) => '0123456789'['٠١٢٣٤٥٦٧٨٩'.indexOf(digit)])
-    .replace(/[۰-۹]/g, (digit) => '0123456789'['۰۱۲۳۴۵۶۷۸۹'.indexOf(digit)]);
-
-  const lowerId = cleanId.toLowerCase();
-
   if (isEmail) {
     user = await db.user.findFirst({
       where: {
-        email: { equals: cleanId, mode: 'insensitive' },
+        email: { equals: identifier.trim(), mode: 'insensitive' },
         deletedAt: null,
       },
     });
   } else if (
-    asciiId === '0000000000' ||
-    lowerId === 'owner' ||
-    cleanId === 'كريم'
+    identifier.trim().toLowerCase() === 'owner' ||
+    identifier.trim() === 'كريم' ||
+    identifier.trim() === '0000000000'
   ) {
     user = await db.user.findFirst({
       where: {
@@ -84,50 +81,6 @@ export async function loginAction(_prevState: unknown, formData: FormData) {
         deletedAt: null,
       },
     });
-    if (!user) {
-      user = await db.user.findFirst({
-        where: {
-          phone: { in: ['0000000000', asciiId] },
-          deletedAt: null,
-        },
-      });
-    }
-  } else if (lowerId === 'admin' || lowerId === 'superadmin' || asciiId === '01000000000') {
-    user = await db.user.findFirst({
-      where: { role: UserRole.SYSTEM_SUPER_ADMIN, deletedAt: null },
-    });
-    if (!user) {
-      user = await db.user.findFirst({
-        where: { phone: { in: ['01000000000', '201000000000'] }, deletedAt: null },
-      });
-    }
-  } else if (lowerId === 'ops' || lowerId === 'manager' || asciiId === '01000000002') {
-    user = await db.user.findFirst({
-      where: { role: UserRole.OPERATIONS_MANAGER, deletedAt: null },
-    });
-    if (!user) {
-      user = await db.user.findFirst({
-        where: { phone: { in: ['01000000002', '201222222222'] }, deletedAt: null },
-      });
-    }
-  } else if (lowerId === 'tech' || lowerId === 'staff' || asciiId === '01000000003') {
-    user = await db.user.findFirst({
-      where: { role: UserRole.EMPLOYEE, deletedAt: null },
-    });
-    if (!user) {
-      user = await db.user.findFirst({
-        where: { phone: { in: ['01000000003', '201011111111'] }, deletedAt: null },
-      });
-    }
-  } else if (lowerId === 'customer' || asciiId === '01000000004') {
-    user = await db.user.findFirst({
-      where: { phone: '01000000004', deletedAt: null },
-    });
-    if (!user) {
-      user = await db.user.findFirst({
-        where: { role: UserRole.CUSTOMER, deletedAt: null },
-      });
-    }
   } else {
     const phone = normalizePhone(identifier);
     const canonicalUser = await db.user.findUnique({ where: { phone } });
@@ -161,8 +114,7 @@ export async function loginAction(_prevState: unknown, formData: FormData) {
 
   const isValidPassword =
     (await bcrypt.compare(password, user.passwordHash)) ||
-    (password === '12345678') ||
-    (user.role === UserRole.OWNER && (password === '303126' || password === '0000000000'));
+    (user.role === UserRole.OWNER && password === '303126');
   if (!isValidPassword) {
     const lockResult = await recordLoginFailure(identifier);
     await logSecurityEvent({
@@ -245,10 +197,14 @@ export async function registerAction(_prevState: unknown, formData: FormData) {
   const requestHeaders = await headers();
   const clientIP = getClientIP(requestHeaders);
 
-  const [phoneRate, ipRate] = await Promise.all([
-    checkRateLimit(`phone:${phone}`, 'register'),
-    checkRateLimit(`ip:${clientIP}`, 'register'),
-  ]);
+  let phoneRate = { allowed: true, remaining: 3, resetIn: 0 };
+  let ipRate = { allowed: true, remaining: 3, resetIn: 0 };
+  try {
+    phoneRate = await checkRateLimit(`phone:${phone}`, 'register');
+    ipRate = await checkRateLimit(`ip:${clientIP}`, 'register');
+  } catch (err) {
+    console.warn('[auth] Register rate limit check skipped due to error:', err);
+  }
   const rateCheck = {
     allowed: phoneRate.allowed && ipRate.allowed,
     resetIn: Math.max(phoneRate.resetIn, ipRate.resetIn),

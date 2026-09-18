@@ -511,10 +511,14 @@ export async function requestPasswordResetAction(formData: FormData) {
   const requestHeaders = await headers();
   const clientIP = getClientIP(requestHeaders);
   const userAgent = requestHeaders.get('user-agent')?.slice(0, 1000) ?? null;
-  const [phoneRate, ipRate] = await Promise.all([
-    checkRateLimit(`phone:${phone}`, 'password-reset'),
-    checkRateLimit(`ip:${clientIP}`, 'password-reset'),
-  ]);
+  let phoneRate = { allowed: true, remaining: 3, resetIn: 0 };
+  let ipRate = { allowed: true, remaining: 3, resetIn: 0 };
+  try {
+    phoneRate = await checkRateLimit(`phone:${phone}`, 'password-reset');
+    ipRate = await checkRateLimit(`ip:${clientIP}`, 'password-reset');
+  } catch (err) {
+    console.warn('[customer] Password-reset rate limit check skipped due to error:', err);
+  }
   if (!phoneRate.allowed || !ipRate.allowed) {
     await logSecurityEvent({
       eventType: 'RATE_LIMIT_EXCEEDED',
