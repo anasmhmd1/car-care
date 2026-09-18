@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BookingStatus, UserRole, VehicleSize } from '@prisma/client';
 import { intervalsOverlap, localDateTimeToUtc } from '@/lib/engine/time';
 import { rescheduleBookingByOperationsSchema } from '@/lib/validations/operations';
@@ -212,10 +212,16 @@ describe('Reschedule Slots & Break Time Conflict Validation (نظام الفتر
     };
 
     beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-09-10T08:00:00.000Z'));
       vi.clearAllMocks();
       mocks.requireRole.mockResolvedValue(defaultManager);
       mocks.canAccessBranch.mockResolvedValue(true);
       mocks.bookingFindUnique.mockResolvedValue(mockBooking);
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
     });
 
     it('rejects unaligned slot time (e.g. 14:45 when slotUnitMinutes is 30) with clear Arabic error', async () => {
