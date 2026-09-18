@@ -360,10 +360,10 @@ async function main() {
     },
     {
       key: 'owner',
-      fullName: 'كريم',
-      phone: '201111111111',
+      fullName: 'المالك',
+      phone: '0000000000',
       email: 'bbareeq1@gmail.com',
-      whatsapp: '201111111111',
+      whatsapp: '0000000000',
       role: UserRole.OWNER,
       passwordHash: sharedPasswordHash,
     },
@@ -443,22 +443,10 @@ async function main() {
 
   const users = new Map<string, { id: string; phone: string; fullName: string; role: UserRole }>();
   for (const definition of userDefinitions) {
+    const userId = 'seed-user-' + definition.key;
     const user = await prisma.user.upsert({
-      where: { phone: definition.phone },
+      where: { id: userId },
       update: {
-        fullName: definition.fullName,
-        email: definition.email,
-        whatsapp: definition.whatsapp,
-        passwordHash: definition.passwordHash,
-        role: definition.role,
-        active: true,
-        mustChangePwd: true,
-        deletedAt: null,
-        deletedByUserId: null,
-        deleteReason: null,
-      },
-      create: {
-        id: 'seed-user-' + definition.key,
         fullName: definition.fullName,
         phone: definition.phone,
         email: definition.email,
@@ -466,7 +454,21 @@ async function main() {
         passwordHash: definition.passwordHash,
         role: definition.role,
         active: true,
-        mustChangePwd: true,
+        mustChangePwd: false,
+        deletedAt: null,
+        deletedByUserId: null,
+        deleteReason: null,
+      },
+      create: {
+        id: userId,
+        fullName: definition.fullName,
+        phone: definition.phone,
+        email: definition.email,
+        whatsapp: definition.whatsapp,
+        passwordHash: definition.passwordHash,
+        role: definition.role,
+        active: true,
+        mustChangePwd: false,
       },
     });
     users.set(definition.key, user);

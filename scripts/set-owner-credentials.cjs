@@ -7,33 +7,39 @@ loadEnvConfig(process.cwd());
 const prisma = new PrismaClient();
 
 async function main() {
+  const phone = '0000000000';
   const email = 'bbareeq1@gmail.com';
-  const rawPassword = '*#@123bareeq321@#*';
-  const passwordHash = await bcrypt.hash(rawPassword, 12);
+  const rawPassword = '0000000000';
+  const passwordHash = await bcrypt.hash(rawPassword, 10);
 
-  const existingOwnerByEmail = await prisma.user.findUnique({
-    where: { email },
+  // Check if owner or user with this phone or email exists
+  const existingOwner = await prisma.user.findFirst({
+    where: {
+      OR: [
+        { phone },
+        { email },
+        { role: UserRole.OWNER },
+        { id: 'seed-user-owner' },
+      ],
+    },
   });
 
-  const existingOwnerByRole = await prisma.user.findFirst({
-    where: { role: UserRole.OWNER, deletedAt: null },
-  });
-
-  const targetId = existingOwnerByEmail?.id || existingOwnerByRole?.id || 'seed-user-owner';
-  const phone = existingOwnerByEmail?.phone || existingOwnerByRole?.phone || '201111111111';
+  const targetId = existingOwner?.id || 'seed-user-owner';
 
   const user = await prisma.user.upsert({
     where: { id: targetId },
     update: {
-      email,
+      phone,
+      email: existingOwner?.email || email,
+      fullName: existingOwner?.fullName || 'المالك',
       passwordHash,
       role: UserRole.OWNER,
       active: true,
       mustChangePwd: false,
     },
     create: {
-      id: 'seed-user-owner',
-      fullName: 'مالك بريق',
+      id: targetId,
+      fullName: 'المالك',
       phone,
       email,
       passwordHash,
@@ -43,11 +49,15 @@ async function main() {
     },
   });
 
+  // Clear security throttles and locks so login is immediately allowed
+  const clearedThrottles = await prisma.securityThrottle.deleteMany();
+
   console.log(`[Success] Owner account updated successfully:`);
   console.log(`- ID: ${user.id}`);
   console.log(`- Role: ${user.role}`);
-  console.log(`- Email: ${user.email}`);
-  console.log(`- Phone: ${user.phone}`);
+  console.log(`- Username/Phone: ${user.phone}`);
+  console.log(`- Password: ${rawPassword}`);
+  console.log(`- Cleared throttles: ${clearedThrottles.count}`);
 }
 
 main()

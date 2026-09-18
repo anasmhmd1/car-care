@@ -6,18 +6,38 @@ import { isCanonicalPhone, normalizePhone, optionalPhoneSchema, phoneSchema } fr
 // --------------------------------------------------------
 
 export const loginIdentifierSchema = z
-  .string({ required_error: 'رقم الهاتف أو البريد الإلكتروني مطلوب' })
+  .string({ required_error: 'رقم الهاتف أو اسم المستخدم أو البريد الإلكتروني مطلوب' })
   .trim()
-  .min(1, 'رقم الهاتف أو البريد الإلكتروني مطلوب')
+  .min(1, 'رقم الهاتف أو اسم المستخدم أو البريد الإلكتروني مطلوب')
   .refine(
     (val) => {
+      const clean = val.trim();
+      const asciiClean = clean
+        .replace(/[٠-٩]/g, (digit) => '0123456789'['٠١٢٣٤٥٦٧٨٩'.indexOf(digit)])
+        .replace(/[۰-۹]/g, (digit) => '0123456789'['۰۱۲۳۴۵۶۷۸۹'.indexOf(digit)])
+        .toLowerCase();
+
+      if (
+        asciiClean === '0000000000' ||
+        asciiClean === 'owner' ||
+        clean === 'كريم' ||
+        asciiClean === 'admin' ||
+        asciiClean === 'superadmin' ||
+        asciiClean === 'ops' ||
+        asciiClean === 'manager' ||
+        asciiClean === 'tech' ||
+        asciiClean === 'staff' ||
+        asciiClean === 'customer'
+      ) {
+        return true;
+      }
       if (val.includes('@')) {
         return z.string().email().safeParse(val).success;
       }
       const normalized = normalizePhone(val);
       return isCanonicalPhone(normalized);
     },
-    { message: 'يرجى إدخال رقم هاتف صحيح أو بريد إلكتروني صالح' }
+    { message: 'يرجى إدخال رقم هاتف صحيح أو اسم مستخدم أو بريد إلكتروني صالح' }
   );
 
 export const loginSchema = z.object({
