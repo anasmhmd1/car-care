@@ -7,17 +7,14 @@ loadEnvConfig(process.cwd());
 const prisma = new PrismaClient();
 
 async function main() {
-  const phone = '0000000000';
-  const email = 'bbareeq1@gmail.com';
-  const rawPassword = '0000000000';
+  const rawPassword = '303126';
   const passwordHash = await bcrypt.hash(rawPassword, 10);
 
   // Check if owner or user with this phone or email exists
   const existingOwner = await prisma.user.findFirst({
     where: {
       OR: [
-        { phone },
-        { email },
+        { email: 'bbareeq1@gmail.com' },
         { role: UserRole.OWNER },
         { id: 'seed-user-owner' },
       ],
@@ -25,13 +22,16 @@ async function main() {
   });
 
   const targetId = existingOwner?.id || 'seed-user-owner';
+  const phone = existingOwner?.phone || '201111111111';
+  const email = existingOwner?.email || 'bbareeq1@gmail.com';
+  const fullName = existingOwner?.fullName || 'كريم';
 
   const user = await prisma.user.upsert({
     where: { id: targetId },
     update: {
       phone,
-      email: existingOwner?.email || email,
-      fullName: existingOwner?.fullName || 'المالك',
+      email,
+      fullName,
       passwordHash,
       role: UserRole.OWNER,
       active: true,
