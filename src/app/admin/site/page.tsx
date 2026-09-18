@@ -85,6 +85,7 @@ export default async function AdminSiteContentPage({ searchParams }: AdminSiteCo
         phone: true,
         whatsapp: true,
         status: true,
+        slotUnitMinutes: true,
       },
       orderBy: { createdAt: 'asc' },
     }),

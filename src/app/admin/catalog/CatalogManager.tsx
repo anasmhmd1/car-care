@@ -203,7 +203,7 @@ export interface CatalogServiceDto {
 
 export interface CatalogManagerProps {
   services: CatalogServiceDto[];
-  branches: Array<{ id: string; nameAr: string }>;
+  branches: Array<{ id: string; nameAr: string; slotUnitMinutes?: number }>;
   materials: CatalogMaterialDto[];
   initialServiceId?: string | null;
   isNew?: boolean;
@@ -255,7 +255,7 @@ function ProductEditor({
   onServiceSaved,
 }: {
   service?: CatalogServiceDto;
-  branches: Array<{ id: string; nameAr: string }>;
+  branches: Array<{ id: string; nameAr: string; slotUnitMinutes?: number }>;
   materials: CatalogMaterialDto[];
   onServiceSaved?: (id: string) => void;
 }) {
@@ -267,12 +267,15 @@ function ProductEditor({
   const [branchOverrides, setBranchOverrides] = useState<BranchOverrideDto[]>(service?.branchOverrides ?? []);
   const [materialRequirements, setMaterialRequirements] = useState<CatalogMaterialRequirementDto[]>(service?.materialRequirements ?? []);
   const [depositType, setDepositType] = useState<string>(service?.depositType ?? 'FIXED');
-  const [slotCount, setSlotCount] = useState<number>(() => {
-    if (service?.slotCount && service.slotCount >= 1) return service.slotCount;
-    if (service?.durationMinutes) return Math.max(1, Math.round(service.durationMinutes / 60));
-    return 1;
+  const branchSlotUnit = branches[0]?.slotUnitMinutes || 30;
+
+  const [durationMinutes, setDurationMinutes] = useState<number>(() => {
+    if (service?.durationMinutes && service.durationMinutes >= 15) return service.durationMinutes;
+    if (service?.slotCount) return service.slotCount * branchSlotUnit;
+    return 60;
   });
-  const calculatedDurationMinutes = slotCount * 60;
+  const calculatedSlotCount = Math.max(1, Math.ceil(durationMinutes / branchSlotUnit));
+  const calculatedDurationMinutes = durationMinutes;
   const [isUploading, setIsUploading] = useState(false);
 
   function toggleBranch(branchId: string, enabled: boolean) {
@@ -346,8 +349,8 @@ function ProductEditor({
       priceOverride: null,
     }))));
     data.set('materialRequirements', JSON.stringify(materialRequirements));
-    data.set('slotCount', String(slotCount));
-    data.set('durationMinutes', String(calculatedDurationMinutes));
+    data.set('slotCount', String(calculatedSlotCount));
+    data.set('durationMinutes', String(durationMinutes));
     if (service?.cancellationPolicyId) {
       data.set('cancellationPolicyId', service.cancellationPolicyId);
     }
@@ -485,36 +488,53 @@ function ProductEditor({
           </label>
 
           <label className="text-xs font-bold text-white/70">
-            عدد السلوتات التشغيلية (Slots)
+            مدة الخدمة (بالساعات والدقائق)
             <select
-              name="slotCount"
-              value={slotCount}
-              onChange={(e) => setSlotCount(Math.max(1, Number(e.target.value)))}
+              value={durationMinutes}
+              onChange={(e) => setDurationMinutes(Math.max(15, Number(e.target.value)))}
               className={inputClass}
             >
-              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((count) => (
-                <option key={count} value={count}>
-                  {count} سلوت ({count * 60} دقيقة {count === 1 ? '— ساعة واحدة' : count === 2 ? '— ساعتان' : `— ${count} ساعات`})
-                </option>
-              ))}
+              {[30, 45, 60, 90, 120, 150, 180, 210, 240, 300, 360, 420, 480, 540, 600, 660, 720].map((mins) => {
+                const slots = Math.ceil(mins / branchSlotUnit);
+                const hoursLabel =
+                  mins === 30
+                    ? 'نصف ساعة'
+                    : mins === 45
+                      ? '45 دقيقة'
+                      : mins === 60
+                        ? 'ساعة واحدة'
+                        : mins === 90
+                          ? 'ساعة ونصف'
+                          : mins === 120
+                            ? 'ساعتان'
+                            : mins % 60 === 0
+                              ? `${mins / 60} ساعات`
+                              : `${Math.floor(mins / 60)} س و ${mins % 60} د`;
+                return (
+                  <option key={mins} value={mins}>
+                    {hoursLabel} ({mins} دقيقة) — يعادل {slots} {slots === 1 ? 'سلوت' : slots === 2 ? 'سلوتان' : 'سلوتات'}
+                  </option>
+                );
+              })}
             </select>
             <span className="mt-1 block text-[10px] text-white/40">
-              السلوت الواحد = 60 دقيقة في جدول المواعيد
+              مدة السلوت التشغيلي = {branchSlotUnit} دقيقة (حسب إعدادات الفرع)
             </span>
           </label>
 
           <div className="flex flex-col justify-start">
             <span className="text-xs font-bold text-white/70">المدة المعروضة للعميل</span>
             <div className="mt-2 flex min-h-11 items-center justify-between rounded-xl border border-[#d4af37]/35 bg-[#d4af37]/10 px-3.5 text-sm font-black text-[#f0d36d]">
-              <span>{calculatedDurationMinutes} دقيقة</span>
+              <span>{durationMinutes} دقيقة</span>
               <span className="text-xs font-semibold text-white/70">
-                {slotCount === 1 ? 'ساعة واحدة' : slotCount === 2 ? 'ساعتان' : `${slotCount} ساعات`}
+                {durationMinutes === 60 ? 'ساعة واحدة' : durationMinutes === 120 ? 'ساعتان' : durationMinutes % 60 === 0 ? `${durationMinutes / 60} ساعات` : `${durationMinutes} دقيقة`}
               </span>
             </div>
             <span className="mt-1 block text-[10px] text-emerald-400/80">
-              تظهر للعميل كدقائق/ساعات دون ذكر السلوتات
+              تظهر للعميل كدقائق/ساعات (وتحجز {calculatedSlotCount} سلوت بالفرع)
             </span>
-            <input type="hidden" name="durationMinutes" value={calculatedDurationMinutes} />
+            <input type="hidden" name="slotCount" value={calculatedSlotCount} />
+            <input type="hidden" name="durationMinutes" value={durationMinutes} />
           </div>
 
           <label className="text-xs font-bold text-white/70">
@@ -661,10 +681,10 @@ function ProductEditor({
                           }
                           className={inputClass}
                         >
-                          <option value="">حسب السلوتات القياسية للخدمة ({calculatedDurationMinutes} دقيقة)</option>
-                          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((s) => (
-                            <option key={s} value={s * 60}>
-                              {s} سلوت ({s * 60} دقيقة {s === 1 ? '— ساعة' : s === 2 ? '— ساعتان' : `— ${s} ساعات`})
+                          <option value="">حسب المدة القياسية للخدمة ({durationMinutes} دقيقة)</option>
+                          {[30, 45, 60, 90, 120, 150, 180, 210, 240, 300, 360, 480].map((mins) => (
+                            <option key={mins} value={mins}>
+                              {mins} دقيقة ({mins === 30 ? 'نصف ساعة' : mins === 60 ? 'ساعة واحدة' : mins === 120 ? 'ساعتان' : mins % 60 === 0 ? `${mins / 60} ساعات` : `${mins} دقيقة`})
                             </option>
                           ))}
                         </select>

@@ -51,6 +51,7 @@ interface BranchContactDto {
   nameAr: string;
   phone: string;
   whatsapp: string;
+  slotUnitMinutes?: number;
 }
 
 export type TabKey =
@@ -379,7 +380,7 @@ export default function AdminSiteClient({
         {activeTab === 'services' && (
           <ServicesManager
             services={fullServices}
-            branches={branches.map((b) => ({ id: b.id, nameAr: b.nameAr }))}
+            branches={branches.map((b) => ({ id: b.id, nameAr: b.nameAr, slotUnitMinutes: b.slotUnitMinutes }))}
             materials={materials}
             initialServiceId={initialServiceId}
             isNew={isNewService}

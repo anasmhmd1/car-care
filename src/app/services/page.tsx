@@ -191,7 +191,16 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {displayedServices.map((service) => {
                   const realImg = getServiceRealImage(service.slug, service.coverImage);
-                  const slotCount = service.slotCount || Math.max(1, Math.round(service.durationMinutes / 60));
+                  const durationFormatted =
+                    service.durationMinutes >= 60
+                      ? service.durationMinutes === 60
+                        ? 'ساعة واحدة'
+                        : service.durationMinutes === 120
+                          ? 'ساعتان'
+                          : service.durationMinutes % 60 === 0
+                            ? `${service.durationMinutes / 60} ساعات`
+                            : `${Math.floor(service.durationMinutes / 60)} س و ${service.durationMinutes % 60} د`
+                      : `${service.durationMinutes} دقيقة`;
                   const depositEgp = service.requiresFullPrepayment
                     ? service.basePrice
                     : service.depositType === 'PERCENTAGE'
@@ -217,7 +226,7 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
                           />
                           <div className="absolute top-4 right-4 bg-black/85 backdrop-blur-md px-3.5 py-1.5 rounded-full text-xs font-bold text-[#edce8b] border border-[#cea355]/40 flex items-center gap-1.5 shadow-lg">
                             <Clock className="w-3.5 h-3.5 text-[#d4af37]" />
-                            <span>المدة: {service.durationMinutes} دقيقة ({slotCount} سلوت)</span>
+                            <span>المدة: {durationFormatted} ({service.durationMinutes} دقيقة)</span>
                           </div>
                         </div>
 
