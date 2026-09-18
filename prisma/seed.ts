@@ -534,9 +534,9 @@ async function main() {
       update: {
         isClosed,
         openTime: '09:00',
-        closeTime: '16:00',
-        breakStartTime: '12:00',
-        breakEndTime: '13:00',
+        closeTime: '21:00',
+        breakStartTime: null,
+        breakEndTime: null,
       },
       create: {
         id: 'seed-branch-hours-' + dayOfWeek,
@@ -544,9 +544,9 @@ async function main() {
         dayOfWeek,
         isClosed,
         openTime: '09:00',
-        closeTime: '16:00',
-        breakStartTime: '12:00',
-        breakEndTime: '13:00',
+        closeTime: '21:00',
+        breakStartTime: null,
+        breakEndTime: null,
       },
     });
   }
@@ -816,9 +816,9 @@ async function main() {
         update: {
           isOff,
           openTime: '09:00',
-          closeTime: '16:00',
-          breakStartTime: '12:00',
-          breakEndTime: '13:00',
+          closeTime: '21:00',
+          breakStartTime: null,
+          breakEndTime: null,
         },
         create: {
           id: 'seed-team-hours-' + definition.key + '-' + dayOfWeek,
@@ -826,9 +826,9 @@ async function main() {
           dayOfWeek,
           isOff,
           openTime: '09:00',
-          closeTime: '16:00',
-          breakStartTime: '12:00',
-          breakEndTime: '13:00',
+          closeTime: '21:00',
+          breakStartTime: null,
+          breakEndTime: null,
         },
       });
     }

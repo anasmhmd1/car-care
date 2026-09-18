@@ -298,7 +298,7 @@ export async function saveServiceProductAction(formData: FormData) {
         preparationInstructions: parsed.data.preparationInstructions || null,
         basePrice: parsed.data.basePrice,
         priceType: parsed.data.priceType,
-        durationMinutes: parsed.data.slotCount * 60,
+        durationMinutes: parsed.data.durationMinutes ?? (parsed.data.slotCount * 30),
         slotCount: parsed.data.slotCount,
         requiredTeamSize: parsed.data.requiredTeamSize,
         requiresDeposit: parsed.data.requiresDeposit,

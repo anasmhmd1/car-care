@@ -248,6 +248,29 @@ function NoticeBox({ notice }: { notice: Notice | null }) {
   );
 }
 
+function formatDurationArabic(minutes: number): string {
+  if (minutes === 15) return 'ربع ساعة';
+  if (minutes === 30) return 'نصف ساعة';
+  if (minutes === 45) return '45 دقيقة';
+  if (minutes === 60) return 'ساعة واحدة';
+  if (minutes === 90) return 'ساعة ونصف';
+  if (minutes === 120) return 'ساعتان';
+  if (minutes === 150) return 'ساعتان ونصف';
+  if (minutes === 180) return '3 ساعات';
+  const hours = Math.floor(minutes / 60);
+  const rem = minutes % 60;
+  if (rem === 0) {
+    if (hours >= 3 && hours <= 10) return `${hours} ساعات`;
+    return `${hours} ساعة`;
+  }
+  if (rem === 30) {
+    if (hours === 1) return 'ساعة ونصف';
+    if (hours === 2) return 'ساعتان ونصف';
+    return `${hours} ساعات ونصف`;
+  }
+  return `${hours} س و ${rem} د`;
+}
+
 function ProductEditor({
   service,
   branches,
@@ -267,21 +290,24 @@ function ProductEditor({
   const [branchOverrides, setBranchOverrides] = useState<BranchOverrideDto[]>(service?.branchOverrides ?? []);
   const [materialRequirements, setMaterialRequirements] = useState<CatalogMaterialRequirementDto[]>(service?.materialRequirements ?? []);
   const [depositType, setDepositType] = useState<string>(service?.depositType ?? 'FIXED');
-  const branchSlotUnit = branches[0]?.slotUnitMinutes || 30;
-
-  const [durationMinutes, setDurationMinutes] = useState<number>(() => {
-    if (service?.durationMinutes && service.durationMinutes >= 15) return service.durationMinutes;
-    if (service?.slotCount) return service.slotCount * branchSlotUnit;
-    return 60;
-  });
-  const calculatedSlotCount = Math.max(1, Math.ceil(durationMinutes / branchSlotUnit));
-  const calculatedDurationMinutes = durationMinutes;
   const [isUploading, setIsUploading] = useState(false);
 
   function toggleBranch(branchId: string, enabled: boolean) {
+    const branch = branches.find((b) => b.id === branchId);
+    const branchSlot = branch?.slotUnitMinutes || 30;
+    const defaultMins = 2 * branchSlot;
     setBranchOverrides((current) =>
       enabled
-        ? [...current, { branchId, active: true, bookableOnline: true, priceOverride: null, durationOverrideMinutes: null }]
+        ? [
+            ...current,
+            {
+              branchId,
+              active: true,
+              bookableOnline: true,
+              priceOverride: null,
+              durationOverrideMinutes: defaultMins,
+            },
+          ]
         : current.filter((override) => override.branchId !== branchId),
     );
   }
@@ -349,8 +375,18 @@ function ProductEditor({
       priceOverride: null,
     }))));
     data.set('materialRequirements', JSON.stringify(materialRequirements));
-    data.set('slotCount', String(calculatedSlotCount));
-    data.set('durationMinutes', String(durationMinutes));
+
+    // Derive base duration and slot count from the active branches
+    const activeOverride =
+      branchOverrides.find((o) => o.active && o.durationOverrideMinutes && o.durationOverrideMinutes > 0) ||
+      branchOverrides[0];
+    const activeBranch = activeOverride ? branches.find((b) => b.id === activeOverride.branchId) : branches[0];
+    const branchSlot = activeBranch?.slotUnitMinutes || 30;
+    const fallbackMins = activeOverride?.durationOverrideMinutes ?? service?.durationMinutes ?? (2 * branchSlot);
+    const fallbackSlots = Math.max(1, Math.round(fallbackMins / branchSlot));
+
+    data.set('slotCount', String(fallbackSlots));
+    data.set('durationMinutes', String(fallbackMins));
     if (service?.cancellationPolicyId) {
       data.set('cancellationPolicyId', service.cancellationPolicyId);
     }
@@ -478,64 +514,14 @@ function ProductEditor({
         ) : null}
       </section>
 
-      {/* السعر والمدة والتنفيذ */}
+      {/* السعر والتنفيذ */}
       <section className="rounded-2xl border border-white/10 bg-white/[0.025] p-5">
-        <h2 className="text-lg font-black">السعر والمدة وقواعد التنفيذ</h2>
-        <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <h2 className="text-lg font-black">السعر وقواعد التنفيذ</h2>
+        <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           <label className="text-xs font-bold text-white/70">
             السعر الأساسي (ج.م)
             <input name="basePrice" type="number" min="0" required defaultValue={service?.basePrice ?? 0} className={inputClass} />
           </label>
-
-          <label className="text-xs font-bold text-white/70">
-            مدة الخدمة (بالساعات والدقائق)
-            <select
-              value={durationMinutes}
-              onChange={(e) => setDurationMinutes(Math.max(15, Number(e.target.value)))}
-              className={inputClass}
-            >
-              {[30, 45, 60, 90, 120, 150, 180, 210, 240, 300, 360, 420, 480, 540, 600, 660, 720].map((mins) => {
-                const slots = Math.ceil(mins / branchSlotUnit);
-                const hoursLabel =
-                  mins === 30
-                    ? 'نصف ساعة'
-                    : mins === 45
-                      ? '45 دقيقة'
-                      : mins === 60
-                        ? 'ساعة واحدة'
-                        : mins === 90
-                          ? 'ساعة ونصف'
-                          : mins === 120
-                            ? 'ساعتان'
-                            : mins % 60 === 0
-                              ? `${mins / 60} ساعات`
-                              : `${Math.floor(mins / 60)} س و ${mins % 60} د`;
-                return (
-                  <option key={mins} value={mins}>
-                    {hoursLabel} ({mins} دقيقة) — يعادل {slots} {slots === 1 ? 'سلوت' : slots === 2 ? 'سلوتان' : 'سلوتات'}
-                  </option>
-                );
-              })}
-            </select>
-            <span className="mt-1 block text-[10px] text-white/40">
-              مدة السلوت التشغيلي = {branchSlotUnit} دقيقة (حسب إعدادات الفرع)
-            </span>
-          </label>
-
-          <div className="flex flex-col justify-start">
-            <span className="text-xs font-bold text-white/70">المدة المعروضة للعميل</span>
-            <div className="mt-2 flex min-h-11 items-center justify-between rounded-xl border border-[#d4af37]/35 bg-[#d4af37]/10 px-3.5 text-sm font-black text-[#f0d36d]">
-              <span>{durationMinutes} دقيقة</span>
-              <span className="text-xs font-semibold text-white/70">
-                {durationMinutes === 60 ? 'ساعة واحدة' : durationMinutes === 120 ? 'ساعتان' : durationMinutes % 60 === 0 ? `${durationMinutes / 60} ساعات` : `${durationMinutes} دقيقة`}
-              </span>
-            </div>
-            <span className="mt-1 block text-[10px] text-emerald-400/80">
-              تظهر للعميل كدقائق/ساعات (وتحجز {calculatedSlotCount} سلوت بالفرع)
-            </span>
-            <input type="hidden" name="slotCount" value={calculatedSlotCount} />
-            <input type="hidden" name="durationMinutes" value={durationMinutes} />
-          </div>
 
           <label className="text-xs font-bold text-white/70">
             حجم الفريق المطلوب (فنيين)
@@ -654,10 +640,15 @@ function ProductEditor({
         </div>
 
         <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-5 xl:col-span-2">
-          <h2 className="text-lg font-black">تخصيص الخدمة حسب الفرع</h2>
+          <h2 className="text-lg font-black">إتاحة وتخصيص السلوتات حسب الفرع</h2>
+          <p className="mt-1 text-xs text-white/50">
+            حدد إتاحة الخدمة في كل فرع تشغيلي وعدد السلوتات والمدة المخصصة لها وفق وحدة سلوت الفرع.
+          </p>
           <div className="mt-4 space-y-3">
             {branches.map((branch) => {
               const override = branchOverrides.find((item) => item.branchId === branch.id);
+              const branchSlot = branch.slotUnitMinutes || 30;
+              const currentMins = override?.durationOverrideMinutes ?? (2 * branchSlot);
               return (
                 <div key={branch.id} className="rounded-xl border border-white/10 p-3">
                   <label className="flex items-center gap-2 text-xs font-bold">
@@ -671,22 +662,29 @@ function ProductEditor({
                   {override ? (
                     <div className="mt-3 space-y-3">
                       <div>
-                        <label className="block text-[11px] text-white/60 mb-1">
-                          مدة مخصصة للفرع
-                        </label>
+                        <div className="flex items-center justify-between text-[11px] mb-1">
+                          <span className="font-bold text-white/70">عدد السلوتات والمدة المخصصة لهذا الفرع</span>
+                          <span className="inline-flex items-center gap-1 rounded-md border border-[#d4af37]/30 bg-[#d4af37]/10 px-2 py-0.5 text-[10px] font-bold text-[#f0d36d]">
+                            وحدة السلوت بالفرع: {branchSlot} دقيقة
+                          </span>
+                        </div>
                         <select
-                          value={override.durationOverrideMinutes ?? ''}
+                          value={currentMins}
                           onChange={(event) =>
-                            updateBranch(branch.id, { durationOverrideMinutes: numberOrNull(event.target.value) })
+                            updateBranch(branch.id, { durationOverrideMinutes: Number(event.target.value) })
                           }
                           className={inputClass}
                         >
-                          <option value="">حسب المدة القياسية للخدمة ({durationMinutes} دقيقة)</option>
-                          {[30, 45, 60, 90, 120, 150, 180, 210, 240, 300, 360, 480].map((mins) => (
-                            <option key={mins} value={mins}>
-                              {mins} دقيقة ({mins === 30 ? 'نصف ساعة' : mins === 60 ? 'ساعة واحدة' : mins === 120 ? 'ساعتان' : mins % 60 === 0 ? `${mins / 60} ساعات` : `${mins} دقيقة`})
-                            </option>
-                          ))}
+                          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16].map((slots) => {
+                            const mins = slots * branchSlot;
+                            const label =
+                              slots === 1 ? 'سلوت واحد' : slots === 2 ? 'سلوتان' : slots <= 10 ? `${slots} سلوتات` : `${slots} سلوت`;
+                            return (
+                              <option key={slots} value={mins}>
+                                {label} — {mins} دقيقة ({formatDurationArabic(mins)})
+                              </option>
+                            );
+                          })}
                         </select>
                       </div>
                       <div className="flex flex-wrap items-center gap-4 pt-0.5">

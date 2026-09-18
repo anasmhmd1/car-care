@@ -110,13 +110,16 @@ const teamHoursSchema = z.object({
   breakEndTime: z.union([timeSchema, z.literal('')]).optional(),
 }).superRefine((value, context) => {
   if (value.isOff) return;
-  if (value.openTime >= value.closeTime) {
-    context.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['closeTime'],
-      message: 'وقت الإغلاق يجب أن يكون بعد وقت الفتح.',
-    });
+
+  const [openH, openM] = value.openTime.split(':').map(Number);
+  const openMin = openH * 60 + openM;
+  const [closeH, closeM] = value.closeTime.split(':').map(Number);
+  let closeMin = closeH * 60 + closeM;
+  // If closeMin <= openMin: overnight shift or 24-hour operation (+ 1440 min)
+  if (closeMin <= openMin) {
+    closeMin += 1440;
   }
+
   if (Boolean(value.breakStartTime) !== Boolean(value.breakEndTime)) {
     context.addIssue({
       code: z.ZodIssueCode.custom,
@@ -124,20 +127,24 @@ const teamHoursSchema = z.object({
       message: 'أدخل بداية ونهاية الاستراحة معًا.',
     });
   }
-  if (
-    value.breakStartTime &&
-    value.breakEndTime &&
-    (
-      value.breakStartTime >= value.breakEndTime ||
-      value.breakStartTime < value.openTime ||
-      value.breakEndTime > value.closeTime
-    )
-  ) {
-    context.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['breakStartTime'],
-      message: 'الاستراحة يجب أن تقع بالكامل داخل ساعات الفريق.',
-    });
+  if (value.breakStartTime && value.breakEndTime) {
+    const [bStartH, bStartM] = value.breakStartTime.split(':').map(Number);
+    let bStartMin = bStartH * 60 + bStartM;
+    const [bEndH, bEndM] = value.breakEndTime.split(':').map(Number);
+    let bEndMin = bEndH * 60 + bEndM;
+
+    if (closeMin > 1440) {
+      if (bStartMin < openMin) bStartMin += 1440;
+      if (bEndMin < openMin) bEndMin += 1440;
+    }
+
+    if (bStartMin >= bEndMin || bStartMin < openMin || bEndMin > closeMin) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['breakStartTime'],
+        message: 'الاستراحة يجب أن تقع بالكامل داخل ساعات الفريق.',
+      });
+    }
   }
 });
 

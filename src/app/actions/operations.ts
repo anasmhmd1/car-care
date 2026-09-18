@@ -847,12 +847,19 @@ export async function rescheduleBookingByOperationsAction(formData: FormData) {
   }
 
   const slotUnitMinutes = Math.max(15, booking.branch.slotUnitMinutes || 30);
-  const [targetH, targetM] = parsed.data.targetTime.split(':').map(Number);
-  const targetMinute = targetH * 60 + targetM;
   const [openH, openM] = workingHours.openTime.split(':').map(Number);
   const openMinute = openH * 60 + openM;
   const [closeH, closeM] = workingHours.closeTime.split(':').map(Number);
-  const closeMinute = closeH * 60 + closeM;
+  let closeMinute = closeH * 60 + closeM;
+  if (closeMinute <= openMinute) {
+    closeMinute += 1440;
+  }
+
+  const [targetH, targetM] = parsed.data.targetTime.split(':').map(Number);
+  let targetMinute = targetH * 60 + targetM;
+  if (closeMinute > 1440 && targetMinute < openMinute) {
+    targetMinute += 1440;
+  }
 
   if (targetMinute < openMinute || targetMinute >= closeMinute) {
     return {

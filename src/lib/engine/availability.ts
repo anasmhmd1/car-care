@@ -204,11 +204,15 @@ async function loadAvailabilityContext(
     : [];
   if (linkedAddons.length !== addonIds.length) return null;
 
+  const baseSlotCount = branchService?.durationOverrideMinutes
+    ? Math.max(1, Math.round(branchService.durationOverrideMinutes / branch.slotUnitMinutes))
+    : (variant?.slotCount ?? service.slotCount);
+
   const quote = calculateBookingQuote({
     base: {
       price: branchService?.priceOverride ?? variant?.price ?? service.basePrice,
       durationMinutes: branchService?.durationOverrideMinutes ?? variant?.durationMinutes ?? service.durationMinutes,
-      slotCount: variant?.slotCount ?? service.slotCount,
+      slotCount: baseSlotCount,
     },
     addons: linkedAddons,
     depositRequired: service.requiresDeposit,
@@ -376,17 +380,26 @@ function findFeasibleTeamIds(
         openTime,
         branch.timezone,
       );
-      const teamEnd = localDateTimeToUtc(
+      let teamEnd = localDateTimeToUtc(
         formatDateInZone(slotStart, branch.timezone),
         closeTime,
         branch.timezone,
       );
+      if (teamEnd.getTime() <= teamStart.getTime()) {
+        teamEnd = new Date(teamEnd.getTime() + 24 * 60 * 60 * 1000);
+      }
       if (slotStart < teamStart || slotStart > teamEnd) continue;
       const effectiveBreakStart = teamHours.breakStartTime?.trim() || branchHours.breakStartTime?.trim();
       const effectiveBreakEnd = teamHours.breakEndTime?.trim() || branchHours.breakEndTime?.trim();
       if (effectiveBreakStart && effectiveBreakEnd) {
-        const breakStart = localDateTimeToUtc(formatDateInZone(slotStart, branch.timezone), effectiveBreakStart, branch.timezone);
-        const breakEnd = localDateTimeToUtc(formatDateInZone(slotStart, branch.timezone), effectiveBreakEnd, branch.timezone);
+        let breakStart = localDateTimeToUtc(formatDateInZone(slotStart, branch.timezone), effectiveBreakStart, branch.timezone);
+        let breakEnd = localDateTimeToUtc(formatDateInZone(slotStart, branch.timezone), effectiveBreakEnd, branch.timezone);
+        if (breakStart.getTime() < teamStart.getTime()) {
+          breakStart = new Date(breakStart.getTime() + 24 * 60 * 60 * 1000);
+        }
+        if (breakEnd.getTime() < teamStart.getTime()) {
+          breakEnd = new Date(breakEnd.getTime() + 24 * 60 * 60 * 1000);
+        }
         if (intervalsOverlap(slotStart, slotEnd, breakStart, breakEnd)) continue;
       }
     } else {
@@ -395,15 +408,24 @@ function findFeasibleTeamIds(
         branchHours.openTime,
         branch.timezone,
       );
-      const branchEnd = localDateTimeToUtc(
+      let branchEnd = localDateTimeToUtc(
         formatDateInZone(slotStart, branch.timezone),
         branchHours.closeTime,
         branch.timezone,
       );
+      if (branchEnd.getTime() <= branchStart.getTime()) {
+        branchEnd = new Date(branchEnd.getTime() + 24 * 60 * 60 * 1000);
+      }
       if (slotStart < branchStart || slotStart > branchEnd) continue;
       if (branchHours.breakStartTime && branchHours.breakEndTime && branchHours.breakStartTime.trim() && branchHours.breakEndTime.trim()) {
-        const breakStart = localDateTimeToUtc(formatDateInZone(slotStart, branch.timezone), branchHours.breakStartTime, branch.timezone);
-        const breakEnd = localDateTimeToUtc(formatDateInZone(slotStart, branch.timezone), branchHours.breakEndTime, branch.timezone);
+        let breakStart = localDateTimeToUtc(formatDateInZone(slotStart, branch.timezone), branchHours.breakStartTime, branch.timezone);
+        let breakEnd = localDateTimeToUtc(formatDateInZone(slotStart, branch.timezone), branchHours.breakEndTime, branch.timezone);
+        if (breakStart.getTime() < branchStart.getTime()) {
+          breakStart = new Date(breakStart.getTime() + 24 * 60 * 60 * 1000);
+        }
+        if (breakEnd.getTime() < branchStart.getTime()) {
+          breakEnd = new Date(breakEnd.getTime() + 24 * 60 * 60 * 1000);
+        }
         if (intervalsOverlap(slotStart, slotEnd, breakStart, breakEnd)) continue;
       }
     }
@@ -484,7 +506,10 @@ export async function evaluateRequestedInterval(
   const endAt = new Date(request.startAt.getTime() + totalDurationMinutes * 60_000);
 
   const branchOpen = localDateTimeToUtc(dateStr, context.branchHours.openTime, context.branch.timezone);
-  const branchClose = localDateTimeToUtc(dateStr, context.branchHours.closeTime, context.branch.timezone);
+  let branchClose = localDateTimeToUtc(dateStr, context.branchHours.closeTime, context.branch.timezone);
+  if (branchClose.getTime() <= branchOpen.getTime()) {
+    branchClose = new Date(branchClose.getTime() + 24 * 60 * 60 * 1000);
+  }
   if (request.startAt < branchOpen || request.startAt > branchClose) return null;
 
   const slotUnit = Math.max(15, context.branch.slotUnitMinutes || 30);
@@ -494,8 +519,14 @@ export async function evaluateRequestedInterval(
   }
 
   if (context.branchHours.breakStartTime && context.branchHours.breakEndTime && context.branchHours.breakStartTime.trim() && context.branchHours.breakEndTime.trim()) {
-    const breakStart = localDateTimeToUtc(dateStr, context.branchHours.breakStartTime, context.branch.timezone);
-    const breakEnd = localDateTimeToUtc(dateStr, context.branchHours.breakEndTime, context.branch.timezone);
+    let breakStart = localDateTimeToUtc(dateStr, context.branchHours.breakStartTime, context.branch.timezone);
+    let breakEnd = localDateTimeToUtc(dateStr, context.branchHours.breakEndTime, context.branch.timezone);
+    if (breakStart.getTime() < branchOpen.getTime()) {
+      breakStart = new Date(breakStart.getTime() + 24 * 60 * 60 * 1000);
+    }
+    if (breakEnd.getTime() < branchOpen.getTime()) {
+      breakEnd = new Date(breakEnd.getTime() + 24 * 60 * 60 * 1000);
+    }
     if (intervalsOverlap(request.startAt, endAt, breakStart, breakEnd)) return null;
   }
 
@@ -535,19 +566,28 @@ export async function calculateAvailableSlots(request: SlotRequest): Promise<Ava
 
     const { branch, branchHours, totalDurationMinutes, teams, branchBookings, branchHolds } = context;
     const openAt = localDateTimeToUtc(request.dateStr, branchHours.openTime, branch.timezone);
-    const closeAt = localDateTimeToUtc(request.dateStr, branchHours.closeTime, branch.timezone);
+    let closeAt = localDateTimeToUtc(request.dateStr, branchHours.closeTime, branch.timezone);
+    if (closeAt.getTime() <= openAt.getTime()) {
+      closeAt = new Date(closeAt.getTime() + 24 * 60 * 60 * 1000);
+    }
     const hasBreak = Boolean(
       branchHours.breakStartTime &&
       branchHours.breakEndTime &&
       branchHours.breakStartTime.trim() &&
       branchHours.breakEndTime.trim()
     );
-    const breakStart = hasBreak
+    let breakStart = hasBreak
       ? localDateTimeToUtc(request.dateStr, branchHours.breakStartTime!, branch.timezone)
       : null;
-    const breakEnd = hasBreak
+    let breakEnd = hasBreak
       ? localDateTimeToUtc(request.dateStr, branchHours.breakEndTime!, branch.timezone)
       : null;
+    if (breakStart && breakStart.getTime() < openAt.getTime()) {
+      breakStart = new Date(breakStart.getTime() + 24 * 60 * 60 * 1000);
+    }
+    if (breakEnd && breakEnd.getTime() < openAt.getTime()) {
+      breakEnd = new Date(breakEnd.getTime() + 24 * 60 * 60 * 1000);
+    }
     const durationMs = totalDurationMinutes * 60_000;
     const travelGapMinutes = branch.travelBufferMinutes ?? 15;
     const restGapMinutes = branch.restBufferMinutes ?? 0;

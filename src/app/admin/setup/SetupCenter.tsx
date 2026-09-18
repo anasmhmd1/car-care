@@ -2102,43 +2102,25 @@ function BranchEngineRulesInteractiveForm({
   const totalGap = Math.max(0, travelBuffer);
   const totalSlotStride = slotUnit + totalGap;
 
-  const firstOpenDay = branch.workingHours.find((h) => !h.isClosed);
-  const openTimeStr = firstOpenDay?.openTime || '09:00';
-  const closeTimeStr = firstOpenDay?.closeTime || '17:00';
-  const breakStartStr = firstOpenDay?.breakStartTime?.trim() || '';
-  const breakEndStr = firstOpenDay?.breakEndTime?.trim() || '';
-
-  const parseMinutes = (timeStr: string) => {
-    const [h, m] = timeStr.split(':').map(Number);
-    return (h || 0) * 60 + (m || 0);
-  };
-
   const previewSlots = useMemo(() => {
     const slots: string[] = [];
-    let currentMinutes = parseMinutes(openTimeStr);
-    const closeMinutes = parseMinutes(closeTimeStr);
-    const breakStartMin = breakStartStr ? parseMinutes(breakStartStr) : null;
-    const breakEndMin = breakEndStr ? parseMinutes(breakEndStr) : null;
+    // معاينة رياضية لتقسيم الفترات تبدأ من 09:00 ص لتعرض التوزيع المتتابع بدقة متناهية وبدون أي اقتطاع للوقت
+    let currentMinutes = 9 * 60;
+    const maxPreviewSlots = 7;
 
-    while (currentMinutes <= closeMinutes && slots.length < 16) {
-      const slotStart = currentMinutes;
-      const slotEnd = currentMinutes + slotUnit;
-
-      if (breakStartMin !== null && breakEndMin !== null && !(slotEnd <= breakStartMin || slotStart >= breakEndMin)) {
-        currentMinutes = breakEndMin;
-        continue;
-      }
-
-      const h = Math.floor(currentMinutes / 60);
-      const m = currentMinutes % 60;
+    while (slots.length < maxPreviewSlots) {
+      const normalized = currentMinutes % 1440;
+      const h = Math.floor(normalized / 60);
+      const m = normalized % 60;
       const period = h >= 12 ? 'م' : 'ص';
       const displayH = h === 0 ? 12 : h > 12 ? h - 12 : h;
-      const formatted = `${String(displayH).padStart(2, '0')}:${String(m).padStart(2, '0')} ${period}`;
+      const offsetBadge = currentMinutes >= 1440 ? ' (+1)' : '';
+      const formatted = `${String(displayH).padStart(2, '0')}:${String(m).padStart(2, '0')} ${period}${offsetBadge}`;
       slots.push(formatted);
       currentMinutes += totalSlotStride;
     }
     return slots;
-  }, [slotUnit, totalSlotStride, openTimeStr, closeTimeStr, breakStartStr, breakEndStr]);
+  }, [totalSlotStride]);
 
   return (
     <form
@@ -2459,19 +2441,34 @@ function HoursCard({
     return (h || 0) * 60 + (m || 0);
   };
 
+
   const formatMinutesToTime = (totalMin: number) => {
-    const h = Math.floor(totalMin / 60);
-    const m = totalMin % 60;
+    const normalized = totalMin % 1440;
+    const h = Math.floor(normalized / 60);
+    const m = normalized % 60;
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
   };
 
-  const formatMinutesToDisplay = (totalMin: number) => {
-    const h = Math.floor(totalMin / 60);
-    const m = totalMin % 60;
+  const formatMinutesToDisplay = (totalMin: number, showDayOffset = false) => {
+    const normalized = totalMin % 1440;
+    const h = Math.floor(normalized / 60);
+    const m = normalized % 60;
     const period = h >= 12 ? 'م' : 'ص';
     const displayH = h === 0 ? 12 : h > 12 ? h - 12 : h;
-    return `${String(displayH).padStart(2, '0')}:${String(m).padStart(2, '0')} ${period}`;
+    const offsetBadge = showDayOffset && totalMin >= 1440 ? ' (+1)' : '';
+    return `${String(displayH).padStart(2, '0')}:${String(m).padStart(2, '0')} ${period}${offsetBadge}`;
   };
+
+  const is24Hours = useMemo(() => {
+    return openTime === closeTime;
+  }, [openTime, closeTime]);
+
+  const isOvernight = useMemo(() => {
+    if (is24Hours) return false;
+    const openMin = parseMinutes(openTime);
+    const closeMin = parseMinutes(closeTime);
+    return closeMin < openMin;
+  }, [openTime, closeTime, is24Hours]);
 
   const operationalSlots = useMemo(() => {
     const slots: Array<{
@@ -2480,17 +2477,19 @@ function HoursCard({
       label: string;
     }> = [];
     const openMin = parseMinutes(openTime);
-    const closeMin = parseMinutes(closeTime);
-    if (closeMin <= openMin) return slots;
+    let closeMin = parseMinutes(closeTime);
+    if (closeMin <= openMin) {
+      closeMin += 1440;
+    }
 
     let cur = openMin;
-    while (cur <= closeMin && slots.length < 16) {
+    while (cur <= closeMin && slots.length < 48) {
       const slotStart = cur;
       const slotEnd = cur + slotUnitMinutes;
       slots.push({
         startFormatted: formatMinutesToTime(slotStart),
         endFormatted: formatMinutesToTime(slotEnd),
-        label: `${formatMinutesToDisplay(slotStart)} إلى ${formatMinutesToDisplay(slotEnd)}`,
+        label: `${formatMinutesToDisplay(slotStart)} إلى ${formatMinutesToDisplay(slotEnd, true)}`,
       });
       cur += strideMinutes;
     }
@@ -2501,13 +2500,24 @@ function HoursCard({
     if (disabled) return [];
     const preview: Array<{ timeDisplay: string; isBreak: boolean }> = [];
     const openMin = parseMinutes(openTime);
-    const closeMin = parseMinutes(closeTime);
-    const bStart = breakStart ? parseMinutes(breakStart) : null;
-    const bEnd = breakEnd ? parseMinutes(breakEnd) : null;
+    let closeMin = parseMinutes(closeTime);
+    if (closeMin <= openMin) {
+      closeMin += 1440;
+    }
+    let bStart = breakStart ? parseMinutes(breakStart) : null;
+    let bEnd = breakEnd ? parseMinutes(breakEnd) : null;
+    if (bStart !== null && bEnd !== null) {
+      if (bStart < openMin && closeMin > 1440) {
+        bStart += 1440;
+      }
+      if (bEnd <= bStart) {
+        bEnd += 1440;
+      }
+    }
     const hasBreak = bStart !== null && bEnd !== null && bStart < bEnd;
 
     let cur = openMin;
-    while (cur <= closeMin && preview.length < 16) {
+    while (cur <= closeMin && preview.length < 48) {
       const slotStart = cur;
       const slotEnd = cur + slotUnitMinutes;
 
@@ -2524,7 +2534,7 @@ function HoursCard({
       }
 
       preview.push({
-        timeDisplay: formatMinutesToDisplay(slotStart),
+        timeDisplay: formatMinutesToDisplay(slotStart, true),
         isBreak: false,
       });
       cur += strideMinutes;
@@ -2562,6 +2572,36 @@ function HoursCard({
 
         {!disabled && (
           <div className="mt-3.5 space-y-3.5">
+            {/* Quick 24h preset & status indicator */}
+            <div className="flex items-center justify-between gap-2 px-1">
+              <div className="flex items-center gap-1.5 min-h-[22px]">
+                {is24Hours ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/15 border border-emerald-500/30 text-emerald-300">
+                    <span>✨</span> تشغيل 24 ساعة متواصل
+                  </span>
+                ) : isOvernight ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-purple-500/15 border border-purple-500/30 text-purple-300">
+                    <span>🌙</span> دوام ليلي (يمتد لليوم التالي)
+                  </span>
+                ) : null}
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setOpenTime('00:00');
+                  setCloseTime('00:00');
+                }}
+                className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border transition-all ${
+                  is24Hours
+                    ? 'border-emerald-500/40 bg-emerald-500/20 text-emerald-300 shadow-sm'
+                    : 'border-white/10 bg-white/5 text-white/70 hover:border-emerald-500/40 hover:text-emerald-300'
+                }`}
+                title="ضبط الفرع ليعمل 24 ساعة متواصلة بدون توقف"
+              >
+                ⚡ 24 ساعة متواصل
+              </button>
+            </div>
+
             <div className="grid grid-cols-2 gap-2.5">
               <label className="text-[11px] font-bold text-white/55">
                 الفتح
@@ -2607,7 +2647,7 @@ function HoursCard({
               </div>
 
               {operationalSlots.length > 0 ? (
-                <div className="flex flex-wrap gap-1">
+                <div className="flex flex-wrap gap-1 max-h-36 overflow-y-auto p-1 custom-scrollbar">
                   <button
                     type="button"
                     onClick={() => { setBreakStart(''); setBreakEnd(''); }}
@@ -2677,7 +2717,7 @@ function HoursCard({
                 <span className="text-[10px] font-black text-[#cea355]">معاينة حية للمواعيد المعروضة للعميل:</span>
               </div>
               {livePreview.length > 0 ? (
-                <div className="flex flex-wrap gap-1">
+                <div className="flex flex-wrap gap-1 max-h-28 overflow-y-auto p-0.5 custom-scrollbar">
                   {livePreview.map((slot, idx) => (
                     <span
                       key={idx}
