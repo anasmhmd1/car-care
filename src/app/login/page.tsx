@@ -90,10 +90,10 @@ function LoginPageContent({ callback }: { callback: string | null }) {
           <form action={formAction} className="space-y-4.5" aria-describedby={state?.error ? 'auth-error' : undefined}>
             {callback ? <input type="hidden" name="callback" value={callback} /> : null}
             
-            {/* Phone or Username Input */}
+            {/* Phone or Email Input */}
             <div className="space-y-1.5 group">
               <label htmlFor="login-phone" className="text-xs font-medium text-neutral-300 block">
-                رقم الهاتف أو اسم المستخدم
+                رقم الهاتف أو البريد الإلكتروني
               </label>
               <div className="relative">
                 <Phone className="w-4 h-4 text-neutral-500 group-focus-within:text-[#edce8b] absolute top-1/2 -translate-y-1/2 right-3.5 transition-colors pointer-events-none" aria-hidden="true" />
@@ -102,7 +102,7 @@ function LoginPageContent({ callback }: { callback: string | null }) {
                   type="text"
                   name="phone"
                   required
-                  placeholder="010XXXXXXXX أو 0000000000"
+                  placeholder="010XXXXXXXX"
                   value={phoneInput}
                   onChange={(e) => setPhoneInput(e.target.value)}
                   autoComplete="username tel"
