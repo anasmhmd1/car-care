@@ -1,6 +1,6 @@
 x-app-environment: &app-environment
-  DATABASE_URL: postgresql://${POSTGRES_USER:-bareeq}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-bareeq_db}?schema=public
-  DIRECT_URL: postgresql://${POSTGRES_USER:-bareeq}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-bareeq_db}?schema=public
+  DATABASE_URL: postgresql://${POSTGRES_USER:-carcare}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-carcare_db}?schema=public
+  DIRECT_URL: postgresql://${POSTGRES_USER:-carcare}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-carcare_db}?schema=public
   SESSION_SECRET: ${SESSION_SECRET:?Set SESSION_SECRET in .env}
   SESSION_TTL_DAYS: ${SESSION_TTL_DAYS:-7}
   BOOKING_HOLD_MINUTES: ${BOOKING_HOLD_MINUTES:-30}
@@ -17,9 +17,9 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-bareeq}
+      POSTGRES_USER: ${POSTGRES_USER:-carcare}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
-      POSTGRES_DB: ${POSTGRES_DB:-bareeq_db}
+      POSTGRES_DB: ${POSTGRES_DB:-carcare_db}
     ports:
       - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:

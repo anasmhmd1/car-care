@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 
-const fallbackSiteUrl = 'https://bareeq.com';
+const fallbackSiteUrl = 'https://carcare.com';
 
 function resolveSiteUrl() {
   try {

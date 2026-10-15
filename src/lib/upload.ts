@@ -117,15 +117,68 @@ async function normalizeValidatedFile(
   return null;
 }
 
+const STORED_EXTENSIONS: Record<string, string> = {
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+  'application/pdf': '.pdf',
+  'image/heic': '.heic',
+};
+
+/** An iPhone HEIC/HEIF picture: an ISO media file whose brand says so. */
+function heicMime(buffer: Buffer): string | null {
+  if (buffer.length < 12 || buffer.subarray(4, 8).toString('latin1') !== 'ftyp') return null;
+  const brand = buffer.subarray(8, 12).toString('latin1').toLowerCase();
+  return ['heic', 'heix', 'hevc', 'heim', 'heis', 'mif1', 'msf1'].includes(brand) ? 'image/heic' : null;
+}
+
+function declaresPictureOrPdf(file: File): boolean {
+  const type = (file.type || '').toLowerCase();
+  if (type.startsWith('image/') || type === 'application/pdf') return true;
+  return /\.(jpe?g|jfif|png|webp|gif|bmp|tiff?|heic|heif|avif|pdf)$/i.test(file.name || '');
+}
+
+/**
+ * Rebuild the file into a safe stored form when that is possible.
+ * Returns null when it cannot be decoded; the caller then decides whether to
+ * keep the original bytes.
+ */
+async function prepareForStorage(
+  buffer: Buffer,
+  detectedMime: string | null,
+): Promise<{ buffer: Buffer; mimeType: string } | null> {
+  if (detectedMime === 'application/pdf') {
+    // A PDF is kept as sent. Its ending is not checked: bank apps produce
+    // files that open fine without a standard trailer.
+    return { buffer, mimeType: 'application/pdf' };
+  }
+  if (detectedMime) {
+    const clean = await normalizeValidatedFile(buffer, detectedMime);
+    if (clean) return { buffer: clean, mimeType: detectedMime };
+  }
+  // Another picture format, or a picture with minor damage: read what can be
+  // read and save it as JPG.
+  try {
+    const converted = await sharp(buffer, { failOn: 'none', limitInputPixels: 100_000_000, pages: 1 })
+      .rotate()
+      .flatten({ background: '#ffffff' })
+      .jpeg({ quality: 90, mozjpeg: true })
+      .toBuffer();
+    return { buffer: converted, mimeType: 'image/jpeg' };
+  } catch {
+    return null;
+  }
+}
+
 // --------------------------------------------------------
 // File Upload Handler
 // --------------------------------------------------------
 
 /**
  * Process and store an uploaded file securely.
- * - Validates MIME type and file extension
- * - Validates magic bytes
  * - Validates file size
+ * - Takes the type from the file's content, not its name or declared type
+ * - Decodes the whole image (or checks the PDF structure) before storing
  * - Generates a unique filename
  * - Stores file in private upload directory
  */
@@ -145,36 +198,37 @@ export async function processUpload(
     };
   }
 
-  // MIME + extension validation
-  if (!isValidMimeType(file.type, file.name)) {
-    return {
-      error: 'نوع الملف غير مسموح. الأنواع المسموحة: JPG, PNG, WEBP, PDF',
-      code: 'INVALID_MIME',
-    };
-  }
-
   // Read file buffer
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
 
-  // Magic bytes validation
+  // A customer must never be stopped from booking because of the format or the
+  // condition of a payment proof. So the owner's rule is: anything that is, or
+  // claims to be, a picture or a PDF is accepted. The steps go from safest to
+  // most permissive, and only the last one stores bytes that were not rebuilt:
+  //   1. a clean JPG/PNG/WEBP is decoded and re-encoded in its own format;
+  //   2. any other picture the decoder can read, or a slightly damaged one,
+  //      is converted to JPG;
+  //   3. what cannot be decoded at all (an iPhone HEIC, a broken file, a PDF
+  //      with an odd ending) is stored exactly as it was sent.
+  // The declared type and the extension are never a reason to refuse. Stored
+  // files are served with their recorded type and "nosniff", so a file kept
+  // as-is is shown as a picture or downloaded, never run as a page.
   const detectedMime = detectMimeFromBuffer(buffer);
-  if (!detectedMime || detectedMime !== file.type) {
-    return {
-      error: 'محتوى الملف لا يتطابق مع نوعه المعلن',
-      code: 'INVALID_MIME',
-    };
+  const stored = await prepareForStorage(buffer, detectedMime);
+  if (!stored) {
+    if (!detectedMime && !declaresPictureOrPdf(file)) {
+      return {
+        error: 'اختر صورة أو ملف PDF لإثبات الدفع.',
+        code: 'INVALID_MIME',
+      };
+    }
+    console.warn('Upload stored without re-encoding', {
+      declaredType: file.type, detectedMime, sizeBytes: buffer.length,
+    });
   }
-
-  // Decode the complete image (or validate the PDF trailer) before storage.
-  // Re-encoding images rejects truncated payloads and strips unsafe metadata.
-  const validatedBuffer = await normalizeValidatedFile(buffer, detectedMime);
-  if (!validatedBuffer) {
-    return {
-      error: 'الملف تالف أو غير مكتمل ولا يمكن قراءته بأمان',
-      code: 'INVALID_MIME',
-    };
-  }
+  const validatedBuffer = stored?.buffer ?? buffer;
+  const storedMime = stored?.mimeType ?? detectedMime ?? heicMime(buffer) ?? 'application/octet-stream';
   if (validatedBuffer.length > MAX_FILE_SIZE) {
     return {
       error: `حجم الملف بعد التحقق يتجاوز الحد الأقصى المسموح (${Math.round(MAX_FILE_SIZE / 1024 / 1024)}MB)`,
@@ -183,8 +237,10 @@ export async function processUpload(
   }
 
   // Generate unique filename
+  // The stored extension follows the real content, because files are served
+  // back by extension.
   const fileId = randomUUID();
-  const ext = path.extname(file.name).toLowerCase();
+  const ext = STORED_EXTENSIONS[storedMime] ?? '.bin';
   const safeFileName = `${fileId}${ext}`;
 
   const key = storageKey(subDirectory, safeFileName);
@@ -200,7 +256,7 @@ export async function processUpload(
     fileId,
     fileName: safeFileName,
     filePath: storage.describe(key),
-    mimeType: file.type,
+    mimeType: storedMime,
     sizeBytes: validatedBuffer.length,
     url: `/api/files/${subDirectory}/${safeFileName}`,
   };
@@ -232,6 +288,7 @@ export async function readUploadedFile(
       '.png': 'image/png',
       '.webp': 'image/webp',
       '.pdf': 'application/pdf',
+      '.heic': 'image/heic',
     };
     const mimeType = mimeMap[ext] || 'application/octet-stream';
     return { buffer, mimeType };

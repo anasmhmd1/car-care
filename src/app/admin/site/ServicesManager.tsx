@@ -230,12 +230,6 @@ const inputClass =
   'mt-2 min-h-11 w-full rounded-xl border border-white/10 bg-black/40 px-3 text-sm text-white outline-none transition focus:border-[#cea355] focus:ring-2 focus:ring-[#cea355]/20 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none';
 const areaClass = `${inputClass} min-h-28 py-3 leading-6`;
 
-function numberOrNull(value: string): number | null {
-  if (!value.trim()) return null;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
 function responseMessage(value: unknown): { url?: string; error?: string } {
   if (!value || typeof value !== 'object') return { error: 'استجابة رفع غير صالحة.' };
   const record = value as Record<string, unknown>;

@@ -35,6 +35,7 @@ import { createBookingAction, uploadPaymentProofAction, releasePendingBookingHol
 import { BOOKING_TERMS_VERSION } from '@/lib/policies/versions';
 import { prepareImageForUpload } from '@/lib/client/image-upload';
 import { whatsappHref } from '@/lib/contact-links';
+import { isCanonicalPhone, normalizePhone as toCanonicalPhone } from '@/lib/validations/phone';
 import { isValidLocationUrl } from '@/lib/security/url';
 
 type VehicleSize = 'SEDAN' | 'CROSSOVER' | 'SUV' | 'LARGE_SUV';
@@ -181,12 +182,33 @@ interface UiError {
 }
 
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
-const ALLOWED_UPLOAD_TYPES = new Set([
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'application/pdf',
-]);
+
+/**
+ * A photo larger than the upload limit is scaled down in the browser instead
+ * of being refused, so a high-resolution phone camera does not stop a booking.
+ * Returns the original file when it cannot be read as a picture here.
+ */
+async function shrinkPictureToFit(file: File): Promise<File> {
+  try {
+    const bitmap = await createImageBitmap(file);
+    const longestSide = Math.max(bitmap.width, bitmap.height);
+    const scale = Math.min(1, 2560 / longestSide);
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    const context = canvas.getContext('2d');
+    if (!context) return file;
+    context.fillStyle = '#ffffff';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.85));
+    if (!blob || blob.size >= file.size) return file;
+    return new File([blob], 'payment-proof.jpg', { type: 'image/jpeg' });
+  } catch {
+    return file;
+  }
+}
 
 const inputClass =
   'w-full rounded-xl border border-neutral-700 bg-[#0a0a0a] px-4 py-3 text-white placeholder:text-neutral-500 transition-colors hover:border-neutral-500 focus-visible:border-[#cea355] focus-visible:ring-2 focus-visible:ring-[#cea355]/25 disabled:cursor-not-allowed disabled:opacity-60 text-sm font-medium';
@@ -401,8 +423,30 @@ export function formatSelectedDateArabic(dateStr: string): string {
   return `${dayNames[d.getDay()]}، ${day} ${monthNames[d.getMonth()]} ${year}`;
 }
 
+const ARABIC_DIGITS = '٠١٢٣٤٥٦٧٨٩';
+const PERSIAN_DIGITS = '۰۱۲۳۴۵۶۷۸۹';
+
+/**
+ * What a phone field keeps as the customer types: digits and one leading "+".
+ * Arabic and Persian digits are turned into Latin ones, and anything else (a
+ * name the browser auto-filled, spaces, dashes) is dropped, so the field can
+ * only ever hold a number.
+ */
+function cleanPhoneInput(value: string) {
+  const latin = value
+    .replace(/[٠-٩]/g, (digit) => String(ARABIC_DIGITS.indexOf(digit)))
+    .replace(/[۰-۹]/g, (digit) => String(PERSIAN_DIGITS.indexOf(digit)));
+  const digits = latin.replace(/[^0-9]/g, '');
+  return latin.trim().startsWith('+') ? `+${digits}` : digits;
+}
+
 function normalizePhone(value: string) {
-  return value.replace(/[\s()_-]/g, '');
+  return cleanPhoneInput(value);
+}
+
+/** The same rule the server applies, so a number accepted here is accepted there. */
+function isValidPhone(value: string) {
+  return isCanonicalPhone(toCanonicalPhone(cleanPhoneInput(value)));
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -689,8 +733,8 @@ export default function BookingWizardClient({
   const estimatedTransferAmount = Math.max(0, estimatedDeposit - estimatedCreditApplied);
   const hasSavedContact =
     fullName.trim().length >= 2 &&
-    /^\+?[0-9]{10,15}$/.test(normalizePhone(phone)) &&
-    /^\+?[0-9]{10,15}$/.test(normalizePhone(whatsapp));
+    isValidPhone(phone) &&
+    isValidPhone(whatsapp);
   const useSavedContact = Boolean(user) && hasSavedContact;
   const upcomingDays = useMemo(() => getUpcoming7Days(), []);
   const [calendarViewMode, setCalendarViewMode] = useState<'quick' | 'month'>('quick');
@@ -944,16 +988,19 @@ export default function BookingWizardClient({
       showError('اكتب الاسم الكامل.', 'contact-name');
       return false;
     }
+    // One valid number is enough to book. Customers often fill only one of
+    // the two fields, so the valid one is used for the other instead of
+    // stopping them.
     const cleanPhone = normalizePhone(phone);
-    if (!/^\+?[0-9]{10,15}$/.test(cleanPhone)) {
-      showError('رقم التواصل يجب أن يكون رقم هاتف صالح.', 'contact-phone');
-      return false;
-    }
     const cleanWhatsapp = normalizePhone(whatsapp);
-    if (!/^\+?[0-9]{10,15}$/.test(cleanWhatsapp)) {
-      showError('رقم واتساب يجب أن يكون رقم هاتف صالح.', 'contact-whatsapp');
+    const phoneValid = isValidPhone(cleanPhone);
+    const whatsappValid = isValidPhone(cleanWhatsapp);
+    if (!phoneValid && !whatsappValid) {
+      showError('اكتب رقم الهاتف بالأرقام فقط، مثال: 01012345678', 'contact-phone');
       return false;
     }
+    if (!phoneValid) setPhone(cleanWhatsapp);
+    if (!whatsappValid) setWhatsapp(cleanPhone);
     return true;
   }
 
@@ -1029,8 +1076,11 @@ export default function BookingWizardClient({
       service.cancellationPolicy.revision,
     );
     formData.append('contactName', fullName.trim());
-    formData.append('contactPhone', normalizePhone(phone));
-    formData.append('contactWhatsapp', normalizePhone(whatsapp));
+    // Send a valid number in both fields even if only one was filled in.
+    const typedPhone = normalizePhone(phone);
+    const typedWhatsapp = normalizePhone(whatsapp);
+    formData.append('contactPhone', isValidPhone(typedPhone) ? typedPhone : typedWhatsapp);
+    formData.append('contactWhatsapp', isValidPhone(typedWhatsapp) ? typedWhatsapp : typedPhone);
     if (customerNotes.trim()) formData.append('customerNotes', customerNotes.trim());
     if (useCredit && creditBalance > 0) formData.append('useCredit', 'true');
 
@@ -1143,8 +1193,9 @@ export default function BookingWizardClient({
     }
   }
 
-  function onProofFileChange(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0] ?? null;
+  async function onProofFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const input = event.target;
+    let file = input.files?.[0] ?? null;
     setUploadedProofFileId('');
     setUiError(null);
     if (!file) {
@@ -1152,17 +1203,16 @@ export default function BookingWizardClient({
       setProofPreviewUrl('');
       return;
     }
-    if (!ALLOWED_UPLOAD_TYPES.has(file.type)) {
-      setProofFile(null);
-      setProofPreviewUrl('');
-      event.target.value = '';
-      showError('اختر صورة JPG أو PNG أو WEBP أو ملف PDF.', 'payment-proof-file');
-      return;
+    // The format is not checked here. Phones report wrong or empty types, and
+    // the server accepts any picture or PDF, so a customer is never stopped at
+    // this step because of the file's type.
+    if (file.size > MAX_UPLOAD_BYTES) {
+      file = await shrinkPictureToFit(file);
     }
     if (file.size > MAX_UPLOAD_BYTES) {
       setProofFile(null);
       setProofPreviewUrl('');
-      event.target.value = '';
+      input.value = '';
       showError('حجم الملف يجب ألا يتجاوز 10 ميجابايت.', 'payment-proof-file');
       return;
     }
@@ -1965,11 +2015,11 @@ export default function BookingWizardClient({
                 </div>
                 <div>
                   <label htmlFor="contact-phone" className={labelClass}>رقم الهاتف للاتصال</label>
-                  <input id="contact-phone" type="tel" dir="ltr" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={20} className={inputClass} placeholder="01XXXXXXXXX" />
+                  <input id="contact-phone" type="tel" inputMode="tel" autoComplete="tel" dir="ltr" value={phone} onChange={(e) => setPhone(cleanPhoneInput(e.target.value))} maxLength={20} className={inputClass} placeholder="01XXXXXXXXX" />
                 </div>
                 <div>
                   <label htmlFor="contact-whatsapp" className={labelClass}>رقم واتساب للتنسيق</label>
-                  <input id="contact-whatsapp" type="tel" dir="ltr" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} maxLength={20} className={inputClass} placeholder="01XXXXXXXXX" />
+                  <input id="contact-whatsapp" type="tel" inputMode="tel" autoComplete="tel" dir="ltr" value={whatsapp} onChange={(e) => setWhatsapp(cleanPhoneInput(e.target.value))} maxLength={20} className={inputClass} placeholder="01XXXXXXXXX" />
                 </div>
               </div>
             )}
@@ -2177,7 +2227,7 @@ export default function BookingWizardClient({
                     )}
                     {proofFile && <span className="mt-3 rounded-lg bg-[#1a1a1a] px-3 py-1.5 text-xs font-bold text-[#edce8b]">{proofFile.name} · {formatBytes(proofFile.size)}</span>}
                   </label>
-                  <input id="payment-proof-file-input" type="file" accept="image/jpeg,image/png,image/webp,application/pdf,.jpg,.jpeg,.png,.webp,.pdf" onChange={onProofFileChange} className="sr-only" />
+                  <input id="payment-proof-file-input" type="file" accept="image/*,application/pdf,.pdf" onChange={(event) => void onProofFileChange(event)} className="sr-only" />
                 </div>
               </div>
             )}
